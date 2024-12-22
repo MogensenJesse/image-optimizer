@@ -1,0 +1,30 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "binaries/test",
+          "sidecar": true,
+          "args": [
+            "ping",
+            {
+              "validator": "\\S+"
+            }
+          ]
+        }
+      ]
+    },
+    "shell:allow-kill",
+    "shell:allow-open",
+    "shell:allow-spawn",
+    "shell:allow-stdin-write"
+  ]
+}
