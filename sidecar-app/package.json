@@ -1,15 +1,30 @@
 {
-  "name": "sidecar-app",
+  "name": "test",
   "version": "1.0.0",
   "main": "index.js",
-  "type":"module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "pkg --no-bytecode --public-packages \"*\" --public ."
   },
   "author": "",
   "license": "ISC",
   "description": "",
+  "dependencies": {
+    "sharp": "^0.33.5"
+  },
+  "optionalDependencies": {
+    "@img/sharp-win32-x64": "latest"
+  },
   "devDependencies": {
     "@yao-pkg/pkg": "^6.1.1"
+  },
+  "bin": "index.js",
+  "pkg": {
+    "assets": [
+      "node_modules/sharp/**/*",
+      "node_modules/@img/sharp-win32-x64/**/*"
+    ],
+    "targets": [
+      "node20-win-x64"
+    ]
   }
 }

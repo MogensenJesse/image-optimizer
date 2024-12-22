@@ -2,9 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": [
-    "main"
-  ],
+  "windows": ["main"],
   "permissions": [
     "core:default",
     {
@@ -14,7 +12,10 @@
           "name": "binaries/test",
           "sidecar": true,
           "args": [
-            "ping",
+            "optimize",
+            {
+              "validator": "\\S+"
+            },
             {
               "validator": "\\S+"
             }
@@ -25,6 +26,23 @@
     "shell:allow-kill",
     "shell:allow-open",
     "shell:allow-spawn",
-    "shell:allow-stdin-write"
+    "shell:allow-stdin-write",
+    "dialog:allow-open",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        {
+          "path": "**"
+        }
+      ]
+    },
+    "fs:allow-read",
+    "core:event:default",
+    "core:path:default",
+    "fs:allow-mkdir",
+    "process:default",
+    "shell:default",
+    "fs:default",
+    "dialog:default"
   ]
 }

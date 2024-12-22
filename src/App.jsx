@@ -1,84 +1,96 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
+import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Command } from '@tauri-apps/plugin-shell';
+import { Command } from "@tauri-apps/plugin-shell";
+import { listen } from '@tauri-apps/api/event';
+import { dirname, join } from '@tauri-apps/api/path';
+import { mkdir } from "@tauri-apps/plugin-fs";
 import "./App.css";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
-  const [sidecarResponse, setSidecarResponse] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [optimizationStats, setOptimizationStats] = useState({
+    totalFiles: 0,
+    processedFiles: 0,
+    elapsedTime: 0
+  });
 
-  async function greet() {
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  useEffect(() => {
+    const unlisten = listen("tauri://drag-enter", () => {
+      setIsDragging(true);
+    });
 
-  async function executeSidecar() {
-    try {
-      console.log('=== Starting Sidecar Execution ===');
-      
-      // Add more detailed logging
-      const command = Command.sidecar('binaries/test', ['ping', name]);
-      console.log('Command object:', command);
-      
-      console.log('Executing command...');
-      const output = await command.execute();
-      console.log('Command output:', output);
-      
-      setSidecarResponse(output.stdout);
-      
-    } catch (error) {
-      console.error('=== Sidecar Execution Failed ===');
-      console.error('Error details:', {
-        name: error.name,
-        message: error.message,
-        code: error.code,
-        status: error.status,
-        signal: error.signal,
-        stdout: error.stdout,
-        stderr: error.stderr
-      });
-      setSidecarResponse(`Error: ${error.message}`);
-    }
-  }
+    const unlistenCancel = listen("tauri://drag-leave", () => {
+      setIsDragging(false);
+    });
+
+    const unlistenDrop = listen("tauri://drag-drop", async (event) => {
+      setIsDragging(false);
+      const paths = event.payload.paths;
+
+      if (paths && paths.length > 0) {
+        try {
+          setIsProcessing(true);
+          const startTime = performance.now();
+          let processedFiles = 0;
+
+          // Create all required directories first
+          await Promise.all(paths.map(async (path) => {
+            const parentDir = await dirname(path);
+            const optimizedPath = await join(parentDir, 'optimized');
+            await mkdir(optimizedPath, { recursive: true });
+          }));
+
+          // Process images in parallel with Promise.all
+          await Promise.all(paths.map(async (path) => {
+            try {
+              const parentDir = await dirname(path);
+              const optimizedPath = await join(parentDir, 'optimized', path.split('\\').pop());
+              await invoke('optimize_image', { inputPath: path, outputPath: optimizedPath });
+              processedFiles++;
+              
+              setOptimizationStats(prev => ({
+                totalFiles: paths.length,
+                processedFiles,
+                elapsedTime: ((performance.now() - startTime) / 1000).toFixed(2)
+              }));
+            } catch (error) {
+              console.error('Error processing image:', error);
+            }
+          }));
+
+        } catch (error) {
+          console.error('Error processing images:', error);
+        } finally {
+          setIsProcessing(false);
+        }
+      }
+    });
+
+    return () => {
+      unlisten;
+      unlistenCancel;
+      unlistenDrop;
+    };
+  }, []);
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vitejs.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://reactjs.org" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          console.log('\n=== Form Submitted ===');
-          console.log('Input name:', name);
-          greet();
-          executeSidecar();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-
-      <p>{greetMsg}</p>
-      <p>Sidecar Response: {sidecarResponse}</p>
-    </main>
+    <div 
+      className={`dropzone ${isDragging ? 'dragging' : ''} ${isProcessing ? 'processing' : ''}`}
+    >
+      {isProcessing ? (
+        <div className="processing-info">
+          <h2>Processing Images...</h2>
+          <p>Processed {optimizationStats.processedFiles} of {optimizationStats.totalFiles} files</p>
+          <p>Time elapsed: {optimizationStats.elapsedTime}s</p>
+        </div>
+      ) : (
+        <div className="dropzone-content">
+          <h2>Drop images here</h2>
+          <p>Images will be optimized and saved in an 'optimized' folder</p>
+        </div>
+      )}
+    </div>
   );
 }
 

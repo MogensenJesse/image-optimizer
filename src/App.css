@@ -114,3 +114,64 @@ button {
     background-color: #0f0f0f69;
   }
 }
+
+.dropzone {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  background-color: #f6f6f6;
+  transition: all 0.3s ease;
+}
+
+.dropzone.dragging {
+  background-color: #e0e0e0;
+  border-color: #396cd8;
+}
+
+.dropzone.processing {
+  background-color: #f0f0f0;
+  border-color: #24c8db;
+}
+
+.dropzone-content {
+  text-align: center;
+  color: #666;
+}
+
+.processing-info {
+  text-align: center;
+  color: #396cd8;
+}
+
+.processing-info h2 {
+  margin-bottom: 1rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .dropzone {
+    background-color: #2f2f2f;
+    border-color: #666;
+  }
+
+  .dropzone.dragging {
+    background-color: #3f3f3f;
+    border-color: #24c8db;
+  }
+
+  .dropzone.processing {
+    background-color: #3f3f3f;
+    border-color: #24c8db;
+  }
+
+  .dropzone-content {
+    color: #f6f6f6;
+  }
+
+  .processing-info {
+    color: #24c8db;
+  }
+}
