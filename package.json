@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "build:sidecar": "cd sidecar-app && npm run build:rename",
+    "tauri": "npm run build:sidecar && tauri"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
@@ -18,8 +19,7 @@
     "@tauri-apps/plugin-shell": "^2.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-dropzone": "^14.3.5",
-    "sharp": "^0.33.5"
+    "react-dropzone": "^14.3.5"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",

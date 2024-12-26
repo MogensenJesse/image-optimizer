@@ -1,6 +1,4 @@
-- Remove redundant code (dropzone, greet, ...)
-- Automize run npm build & rename.js into npm run tauri dev
-- Add documentation for the sidecar build process (maybe automize npm i from sidecar-app into the root folder?)
+- Add documentation for the sidecar build process (maybe automate npm i from sidecar-app into the root folder?)
 - Rename app and all references
 - Add optimization options
 - Add conversion options
