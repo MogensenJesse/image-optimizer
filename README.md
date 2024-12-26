@@ -10,7 +10,6 @@ A desktop application built with Tauri and React that optimizes images using Sha
 - Real-time processing status and statistics
 - Preserves original files
 - Native performance with Tauri
-- Dark mode support
 
 ## Technology Stack
 
@@ -23,7 +22,7 @@ A desktop application built with Tauri and React that optimizes images using Sha
 
 - [Node.js](https://nodejs.org/) (v20 or later)
 - [Rust](https://www.rust-lang.org/tools/install)
-- [Tauri Prerequisites](https://tauri.app/v1/guides/getting-started/prerequisites)
+- [Tauri Prerequisites](https://v2.tauri.app/start/prerequisites/)
 
 ## Development Setup
 
@@ -53,41 +52,14 @@ A desktop application built with Tauri and React that optimizes images using Sha
    - Start the Tauri development server
    - Open the application
 
-## Project Structure
-
-.
-├── src/ # React frontend code
-├── src-tauri/ # Rust backend code
-│ ├── src/
-│ │ ├── commands/ # Tauri commands
-│ │ └── lib.rs # Main Rust entry point
-│ └── binaries/ # Location for sidecar binaries
-├── sidecar-app/ # Node.js sidecar application
-│ ├── index.js # Sharp image processing logic
-│ └── package.json # Sidecar dependencies
-└── package.json # Main application dependencies
-
-
 ## Building for Production
 
 To create a production build:
-bash
+```bash
 npm run tauri build
-
+```
 
 This will create platform-specific installers in the `src-tauri/target/release/bundle` directory.
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-[License Type] - See LICENSE file for details
 
 ## Acknowledgments
 
