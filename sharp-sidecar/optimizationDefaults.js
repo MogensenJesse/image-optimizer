@@ -10,7 +10,7 @@ const optimizationDefaults = {
     adaptiveFiltering: true,
     palette: true,
     quality: 90,
-    effort: 10
+    effort: 10,
   },
   webp: {
     quality: 90,
@@ -25,7 +25,7 @@ const optimizationDefaults = {
   },
   tiff: {
     quality: 100,
-    compression: 'zstd',
+    compression: 'deflate',
     predictor: 'horizontal',
     pyramid: false,
     tile: true,
