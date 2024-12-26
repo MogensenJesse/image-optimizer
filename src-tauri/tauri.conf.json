@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "sidecar",
+  "productName": "Image Optimizer",
   "version": "0.1.0",
-  "identifier": "com.sidecar.app",
+  "identifier": "com.image-optimizer.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "sidecar",
+        "title": "image-optimizer",
         "width": 800,
         "height": 600,
         "transparent": true,
@@ -29,7 +29,7 @@
   },
   "bundle": {
     "externalBin": [
-      "binaries/test"
+      "binaries/sharp-sidecar"
     ],
     "active": true,
     "targets": "all",

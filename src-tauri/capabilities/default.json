@@ -9,7 +9,7 @@
       "identifier": "shell:allow-execute",
       "allow": [
         {
-          "name": "binaries/test",
+          "name": "binaries/sharp-sidecar",
           "sidecar": true,
           "args": [
             "optimize",

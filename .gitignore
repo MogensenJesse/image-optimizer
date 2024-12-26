@@ -17,7 +17,7 @@ dist
 dist-ssr
 *.local
 src-tauri/binaries/
-sidecar-app/test*
+sharp-sidecar/sharp-sidecar*
 
 # Editor directories and files
 .vscode/*

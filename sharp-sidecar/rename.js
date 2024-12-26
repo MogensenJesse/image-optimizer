@@ -8,4 +8,4 @@ const targetTriple = /host: (\S+)/g.exec(rustInfo)[1];
 if (!targetTriple) {
   console.error("Failed to determine platform target triple");
 }
-fs.renameSync(`test${ext}`, `../src-tauri/binaries/test-${targetTriple}${ext}`);
+fs.renameSync(`sharp-sidecar${ext}`, `../src-tauri/binaries/sharp-sidecar-${targetTriple}${ext}`);

@@ -30,6 +30,7 @@ A desktop application built with Tauri and React that optimizes images using Sha
    ```bash
    git clone [repository-url]
    cd image-optimizer
+
    ```
 
 2. Install dependencies:

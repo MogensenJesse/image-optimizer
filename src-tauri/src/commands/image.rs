@@ -4,8 +4,8 @@ use tauri_plugin_shell::ShellExt;
 pub async fn optimize_image(app: tauri::AppHandle, input_path: String, output_path: String) -> Result<String, String> {
     let command = app
         .shell()
-        .sidecar("test")
-        .expect("failed to create sidecar command")
+        .sidecar("sharp-sidecar")
+        .expect("failed to create sharp sidecar command")
         .args(&["optimize", &input_path, &output_path]);
 
     let output = command

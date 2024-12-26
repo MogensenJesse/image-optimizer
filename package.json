@@ -1,5 +1,5 @@
 {
-  "name": "sidecar",
+  "name": "image-optimizer",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "build:sidecar": "cd sidecar-app && npm run build:rename",
-    "tauri": "npm run build:sidecar && tauri"
+    "build:sharp": "cd sharp-sidecar && npm run build:rename",
+    "tauri": "npm run build:sharp && tauri"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
