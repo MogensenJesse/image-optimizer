@@ -22,7 +22,8 @@
   "pkg": {
     "assets": [
       "node_modules/sharp/**/*",
-      "node_modules/@img/sharp-win32-x64/**/*"
+      "node_modules/@img/sharp-win32-x64/**/*",
+      "optimizationDefaults.js"
     ],
     "targets": [
       "node20-win-x64"

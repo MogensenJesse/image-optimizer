@@ -1,5 +1,3 @@
-- Add documentation for the sidecar build process (maybe automate npm i from sidecar-app into the root folder?)
-- Rename app and all references
 - Add optimization options
 - Add conversion options
 - Add resizing options
