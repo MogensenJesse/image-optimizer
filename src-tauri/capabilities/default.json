@@ -18,6 +18,9 @@
             },
             {
               "validator": "\\S+"
+            },
+            {
+              "validator": ".*"
             }
           ]
         }

@@ -2,26 +2,27 @@ const optimizationDefaults = {
   jpeg: {
     quality: 90,
     mozjpeg: true,
-    chromaSubsampling: '4:4:4',
+    chromaSubsampling: '4:2:0',
     optimiseCoding: true
   },
   png: {
-    compressionLevel: 9,
+    compressionLevel: 7,
     adaptiveFiltering: true,
     palette: true,
-    quality: 90,
-    effort: 10,
+    effort: 4,
   },
   webp: {
     quality: 90,
-    effort: 6,
+    alphaQuality: 90,
+    effort: 4,
     lossless: false,
-    smartSubsample: true
+    smartSubsample: false
   },
   avif: {
     quality: 90,
-    effort: 8,
-    chromaSubsampling: '4:4:4'
+    effort: 2,
+    chromaSubsampling: '4:2:0',
+    lossless: false,
   },
   tiff: {
     quality: 100,

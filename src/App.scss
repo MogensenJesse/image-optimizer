@@ -1,0 +1,65 @@
+body {
+  padding: 20px;
+  overflow: hidden;
+}
+
+.dropzone {
+  width: 100%;
+  height: calc(100vh - 40px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  transition: all 0.3s ease;
+
+  &--dragging {
+    border-color: rgba(36, 200, 219, 0.5);
+    background-color: rgba(36, 200, 219, 0.05);
+  }
+
+  &--processing {
+    border-color: rgba(36, 200, 219, 0.3);
+    background-color: rgba(36, 200, 219, 0.02);
+  }
+
+  &__content {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 300;
+  }
+}
+
+.processing-info {
+  text-align: center;
+  color: rgba(36, 200, 219, 0.9);
+
+  &__title {
+    margin-bottom: 1rem;
+    font-weight: 300;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .dropzone {
+    border-color: #666;
+  }
+
+  .dropzone.dragging {
+    background-color: #3f3f3f;
+    border-color: #24c8db;
+  }
+
+  .dropzone.processing {
+    background-color: #3f3f3f;
+    border-color: #24c8db;
+  }
+
+  .dropzone-content {
+    color: #f6f6f6;
+  }
+
+  .processing-info {
+    color: #24c8db;
+  }
+}
