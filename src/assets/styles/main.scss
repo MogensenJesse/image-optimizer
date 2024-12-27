@@ -1,10 +1,10 @@
 // Base styles
-@import './base/variables';
-@import './base/reset';
-@import './base/typography';
+@use 'base/variables';
+@use 'base/reset';
+@use 'base/typography';
 
 // App styles
-@import './app/app';
+@use 'app/app';
 
 // Component styles
-@import './components/FloatingMenu'; 
+@use 'components/FloatingMenu'; 
