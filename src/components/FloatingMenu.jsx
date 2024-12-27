@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import './FloatingMenu.scss';
 
 const ResizeControls = ({ settings, onSettingsChange }) => {
   const [resizeMode, setResizeMode] = useState('none'); // none, width, height, longest, shortest

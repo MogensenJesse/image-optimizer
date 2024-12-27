@@ -1,0 +1,10 @@
+// Base styles
+@import './base/variables';
+@import './base/reset';
+@import './base/typography';
+
+// App styles
+@import './app/app';
+
+// Component styles
+@import './components/FloatingMenu'; 
