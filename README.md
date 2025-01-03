@@ -1,22 +1,33 @@
 # Image Optimizer
 
-A desktop application built with Tauri and React that optimizes images using Sharp. Drop your images into the application, and it will create optimized versions in an 'optimized' subfolder while preserving the original files.
+A cross-platform desktop application built with Tauri v2 that optimizes images while maintaining quality. The app features a modern React frontend and leverages Sharp for efficient image processing.
 
 ## Features
 
-- Drag and drop interface for easy image processing
-- Processes multiple images in parallel
-- Creates an 'optimized' folder in the same directory as the source images
-- Real-time processing status and statistics
-- Preserves original files
-- Native performance with Tauri
+- 🖼️ Drag and drop interface for image optimization
+- 📁 Batch processing support
+- 🚀 High-performance image processing using Sharp
+- 💾 Automatic creation of optimized output directories
+- 📊 Real-time optimization statistics
+- 🎨 Native OS integration with window effects
+- 🔒 Secure architecture using Tauri's security model
 
-## Technology Stack
+## Tech Stack
 
-- **Frontend**: React
-- **Backend**: Tauri (Rust)
-- **Image Processing**: Sharp (Node.js)
+- **Frontend**: React 18
+- **Backend**: Rust + Tauri v2
+- **Image Processing**: Sharp (via Node.js sidecar)
 - **Build Tools**: Vite, pkg
+
+## Project Structure
+
+```
+image-optimizer/
+├── src/               # React frontend
+├── src-tauri/         # Rust backend
+├── sharp-sidecar/     # Node.js image processing service
+└── dist/              # Built frontend files
+```
 
 ## Prerequisites
 
@@ -26,44 +37,62 @@ A desktop application built with Tauri and React that optimizes images using Sha
 
 ## Development Setup
 
-1. Clone the repository:
-   ```bash
-   git clone [repository-url]
-   cd image-optimizer
+1. Install dependencies:
+    ```bash
+    # Install frontend dependencies
+    npm install
 
-   ```
+    # Install sharp-sidecar dependencies
+    cd sharp-sidecar
+    npm install
+    ```
 
-2. Install dependencies:
-   ```bash
-   # Install main application dependencies
-   npm install
-   
-   # Install sidecar dependencies
-   cd sidecar-app && npm install
-   cd ..
-   ```
+2. Run the development server:
+    ```bash
+    npm run tauri dev
+    ```
 
-3. Start the development server:
-   ```bash
-   npm run tauri dev
-   ```
-   
-   This command will:
-   - Build the sidecar application (Sharp binary)
-   - Start the Tauri development server
-   - Open the application
+## Building
 
-## Building for Production
+1. Build the application:
+    ```bash
+    npm run tauri build
+    ```
 
-To create a production build:
-```bash
-npm run tauri build
-```
+This will:
+- Build the Sharp sidecar executable
+- Compile the React frontend
+- Package everything into a native executable
 
-This will create platform-specific installers in the `src-tauri/target/release/bundle` directory.
+## Architecture
 
-## Acknowledgments
+### Frontend (React)
+- Handles drag and drop functionality
+- Manages optimization state and progress
+- Provides real-time feedback on optimization process
 
-- [Tauri](https://tauri.app/) for the framework
-- [Sharp](https://sharp.pixelplumbing.com/) for image processing
-- [React](https://reactjs.org/) for the UI framework
+### Backend (Rust/Tauri)
+- Manages file system operations
+- Handles IPC between frontend and sidecar
+- Implements security boundaries
+- Controls process lifecycle
+
+### Sidecar (Node.js/Sharp)
+- Performs image optimization
+- Handles various image formats
+- Implements optimization algorithms
+
+## Plugins Used
+
+- `tauri-plugin-process`: Process management
+- `tauri-plugin-dialog`: Native dialogs
+- `tauri-plugin-fs`: File system operations
+- `tauri-plugin-shell`: Shell command execution
+- `tauri-plugin-opener`: File opening capabilities
+
+## Security
+
+- Implements Tauri's security model
+- Controlled file system access
+- Sandboxed image processing
+- Type-safe IPC communication

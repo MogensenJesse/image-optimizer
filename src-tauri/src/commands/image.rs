@@ -63,7 +63,7 @@ pub async fn optimize_image(
             "optimize",
             &input_path,
             &output_path,
-            &settings_json  // Pass the JSON string as an argument
+            &settings_json
         ]);
 
     println!("Sending settings to sidecar: {}", settings_json);  // Debug log
