@@ -17,13 +17,28 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+# Optimize release builds
+[profile.release]
+codegen-units = 1
+panic = "abort"
+opt-level = "s" # Optimize for size
+lto = true      # Enable link-time optimization
+strip = true    # Strip debug symbols
+
+# Speed up debug builds
+[profile.dev]
+incremental = true
+
 [dependencies]
 tauri = { version = "2", features = [] }
-tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-shell = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-process = "2"
+tauri-plugin-opener = "2"
+
+# Optional: Add logging for better debugging
+tauri-plugin-log = "2"
 
