@@ -383,26 +383,10 @@ This process ensures the Sharp sidecar is:
    - Output paths validated
    - Permissions checked before operations
 
-## 2. Development Roadmap
 
-### 2.1 Planned Features
-- [TBD]
+## 2. External Documentation & References
 
-### 2.2 Performance Optimizations
-- [TBD]
-
-### 2.3 User Experience Improvements
-- [TBD]
-
-### 2.4 Security Enhancements
-- [TBD]
-
-### 2.5 Cross-Platform Compatibility
-- [TBD]
-
-## 3. External Documentation & References
-
-### 3.1 Core Technologies
+### 2.1 Core Technologies
 
 1. **Tauri v2**
    - [Core Concepts](https://v2.tauri.app/concepts/architecture)
@@ -415,7 +399,7 @@ This process ensures the Sharp sidecar is:
    - [Image Formats](https://sharp.pixelplumbing.com/api-output)
    - [Performance Guide](https://sharp.pixelplumbing.com/performance)
 
-### 3.2 Build Tools
+### 2.2 Build Tools
 
 1. **pkg**
    - [@yao-pkg/pkg Documentation](https://github.com/vercel/pkg)
@@ -426,7 +410,7 @@ This process ensures the Sharp sidecar is:
    - [Configuration Reference](https://vitejs.dev/config/)
    - [Tauri Integration](https://v2.tauri.app/guides/getting-started/setup/vite)
 
-### 3.3 Development Resources
+### 2.3 Development Resources
 
 1. **Rust Crates**
    ```toml
@@ -451,7 +435,7 @@ This process ensures the Sharp sidecar is:
    }
    ```
 
-### 3.4 Security Guidelines
+### 2.4 Security Guidelines
 
 1. **Tauri Security Best Practices**
    - [Capability-based Security](https://v2.tauri.app/concepts/security/capabilities)
