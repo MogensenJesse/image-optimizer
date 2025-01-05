@@ -4,6 +4,7 @@ use crate::worker_pool::{WorkerPool, ImageTask};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use std::env;
+use tauri::{Manager, Emitter};
 
 lazy_static::lazy_static! {
     static ref WORKER_POOL: Arc<Mutex<Option<WorkerPool>>> = Arc::new(Mutex::new(None));
@@ -11,16 +12,16 @@ lazy_static::lazy_static! {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OptimizationResult {
-    path: String,
+    pub path: String,
     #[serde(rename = "originalSize")]
-    original_size: u64,
+    pub original_size: u64,
     #[serde(rename = "optimizedSize")]
-    optimized_size: u64,
+    pub optimized_size: u64,
     #[serde(rename = "savedBytes")]
-    saved_bytes: i64,
+    pub saved_bytes: i64,
     #[serde(rename = "compressionRatio")]
-    compression_ratio: String,
-    format: String,
+    pub compression_ratio: String,
+    pub format: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -109,5 +110,8 @@ pub async fn optimize_images(
         })
         .collect();
 
-    pool.process_batch(tasks).await
+    let app_handle = app.clone();
+    pool.process_batch(tasks, move |progress| {
+        let _ = app_handle.emit("optimization_progress", progress);
+    }).await
 }

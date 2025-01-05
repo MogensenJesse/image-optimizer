@@ -20,7 +20,12 @@ function App() {
   const [optimizationStats, setOptimizationStats] = useState({
     totalFiles: 0,
     processedFiles: 0,
-    elapsedTime: 0
+    elapsedTime: 0,
+    currentFile: '',
+    bytesProcessed: 0,
+    bytesSaved: 0,
+    estimatedTimeRemaining: 0,
+    activeWorkers: 0
   });
   const [optimizationResults, setOptimizationResults] = useState([]);
   const processingRef = useRef(false);
@@ -48,6 +53,21 @@ function App() {
   };
 
   useEffect(() => {
+    // Add progress event listener
+    const unsubscribeProgress = listen("optimization_progress", (event) => {
+      const progress = event.payload;
+      setOptimizationStats({
+        totalFiles: progress.total_files,
+        processedFiles: progress.processed_files,
+        currentFile: progress.current_file,
+        elapsedTime: progress.elapsed_time.toFixed(2),
+        bytesProcessed: progress.bytes_processed,
+        bytesSaved: progress.bytes_saved,
+        estimatedTimeRemaining: progress.estimated_time_remaining.toFixed(2),
+        activeWorkers: progress.active_workers
+      });
+    });
+
     const unsubscribeDrop = listen("tauri://drag-drop", async (event) => {
       if (processingRef.current) return;
       processingRef.current = true;
@@ -116,6 +136,7 @@ function App() {
       unsubscribeDrop.then(fn => fn());
       unsubscribeEnter.then(fn => fn());
       unsubscribeLeave.then(fn => fn());
+      unsubscribeProgress.then(fn => fn());
     };
   }, [settings]);
 
@@ -130,6 +151,11 @@ function App() {
               <h2 className="processing-info__title">Processing...</h2>
               <p>Processed {optimizationStats.processedFiles} of {optimizationStats.totalFiles} files</p>
               <p>Time elapsed: {optimizationStats.elapsedTime}s</p>
+              <p>Current file: {optimizationStats.currentFile}</p>
+              <p>Processed: {formatSize(optimizationStats.bytesProcessed)}</p>
+              <p>Saved: {formatSize(optimizationStats.bytesSaved)}</p>
+              <p>Estimated time remaining: {optimizationStats.estimatedTimeRemaining}s</p>
+              <p>Active workers: {optimizationStats.activeWorkers}</p>
             </div>
           ) : optimizationResults.length > 0 ? (
             <div className="processing-info">

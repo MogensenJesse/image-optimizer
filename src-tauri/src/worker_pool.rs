@@ -3,6 +3,7 @@ use crossbeam_channel::{bounded, Receiver, Sender};
 use tauri_plugin_shell::ShellExt;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use std::time::Instant;
 
 pub struct ImageTask {
     pub input_path: String,
@@ -21,6 +22,18 @@ pub struct WorkerPool {
 struct Worker {
     id: usize,
     handle: tokio::task::JoinHandle<()>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ProcessingProgress {
+    total_files: usize,
+    processed_files: usize,
+    current_file: String,
+    elapsed_time: f64,
+    bytes_processed: u64,
+    bytes_saved: i64,
+    estimated_time_remaining: f64,
+    active_workers: usize,
 }
 
 impl WorkerPool {
@@ -75,21 +88,67 @@ impl WorkerPool {
 
     pub async fn process_batch(
         &self,
-        tasks: Vec<ImageTask>
+        tasks: Vec<ImageTask>,
+        progress_callback: impl Fn(ProcessingProgress) + Send + 'static,
     ) -> Result<Vec<OptimizationResult>, String> {
+        let start_time = Instant::now();
         let total_tasks = tasks.len();
         let mut results = Vec::with_capacity(total_tasks);
+        let mut processed = 0;
+        let mut bytes_processed = 0;
+        let mut bytes_saved = 0;
         
         // Send all tasks to the queue
         for task in tasks {
+            let file_name = task.input_path.split(['/', '\\']).last()
+                .unwrap_or(&task.input_path).to_string();
+            
             self.task_sender.send(task)
                 .map_err(|e| format!("Failed to queue task: {}", e))?;
+
+            // Update progress
+            let progress = ProcessingProgress {
+                total_files: total_tasks,
+                processed_files: processed,
+                current_file: file_name,
+                elapsed_time: start_time.elapsed().as_secs_f64(),
+                bytes_processed,
+                bytes_saved,
+                estimated_time_remaining: if processed > 0 {
+                    (start_time.elapsed().as_secs_f64() / processed as f64) * (total_tasks - processed) as f64
+                } else {
+                    0.0
+                },
+                active_workers: *self.active_tasks.lock().await,
+            };
+            progress_callback(progress);
         }
 
         // Collect results
         for _ in 0..total_tasks {
             match self.result_receiver.recv() {
-                Ok(result) => results.push(result),
+                Ok(result) => {
+                    processed += 1;
+                    bytes_processed += result.original_size;
+                    bytes_saved += result.saved_bytes;
+                    
+                    let progress = ProcessingProgress {
+                        total_files: total_tasks,
+                        processed_files: processed,
+                        current_file: result.path.clone(),
+                        elapsed_time: start_time.elapsed().as_secs_f64(),
+                        bytes_processed,
+                        bytes_saved,
+                        estimated_time_remaining: if processed > 0 {
+                            (start_time.elapsed().as_secs_f64() / processed as f64) * (total_tasks - processed) as f64
+                        } else {
+                            0.0
+                        },
+                        active_workers: *self.active_tasks.lock().await,
+                    };
+                    progress_callback(progress);
+                    results.push(result);
+                },
                 Err(e) => return Err(format!("Failed to receive result: {}", e)),
             }
         }

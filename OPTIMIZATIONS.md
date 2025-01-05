@@ -39,10 +39,13 @@ pub struct WorkerPool {
   - [✅] Queue system for multiple tasks
   - [✅] Parallel task execution
   - [✅] Result collection
-- [ ] Add progress tracking per batch
-  - [ ] Add ProcessingProgress struct
-  - [ ] Implement progress callbacks
-  - [ ] Track elapsed time
+- [✅] Add progress tracking per batch
+  - [✅] Add ProcessingProgress struct
+  - [✅] Implement progress callbacks
+  - [✅] Track elapsed time
+  - [✅] Track bytes processed/saved
+  - [✅] Track active workers
+  - [✅] Frontend progress display
 - [ ] Debug points:
   - [ ] CPU usage monitoring
   - [ ] Memory usage per worker
