@@ -74,31 +74,22 @@ function App() {
             await mkdir(optimizedPath, { recursive: true });
           }));
 
-          // Process images sequentially for accurate timing
-          for (const path of paths) {
-            try {
-              const parentDir = await dirname(path);
-              const fileName = path.split('\\').pop();
-              const optimizedPath = await join(parentDir, 'optimized', fileName);
-              
-              console.log('Processing with current settings:', settings); // Debug log
-              
-              const result = await invoke('optimize_image', { 
-                inputPath: path, 
-                outputPath: optimizedPath,
-                settings: settings  // This will now use the current settings
-              });
+          // Create batch tasks
+          const tasks = await Promise.all(paths.map(async (path) => {
+            const parentDir = await dirname(path);
+            const fileName = path.split('\\').pop();
+            const optimizedPath = await join(parentDir, 'optimized', fileName);
+            return [path, optimizedPath, settings];
+          }));
 
-              setOptimizationResults(prev => [...prev, result]);
-              setOptimizationStats(prev => ({
-                ...prev,
-                processedFiles: prev.processedFiles + 1,
-                elapsedTime: ((performance.now() - batchStartTime) / 1000).toFixed(2)
-              }));
-            } catch (error) {
-              console.error(`Error processing ${path}:`, error);
-            }
-          }
+          // Process batch
+          const results = await invoke('optimize_images', { tasks });
+          setOptimizationResults(results);
+          setOptimizationStats(prev => ({
+            ...prev,
+            processedFiles: results.length,
+            elapsedTime: ((performance.now() - batchStartTime) / 1000).toFixed(2)
+          }));
 
         } catch (error) {
           console.error('Error processing images:', error);

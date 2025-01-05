@@ -7,32 +7,46 @@
 ```toml
 # Add to Cargo.toml
 [dependencies]
-tokio = { version = "1", features = ["rt-multi-thread", "sync"] }
-futures = "0.3"
-num_cpus = "1.16"
-crossbeam-channel = "0.5"
+tokio = { version = "1.42.0", features = ["full"] }
+futures = "0.3.31"
+num_cpus = "1.16.0"
+crossbeam-channel = "0.5.14"
 ```
 
 ### Required Types
 ```rust
 pub struct ImageTask {
-    input_path: String,
-    output_path: String,
-    settings: ImageSettings,
-    priority: u8,
+    pub input_path: String,
+    pub output_path: String,
+    pub settings: ImageSettings,
+    pub priority: u8,
 }
 
 pub struct WorkerPool {
     workers: Vec<Worker>,
-    sender: crossbeam_channel::Sender<ImageTask>,
-    receiver: crossbeam_channel::Receiver<OptimizationResult>,
+    task_sender: Sender<ImageTask>,
+    result_receiver: Receiver<OptimizationResult>,
+    active_tasks: Arc<Mutex<usize>>,
 }
 ```
 
-- [ ] Add worker pool in Rust backend
-- [ ] Implement batch processing
+- [✅] Add worker pool in Rust backend
+  - [✅] Worker pool implementation
+  - [✅] Task distribution system
+  - [✅] Process image function
+  - [✅] Error handling
+- [✅] Implement batch processing
+  - [✅] Queue system for multiple tasks
+  - [✅] Parallel task execution
+  - [✅] Result collection
 - [ ] Add progress tracking per batch
-- [ ] Debug points
+  - [ ] Add ProcessingProgress struct
+  - [ ] Implement progress callbacks
+  - [ ] Track elapsed time
+- [ ] Debug points:
+  - [ ] CPU usage monitoring
+  - [ ] Memory usage per worker
+  - [ ] Batch processing timing
 
 ## 2. Sharp Sidecar Optimization 🖼️
 ### Required Dependencies

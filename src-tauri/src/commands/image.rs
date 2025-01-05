@@ -1,5 +1,13 @@
 use serde::{Deserialize, Serialize};
 use tauri_plugin_shell::ShellExt;
+use crate::worker_pool::{WorkerPool, ImageTask};
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use std::env;
+
+lazy_static::lazy_static! {
+    static ref WORKER_POOL: Arc<Mutex<Option<WorkerPool>>> = Arc::new(Mutex::new(None));
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OptimizationResult {
@@ -44,40 +52,62 @@ pub struct ImageSettings {
 
 #[tauri::command]
 pub async fn optimize_image(
-    app: tauri::AppHandle, 
-    input_path: String, 
+    app: tauri::AppHandle,
+    input_path: String,
     output_path: String,
-    settings: ImageSettings
+    settings: ImageSettings,
 ) -> Result<OptimizationResult, String> {
-    println!("Settings received in Rust: {:?}", settings);
+    let pool = {
+        let mut pool_guard = WORKER_POOL.lock().await;
+        if pool_guard.is_none() {
+            let num_workers = num_cpus::get().min(4); // Cap at 4 workers
+            *pool_guard = Some(WorkerPool::new(num_workers, app.clone()));
+        }
+        pool_guard.as_mut().unwrap().clone()
+    };
 
-    // Serialize settings to JSON string
-    let settings_json = serde_json::to_string(&settings)
-        .map_err(|e| e.to_string())?;
+    let task = ImageTask {
+        input_path,
+        output_path,
+        settings,
+        priority: 0,
+    };
 
-    let command = app
-        .shell()
-        .sidecar("sharp-sidecar")
-        .expect("failed to create sharp sidecar command")
-        .args(&[
-            "optimize",
-            &input_path,
-            &output_path,
-            &settings_json
-        ]);
+    pool.process(task).await
+}
 
-    println!("Sending settings to sidecar: {}", settings_json);  // Debug log
-
-    let output = command
-        .output()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    if output.status.success() {
-        let result: OptimizationResult = serde_json::from_str(&String::from_utf8_lossy(&output.stdout))
-            .map_err(|e| e.to_string())?;
-        Ok(result)
+#[tauri::command]
+pub async fn get_active_tasks() -> Result<usize, String> {
+    let pool_guard = WORKER_POOL.lock().await;
+    if let Some(pool) = pool_guard.as_ref() {
+        Ok(pool.active_tasks().await)
     } else {
-        Err(String::from_utf8_lossy(&output.stderr).to_string())
+        Ok(0)
     }
+}
+
+#[tauri::command]
+pub async fn optimize_images(
+    app: tauri::AppHandle,
+    tasks: Vec<(String, String, ImageSettings)>,
+) -> Result<Vec<OptimizationResult>, String> {
+    let pool = {
+        let mut pool_guard = WORKER_POOL.lock().await;
+        if pool_guard.is_none() {
+            let num_workers = num_cpus::get().min(4);
+            *pool_guard = Some(WorkerPool::new(num_workers, app.clone()));
+        }
+        pool_guard.as_mut().unwrap().clone()
+    };
+
+    let tasks = tasks.into_iter()
+        .map(|(input, output, settings)| ImageTask {
+            input_path: input,
+            output_path: output,
+            settings,
+            priority: 0,
+        })
+        .collect();
+
+    pool.process_batch(tasks).await
 }

@@ -38,7 +38,12 @@ tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-process = "2"
 tauri-plugin-opener = "2"
+tokio = { version = "1.42.0", features = ["full"] }
+futures = "0.3.31"
+num_cpus = "1.16.0"
+crossbeam-channel = "0.5.14"
 
 # Optional: Add logging for better debugging
 tauri-plugin-log = "2"
+lazy_static = "1.5.0"
 
