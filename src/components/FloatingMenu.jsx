@@ -51,7 +51,6 @@ function FloatingMenu({ settings, onSettingsChange }) {
   const [isOpen, setIsOpen] = useState(false);
   
   const handleQualityChange = (value) => {
-    console.log('Quality changed to:', value); // Debug log
     onSettingsChange({
       ...settings,
       quality: {

@@ -49,7 +49,6 @@ function App() {
   });
 
   const handleSettingsChange = (newSettings) => {
-    console.log('Settings updated:', newSettings); // Debug log
     setSettings(newSettings);
   };
 
@@ -123,13 +122,11 @@ function App() {
 
     // Drag enter handler
     const unsubscribeEnter = listen("tauri://drag-enter", () => {
-      console.log('Drag enter');
       setIsDragging(true);
     });
 
     // Drag leave handler
     const unsubscribeLeave = listen("tauri://drag-leave", () => {
-      console.log('Drag leave');
       setIsDragging(false);
     });
 
