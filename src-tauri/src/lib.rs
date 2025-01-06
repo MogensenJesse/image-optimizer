@@ -16,6 +16,7 @@ pub fn run() {
             optimize_image,
             optimize_images,
             get_active_tasks,
+            get_worker_metrics,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

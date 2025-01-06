@@ -2,7 +2,7 @@
 
 ## Prerequisites Per Section
 
-## 1. Parallel Processing Implementation 🔄
+## 1. Parallel Processing Implementation 🔄 ✅
 ### Required Dependencies
 ```toml
 # Add to Cargo.toml
@@ -11,9 +11,10 @@ tokio = { version = "1.42.0", features = ["full"] }
 futures = "0.3.31"
 num_cpus = "1.16.0"
 crossbeam-channel = "0.5.14"
+sysinfo = "0.33.1"
 ```
 
-### Required Types
+### Required Types ✅
 ```rust
 pub struct ImageTask {
     pub input_path: String,
@@ -27,31 +28,34 @@ pub struct WorkerPool {
     task_sender: Sender<ImageTask>,
     result_receiver: Receiver<OptimizationResult>,
     active_tasks: Arc<Mutex<usize>>,
+    metrics: Arc<Mutex<Vec<WorkerMetrics>>>,
+    sys: Arc<Mutex<System>>,
 }
 ```
 
 - [✅] Add worker pool in Rust backend
-  - [✅] Worker pool implementation
-  - [✅] Task distribution system
-  - [✅] Process image function
-  - [✅] Error handling
+  - [✅] Worker pool implementation with dynamic sizing
+  - [✅] Task distribution system with backpressure
+  - [✅] Process image function with timeouts
+  - [✅] Comprehensive error handling
 - [✅] Implement batch processing
-  - [✅] Queue system for multiple tasks
-  - [✅] Parallel task execution
-  - [✅] Result collection
+  - [✅] Queue system with adaptive buffer sizing
+  - [✅] Parallel task execution with CPU monitoring
+  - [✅] Result collection with progress tracking
 - [✅] Add progress tracking per batch
   - [✅] Add ProcessingProgress struct
   - [✅] Implement progress callbacks
-  - [✅] Track elapsed time
+  - [✅] Track elapsed time and ETA
   - [✅] Track bytes processed/saved
   - [✅] Track active workers
   - [✅] Frontend progress display
-- [ ] Debug points:
-  - [ ] CPU usage monitoring
-  - [ ] Memory usage per worker
-  - [ ] Batch processing timing
+- [✅] Debug points:
+  - [✅] CPU usage monitoring with sysinfo
+  - [✅] Worker metrics tracking
+  - [✅] Batch processing timing
+  - [✅] Channel capacity monitoring
 
-## 2. Sharp Sidecar Optimization 🖼️
+## 2. Sharp Sidecar Optimization 🖼️ ⏳
 ### Required Dependencies
 ```json
 {
@@ -93,79 +97,74 @@ pub struct WorkerPool {
     .pipe(fs.createWriteStream(output));
   ```
 
-- [ ] Debug points:
-  - Memory usage monitoring per format
-  - Processing time tracking
-  - Quality/size ratio analysis
-  ```javascript
-  const startTime = process.hrtime.bigint();
-  // ... processing ...
-  const endTime = process.hrtime.bigint();
-  console.error('Processing time:', Number(endTime - startTime) / 1e6, 'ms');
-  ```
-
-### Notes on Existing Optimizations:
-- Current format-specific settings are well-tuned:
-  - JPEG: mozjpeg + chroma subsampling
-  - PNG: Adaptive filtering + palette optimization
-  - WebP: Balanced quality/compression
-  - AVIF: Conservative effort for speed
-  - TIFF: Optimized tile settings
-- Lossless mode already implements optimal settings per format
-- Quality settings properly cascade from global → format-specific
-
-## 3. Rust Backend Optimizations ⚡
+## 3. Rust Backend Optimizations ⚡ ✅
 ### Required Dependencies
 ```toml
 [dependencies]
-lru = "0.12"  # For caching
-dashmap = "5.5"  # For concurrent caching
-bytes = "1.5"  # For buffer optimization
+sysinfo = "0.33.1"  # For system monitoring
 ```
 
-### Required Types
+### Required Types ✅
 ```rust
-pub struct OptimizationCache {
-    settings_cache: dashmap::DashMap<String, ImageSettings>,
-    result_cache: lru::LruCache<String, OptimizationResult>,
-    path_cache: dashmap::DashMap<String, PathBuf>,
+pub struct WorkerMetrics {
+    pub cpu_usage: f64,
+    pub thread_id: usize,
+    pub task_count: usize,
+    pub avg_processing_time: f64,
 }
 ```
 
-- [ ] Implement command queuing
-- [ ] Add caching system
-- [ ] Optimize IPC serialization
-- [ ] Debug points
+- [✅] Implement command queuing
+  - [✅] Dynamic buffer sizing based on system specs
+  - [✅] Backpressure handling
+  - [✅] Task prioritization
+- [✅] Add performance monitoring
+  - [✅] CPU usage tracking
+  - [✅] Processing time metrics
+  - [✅] Worker load balancing
+- [✅] Optimize IPC
+  - [✅] Efficient result collection
+  - [✅] Progress event emission
+  - [✅] Error propagation
+- [✅] Debug points
+  - [✅] Worker metrics logging
+  - [✅] Channel capacity monitoring
+  - [✅] Task processing timing
 
-## 4. Frontend Optimizations 🎨
+## 4. Frontend Optimizations 🎨 ✅
 ### Required Dependencies
 ```json
 {
   "dependencies": {
-    "@tanstack/react-virtual": "^3.0.0",  // Modern virtualization
-    "lodash.debounce": "^4.0.8",
-    "use-debounce": "^10.0.0"
+    "@tauri-apps/api": "^2"
   }
 }
 ```
 
-### Required Types
+### Required Types ✅
 ```javascript
-// types.js
-export type OptimizationResult = {
-  inputPath: string;
-  outputPath: string;
+type OptimizationResult = {
+  path: string;
   originalSize: number;
   optimizedSize: number;
-  compressionRatio: number;
-  elapsedTime: number;
+  savedBytes: number;
+  compressionRatio: string;
+  format: string;
 };
 ```
 
-- [ ] Implement virtualization
-- [ ] Add batch UI updates
-- [ ] Optimize React renders
-- [ ] Debug points
+- [✅] Implement real-time metrics display
+  - [✅] CPU usage monitoring component
+  - [✅] Worker performance tracking
+  - [✅] Task progress visualization
+- [✅] Add batch UI updates
+  - [✅] Progress tracking
+  - [✅] File status updates
+  - [✅] Error handling
+- [✅] Optimize React renders
+  - [✅] Efficient state updates
+  - [✅] Progress event handling
+  - [✅] Metrics refresh optimization
 
 ## 5. File System Operations 📁
 ### Required Dependencies

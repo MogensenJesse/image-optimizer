@@ -1,16 +1,45 @@
 use serde::{Deserialize, Serialize};
 use tauri_plugin_shell::ShellExt;
-use crate::worker_pool::{WorkerPool, ImageTask};
+use crate::worker_pool::{WorkerPool, WorkerMetrics, ImageTask};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use std::env;
 use tauri::{Manager, Emitter};
+use sysinfo::*;
+
+fn get_optimal_worker_count() -> usize {
+    let mut sys = System::new_all();
+    let cpu_count = num_cpus::get();
+    let total_memory_mb = sys.total_memory() / 1024;
+    
+    // Get CPU frequency and brand
+    let cpus = sys.cpus();
+    let avg_freq = cpus.iter()
+        .map(|cpu| cpu.frequency())
+        .sum::<u64>() / cpus.len() as u64;
+
+    // Adjust worker count based on system specs
+    let base_workers = if avg_freq > 3000 { // 3GHz
+        cpu_count.min(6)
+    } else {
+        cpu_count.min(4)
+    };
+
+    // Further adjust based on available memory
+    if total_memory_mb < 8192 { // Less than 8GB
+        base_workers.min(2)
+    } else if total_memory_mb < 16384 { // Less than 16GB
+        base_workers.min(4)
+    } else {
+        base_workers
+    }
+}
 
 lazy_static::lazy_static! {
     static ref WORKER_POOL: Arc<Mutex<Option<WorkerPool>>> = Arc::new(Mutex::new(None));
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct OptimizationResult {
     pub path: String,
     #[serde(rename = "originalSize")]
@@ -24,7 +53,7 @@ pub struct OptimizationResult {
     pub format: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ResizeSettings {
     width: Option<u32>,
     height: Option<u32>,
@@ -34,7 +63,7 @@ pub struct ResizeSettings {
     size: Option<u32>
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct QualitySettings {
     global: u32,
     jpeg: Option<u32>,
@@ -43,7 +72,7 @@ pub struct QualitySettings {
     avif: Option<u32>
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ImageSettings {
     quality: QualitySettings,
     resize: ResizeSettings,
@@ -61,7 +90,7 @@ pub async fn optimize_image(
     let pool = {
         let mut pool_guard = WORKER_POOL.lock().await;
         if pool_guard.is_none() {
-            let num_workers = num_cpus::get().min(4); // Cap at 4 workers
+            let num_workers = get_optimal_worker_count();
             *pool_guard = Some(WorkerPool::new(num_workers, app.clone()));
         }
         pool_guard.as_mut().unwrap().clone()
@@ -114,4 +143,14 @@ pub async fn optimize_images(
     pool.process_batch(tasks, move |progress| {
         let _ = app_handle.emit("optimization_progress", progress);
     }).await
+}
+
+#[tauri::command]
+pub async fn get_worker_metrics() -> Result<Vec<WorkerMetrics>, String> {
+    let pool_guard = WORKER_POOL.lock().await;
+    if let Some(pool) = pool_guard.as_ref() {
+        Ok(pool.get_metrics().await)
+    } else {
+        Ok(Vec::new())
+    }
 }

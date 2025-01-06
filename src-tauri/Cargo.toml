@@ -46,4 +46,5 @@ crossbeam-channel = "0.5.14"
 # Optional: Add logging for better debugging
 tauri-plugin-log = "2"
 lazy_static = "1.5.0"
+sysinfo = "0.33.1"
 

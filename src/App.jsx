@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import { dirname, join } from '@tauri-apps/api/path';
 import { mkdir } from "@tauri-apps/plugin-fs";
 import FloatingMenu from "./components/FloatingMenu";
+import CpuMetrics from "./components/CpuMetrics";
 
 function formatSize(bytes) {
   const absBytes = Math.abs(bytes);
@@ -171,6 +172,7 @@ function App() {
           )}
         </div>
       </div>
+      {isProcessing && <CpuMetrics />}
       <FloatingMenu 
         settings={settings}
         onSettingsChange={handleSettingsChange}

@@ -12,9 +12,36 @@
    ```javascript
    function App() {
      const [isProcessing, setIsProcessing] = useState(false);
-     const [optimizationStats, setOptimizationStats] = useState({...});
+     const [isDragging, setIsDragging] = useState(false);
+     const [optimizationStats, setOptimizationStats] = useState({
+       totalFiles: 0,
+       processedFiles: 0,
+       elapsedTime: 0,
+       currentFile: '',
+       bytesProcessed: 0,
+       bytesSaved: 0,
+       estimatedTimeRemaining: 0,
+       activeWorkers: 0
+     });
      const [optimizationResults, setOptimizationResults] = useState([]);
-     const [settings, setSettings] = useState({...});
+     const processingRef = useRef(false);
+     const [settings, setSettings] = useState({
+       quality: {
+         global: 90,
+         jpeg: null,
+         png: null,
+         webp: null,
+         avif: null
+       },
+       resize: {
+         width: null,
+         height: null,
+         maintainAspect: true,
+         mode: 'none',
+         size: null
+       },
+       outputFormat: 'original'
+     });
    }
    ```
 
@@ -22,10 +49,20 @@
    - Quality control
    - Resize options
    - Format selection
+   - Advanced settings panel
+
+3. **CpuMetrics.jsx** - Performance Monitoring ✨
+   - Real-time CPU usage tracking
+   - Worker performance metrics
+   - Task processing statistics
    ```javascript
-   function FloatingMenu({ settings, onSettingsChange }) {
-     const [isOpen, setIsOpen] = useState(false);
-     // Settings controls...
+   function CpuMetrics() {
+     const [metrics, setMetrics] = useState([]);
+     // Updates metrics every second
+     useEffect(() => {
+       const interval = setInterval(fetchMetrics, 1000);
+       return () => clearInterval(interval);
+     }, []);
    }
    ```
 
@@ -34,6 +71,7 @@
 1. **Processing State**
    ```javascript
    const [isProcessing, setIsProcessing] = useState(false);
+   const [isDragging, setIsDragging] = useState(false);
    const processingRef = useRef(false); // Prevents concurrent processing
    ```
 
@@ -42,163 +80,222 @@
    const [settings, setSettings] = useState({
      quality: {
        global: 90,
-       jpeg: null, png: null, webp: null, avif: null
+       jpeg: null,
+       png: null,
+       webp: null,
+       avif: null
      },
      resize: {
+       width: null,
+       height: null,
+       maintainAspect: true,
        mode: 'none',
-       size: null,
-       maintainAspect: true
+       size: null
      },
      outputFormat: 'original'
    });
    ```
 
-3. **Results Tracking**
+3. **Progress Tracking** ✨
    ```javascript
    const [optimizationStats, setOptimizationStats] = useState({
      totalFiles: 0,
      processedFiles: 0,
-     elapsedTime: 0
+     elapsedTime: 0,
+     currentFile: '',
+     bytesProcessed: 0,
+     bytesSaved: 0,
+     estimatedTimeRemaining: 0,
+     activeWorkers: 0
    });
-   const [optimizationResults, setOptimizationResults] = useState([]);
    ```
 
 # Event Handling & Data Flow
 
-1. **Drag & Drop Events**
+1. **Progress Events** ✨
    ```javascript
    useEffect(() => {
-     const unsubscribeDrop = listen("tauri://drag-drop", async (event) => {
-       // Handle dropped files...
+     const unsubscribeProgress = listen("optimization_progress", (event) => {
+       const progress = event.payload;
+       setOptimizationStats({
+         totalFiles: progress.total_files,
+         processedFiles: progress.processed_files,
+         currentFile: progress.current_file,
+         elapsedTime: progress.elapsed_time,
+         bytesProcessed: progress.bytes_processed,
+         bytesSaved: progress.bytes_saved,
+         estimatedTimeRemaining: progress.estimated_time_remaining,
+         activeWorkers: progress.active_workers
+       });
      });
-     const unsubscribeEnter = listen("tauri://drag-enter", () => {...});
-     const unsubscribeLeave = listen("tauri://drag-leave", () => {...});
-   }, [settings]);
+   }, []);
    ```
 
-2. **Processing Pipeline**
-   - Create output directories
-   - Process images sequentially
-   - Update progress in real-time
+2. **Batch Processing Pipeline** ✨
    ```javascript
+   // Create all required directories first
    await Promise.all(paths.map(async (path) => {
      const parentDir = await dirname(path);
      const optimizedPath = await join(parentDir, 'optimized');
      await mkdir(optimizedPath, { recursive: true });
    }));
-   ```
 
-3. **Backend Communication**
-   ```javascript
-   const result = await invoke('optimize_image', { 
-     inputPath: path, 
-     outputPath: optimizedPath,
-     settings: settings
-   });
-   ```
+   // Create batch tasks
+   const tasks = await Promise.all(paths.map(async (path) => {
+     const parentDir = await dirname(path);
+     const fileName = path.split('\\').pop();
+     const optimizedPath = await join(parentDir, 'optimized', fileName);
+     return [path, optimizedPath, settings];
+   }));
 
-# Styling Architecture
-
-1. **Base Styles**
-   - `variables.scss`: Global design tokens
-   - `reset.scss`: CSS reset and normalization
-   - `typography.scss`: Font system
-
-2. **Component Styles**
-   - `app.scss`: Main container and dropzone
-   - `FloatingMenu.scss`: Settings panel
-
-3. **Design System**
-   - Consistent color scheme
-   - Responsive layout
-   - Dark mode support
-   ```scss
-   @media (prefers-color-scheme: dark) {
-     // Dark mode styles...
-   }
+   // Process batch
+   const results = await invoke('optimize_images', { tasks });
    ```
 
 ### 1.2 Backend (Tauri/Rust)
-# Command Handlers
+# Worker Pool System ✨
 
-The Rust backend is structured around command handlers that bridge the frontend and sidecar:
+1. **Dynamic Worker Management**
+   ```rust
+   pub struct WorkerPool {
+       workers: Vec<Worker>,
+       task_sender: Sender<ImageTask>,
+       result_receiver: Receiver<OptimizationResult>,
+       active_tasks: Arc<Mutex<usize>>,
+       metrics: Arc<Mutex<Vec<WorkerMetrics>>>,
+       sys: Arc<Mutex<System>>,
+   }
+   ```
 
-```rust
-#[tauri::command]
-pub async fn optimize_image(
-    app: tauri::AppHandle, 
-    input_path: String, 
-    output_path: String,
-    settings: ImageSettings
-) -> Result<OptimizationResult, String>
-```
+2. **Adaptive Buffer Sizing**
+   ```rust
+   let buffer_size = if total_memory_gb == 0 || total_memory_gb > 1024 {
+       size * 2
+   } else {
+       let base_size = if total_memory_gb < 8 {
+           size * 2
+       } else if total_memory_gb < 16 {
+           size * 3
+       } else {
+           size * 4
+       };
+       // Adjust based on CPU frequency
+       if avg_freq > 3000 { base_size + size } else { base_size }
+   };
+   ```
 
-# Data Flow
+3. **Performance Monitoring**
+   ```rust
+   pub struct WorkerMetrics {
+       pub cpu_usage: f64,
+       pub thread_id: usize,
+       pub task_count: usize,
+       pub avg_processing_time: f64,
+   }
+   ```
 
-1. Frontend → Rust:
-   - Frontend invokes `optimize_image` command via Tauri IPC
-   - Passes input/output paths and settings as serialized JSON
-   - Settings are deserialized into Rust structs:
-     ```rust
-     pub struct ImageSettings {
-         quality: QualitySettings,
-         resize: ResizeSettings,
-         output_format: String
-     }
-     ```
+# Task Processing ✨
 
-2. Rust → Sidecar:
-   - Rust serializes settings back to JSON
-   - Uses `tauri_plugin_shell` to execute sidecar:
-     ```rust
-     app.shell()
-        .sidecar("sharp-sidecar")
-        .args(&["optimize", &input_path, &output_path, &settings_json])
-     ```
+1. **Batch Processing with Backpressure**
+   ```rust
+   while self.task_sender.is_full() {
+       println!("Channel full, waiting for space...");
+       tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+       // Collect results while waiting
+       match self.result_receiver.try_recv() {
+           Ok(result) => {
+               processed += 1;
+               // ... handle result
+           }
+           Err(crossbeam_channel::TryRecvError::Empty) => (),
+           Err(e) => eprintln!("Error receiving result while waiting: {}", e),
+       }
+   }
+   ```
 
-3. Sidecar → Rust:
-   - Sidecar processes image and outputs JSON result to stdout
-   - Rust deserializes output into `OptimizationResult`
-   - Result is returned to frontend
+2. **Adaptive Worker Cooldown**
+   ```rust
+   let cooldown = if processing_time > 2.5 {
+       20
+   } else if processing_time > 2.0 {
+       15
+   } else {
+       10
+   };
+   tokio::time::sleep(std::time::Duration::from_millis(cooldown)).await;
+   ```
 
-# Security & Permissions
-
-Configured in `capabilities/default.json`:
-```json
-{
-  "identifier": "shell:allow-execute",
-  "allow": [{
-    "name": "binaries/sharp-sidecar",
-    "sidecar": true,
-    "args": [
-      "optimize",
-      {"validator": "\\S+"},
-      {"validator": "\\S+"},
-      {"validator": ".*"}
-    ]
-  }]
-}
-```
-
-- Restricts sidecar execution to specific command format
-- Validates argument patterns
-- Enforces filesystem access boundaries
+3. **CPU Load Management**
+   ```rust
+   if cpu_usage > 90.0 && consecutive_long_tasks > 2 {
+       println!("Worker {} taking a brief break due to high CPU usage", id);
+       tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+       consecutive_long_tasks = 0;
+   }
+   ```
 
 ### 1.3 Node.js Sidecar (Sharp)
 # Image Processing Logic
-The sidecar uses Sharp to handle image optimization with the following workflow:
 
-1. Receives commands via CLI arguments:
-   - Command type (e.g., 'optimize')
-   - Input path
-   - Output path
-   - Settings JSON string
+1. **Format-Specific Optimizations**
+   ```javascript
+   const getLosslessSettings = (format) => {
+     switch (format) {
+       case 'jpeg':
+         return {
+           quality: 100,
+           mozjpeg: true,
+           chromaSubsampling: '4:4:4',
+           optimiseCoding: true
+         };
+       case 'png':
+         return {
+           compressionLevel: 9,
+           palette: false,
+           quality: 100,
+           effort: 10,
+           adaptiveFiltering: true,
+         };
+       // ... other formats
+     }
+   };
+   ```
 
-2. Processes images with configurable options:
-   - Format conversion
-   - Quality adjustment
-   - Resize operations
-   - Lossless optimization
+2. **Resize Operations**
+   ```javascript
+   switch (settings.resize.mode) {
+     case 'width':
+       image = image.resize(size, null, { 
+         withoutEnlargement: true,
+         fit: 'inside'
+       });
+       break;
+     case 'height':
+       image = image.resize(null, size, { 
+         withoutEnlargement: true,
+         fit: 'inside'
+       });
+       break;
+     // ... other modes
+   }
+   ```
+
+3. **Quality Control**
+   ```javascript
+   let formatOptions;
+   if (settings?.quality?.global === 100) {
+     formatOptions = getLosslessSettings(outputFormat);
+   } else {
+     formatOptions = { ...optimizationDefaults[outputFormat] };
+     if (settings?.quality) {
+       if (settings.quality[outputFormat] !== null) {
+         formatOptions.quality = settings.quality[outputFormat];
+       } else if (settings.quality.global !== null) {
+         formatOptions.quality = settings.quality.global;
+       }
+     }
+   }
+   ```
 
 # Sharp Configuration
 

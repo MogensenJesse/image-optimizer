@@ -1,0 +1,58 @@
+.cpu-metrics {
+  position: fixed;
+  top: 2rem;
+  right: 2rem;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(16px);
+  border-radius: 12px;
+  padding: 1rem;
+  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 900;
+
+  h3 {
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin-bottom: 0.75rem;
+    opacity: 0.7;
+  }
+
+  &__grid {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  &__worker {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 0.75rem;
+  }
+
+  &__title {
+    font-size: 0.8rem;
+    opacity: 0.7;
+    margin-bottom: 0.5rem;
+  }
+
+  &__stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+  }
+
+  &__stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 0.8rem;
+
+    span:first-child {
+      opacity: 0.6;
+      margin-bottom: 0.25rem;
+    }
+
+    span:last-child {
+      font-weight: 500;
+    }
+  }
+} 
