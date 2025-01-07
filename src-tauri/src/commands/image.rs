@@ -1,12 +1,14 @@
 use serde::{Deserialize, Serialize};
+use tauri_plugin_shell::ShellExt;
 use crate::worker_pool::{WorkerPool, WorkerMetrics, ImageTask};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tauri::Emitter;
-use sysinfo::System;
+use std::env;
+use tauri::{Manager, Emitter};
+use sysinfo::*;
 
 fn get_optimal_worker_count() -> usize {
-    let sys = System::new_all();
+    let mut sys = System::new_all();
     let cpu_count = num_cpus::get();
     let total_memory_mb = sys.total_memory() / 1024;
     
