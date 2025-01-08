@@ -47,6 +47,15 @@ function App() {
     },
     outputFormat: 'original'
   });
+  const [smoothedProgress, setSmoothedProgress] = useState(0);
+  const [smoothedStats, setSmoothedStats] = useState({
+    bytesProcessed: 0,
+    bytesSaved: 0,
+    processedFiles: 0
+  });
+  const [isStalled, setIsStalled] = useState(false);
+  const [stallDuration, setStallDuration] = useState(0);
+  const stallStartTimeRef = useRef(null);
 
   const handleSettingsChange = (newSettings) => {
     setSettings(newSettings);
@@ -138,26 +147,135 @@ function App() {
     };
   }, [settings]);
 
+  // Add smooth progress animation
+  useEffect(() => {
+    if (!isProcessing) {
+      setSmoothedProgress(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setSmoothedStats(prev => ({
+        bytesProcessed: prev.bytesProcessed + (optimizationStats.bytesProcessed - prev.bytesProcessed) * 0.1,
+        bytesSaved: prev.bytesSaved + (optimizationStats.bytesSaved - prev.bytesSaved) * 0.1,
+        processedFiles: prev.processedFiles + (optimizationStats.processedFiles - prev.processedFiles) * 0.1
+      }));
+
+      setSmoothedProgress(prev => {
+        const target = optimizationStats.totalFiles > 0 
+          ? (optimizationStats.processedFiles / optimizationStats.totalFiles) * 100 
+          : 0;
+        return prev + (target - prev) * 0.1;
+      });
+    }, 50); // Update every 50ms for smooth animation
+
+    return () => clearInterval(interval);
+  }, [isProcessing, optimizationStats]);
+
+  // Update stall detection
+  useEffect(() => {
+    if (!isProcessing) {
+      setIsStalled(false);
+      setStallDuration(0);
+      stallStartTimeRef.current = null;
+      return;
+    }
+
+    let lastProgress = optimizationStats.processedFiles;
+    let stallCheckInterval;
+    let stallDurationInterval;
+
+    const checkStall = () => {
+      if (lastProgress === optimizationStats.processedFiles && isProcessing) {
+        if (!isStalled) {
+          console.warn('Processing stall detected');
+          setIsStalled(true);
+          stallStartTimeRef.current = Date.now();
+          // Start tracking stall duration
+          stallDurationInterval = setInterval(() => {
+            setStallDuration(Math.round((Date.now() - stallStartTimeRef.current) / 1000));
+          }, 1000);
+        }
+      } else {
+        if (isStalled) {
+          console.log('Processing resumed');
+          setIsStalled(false);
+          setStallDuration(0);
+          stallStartTimeRef.current = null;
+          if (stallDurationInterval) {
+            clearInterval(stallDurationInterval);
+          }
+        }
+      }
+      lastProgress = optimizationStats.processedFiles;
+    };
+
+    stallCheckInterval = setInterval(checkStall, 5000); // Check every 5 seconds
+
+    return () => {
+      clearInterval(stallCheckInterval);
+      if (stallDurationInterval) {
+        clearInterval(stallDurationInterval);
+      }
+    };
+  }, [isProcessing, optimizationStats.processedFiles, isStalled]);
+
+  // Add recovery attempt handler
+  const handleRecoveryAttempt = async () => {
+    console.log('Attempting to recover from stall...');
+    try {
+      // Attempt to resume processing
+      await invoke('resume_processing');
+      setIsStalled(false);
+      setStallDuration(0);
+      stallStartTimeRef.current = null;
+    } catch (error) {
+      console.error('Recovery attempt failed:', error);
+    }
+  };
+
   return (
     <>
       <div 
-        className={`dropzone ${isDragging ? 'dropzone--dragging' : ''} ${isProcessing ? 'dropzone--processing' : ''}`}
+        className={`dropzone ${isDragging ? 'dropzone--dragging' : ''} 
+          ${isProcessing ? 'dropzone--processing' : ''}
+          ${isStalled ? 'dropzone--stalled' : ''}`}
       >
         <div className="dropzone__content">
           {isProcessing ? (
-            <div className="processing-info">
+            <div className={`processing-info ${isStalled ? 'stalled' : ''}`}>
               <h2 className="processing-info__title">Processing...</h2>
-              <p>Processed {optimizationStats.processedFiles} of {optimizationStats.totalFiles} files</p>
+              <div className="progress-bar">
+                <div 
+                  className="progress-bar__fill" 
+                  style={{ width: `${smoothedProgress}%` }}
+                />
+              </div>
+              <p>Processed {Math.round(smoothedStats.processedFiles)} of {optimizationStats.totalFiles} files</p>
               <p>Time elapsed: {optimizationStats.elapsedTime}s</p>
               <p>Current file: {optimizationStats.currentFile}</p>
-              <p>Processed: {formatSize(optimizationStats.bytesProcessed)}</p>
-              <p>Saved: {formatSize(optimizationStats.bytesSaved)}</p>
+              <p>Processed: {formatSize(Math.round(smoothedStats.bytesProcessed))}</p>
+              <p>Saved: {formatSize(Math.round(smoothedStats.bytesSaved))}</p>
               <p>Estimated time remaining: {optimizationStats.estimatedTimeRemaining}s</p>
               <p>Active workers: {optimizationStats.activeWorkers}</p>
+              
+              {isStalled && (
+                <div className="stall-warning">
+                  <p className="stall-warning__text">
+                    Processing stalled for {stallDuration} seconds
+                  </p>
+                  <button 
+                    className="stall-warning__button"
+                    onClick={handleRecoveryAttempt}
+                  >
+                    Attempt Recovery
+                  </button>
+                </div>
+              )}
             </div>
           ) : optimizationResults.length > 0 ? (
-            <div className="processing-info">
-              <h2>Optimization Complete</h2>
+            <div className="completion-info">
+              <h2 className="completion-info__title">Optimization Complete</h2>
               <p>{optimizationResults.length} files processed in {optimizationStats.elapsedTime}s</p>
               <p>Total size reduction: {formatSize(optimizationResults.reduce((total, result) => 
                 total + result.savedBytes, 0))}</p>
@@ -165,7 +283,9 @@ function App() {
                 total + parseFloat(result.compressionRatio), 0) / optimizationResults.length).toFixed(2)}%</p>
             </div>
           ) : (
-            <p>Drop images here</p>
+            <div className="dropzone__placeholder">
+              <p>Drop images here</p>
+            </div>
           )}
         </div>
       </div>

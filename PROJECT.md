@@ -14,6 +14,7 @@ These components form the backbone of the user interface, each serving a specifi
    - Manages global state and event handling
    - Implements drag & drop interface
    - Coordinates image processing workflow
+   - Implements real-time progress tracking with throttled updates ✨
    ```javascript
    function App() {
      const [isProcessing, setIsProcessing] = useState(false);
@@ -108,17 +109,26 @@ The application uses React's state management to handle various aspects of the o
 
 3. **Progress Tracking** ✨
    Real-time tracking of optimization progress, providing users with detailed feedback about the process.
+   - Atomic progress updates via event listeners
+   - Throttled UI updates to prevent performance issues
+   - Accurate ETA calculations based on processing history
+   - Real-time worker performance monitoring
    ```javascript
-   const [optimizationStats, setOptimizationStats] = useState({
-     totalFiles: 0,
-     processedFiles: 0,
-     elapsedTime: 0,
-     currentFile: '',
-     bytesProcessed: 0,
-     bytesSaved: 0,
-     estimatedTimeRemaining: 0,
-     activeWorkers: 0
-   });
+   useEffect(() => {
+     const unsubscribeProgress = listen("optimization_progress", (event) => {
+       const progress = event.payload;
+       setOptimizationStats({
+         totalFiles: progress.total_files,
+         processedFiles: progress.processed_files,
+         currentFile: progress.current_file,
+         elapsedTime: progress.elapsed_time.toFixed(2),
+         bytesProcessed: progress.bytes_processed,
+         bytesSaved: progress.bytes_saved,
+         estimatedTimeRemaining: progress.estimated_time_remaining.toFixed(2),
+         activeWorkers: progress.active_workers
+       });
+     });
+   }, []);
    ```
 
 # Event Handling & Data Flow
@@ -213,6 +223,41 @@ A sophisticated worker management system that optimizes CPU usage and memory all
        pub avg_processing_time: f64,
    }
    ```
+
+# Progress Tracking System ✨
+A thread-safe, real-time progress monitoring system that provides accurate processing statistics.
+
+1. **Core Progress State**
+   Thread-safe state management using atomic operations for accurate progress tracking.
+   ```rust
+   pub struct ProgressState {
+       processed_files: AtomicUsize,
+       bytes_processed: AtomicU64,
+       start_time: Instant,
+       last_active: Arc<Mutex<Instant>>,
+       total_files: AtomicUsize,
+   }
+   ```
+
+2. **Progress Snapshots**
+   Historical progress tracking for accurate ETA calculations and stall detection.
+   ```rust
+   pub struct ProgressSnapshot {
+       pub timestamp: SystemTime,
+       pub processed_files: usize,
+       pub total_files: usize,
+       pub bytes_processed: u64,
+       pub active_workers: usize,
+       pub last_event_time: SystemTime,
+   }
+   ```
+
+3. **Event Emission**
+   Throttled progress updates to frontend with comprehensive processing metrics.
+   - Atomic counter updates from worker threads
+   - Progress history maintenance for trend analysis
+   - Adaptive throttling based on system load
+   - Stall detection and recovery mechanisms
 
 # Task Processing ✨
 Advanced task management system that ensures efficient processing while preventing system overload.

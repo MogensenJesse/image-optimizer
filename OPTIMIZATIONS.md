@@ -30,6 +30,15 @@ pub struct WorkerPool {
     active_tasks: Arc<Mutex<usize>>,
     metrics: Arc<Mutex<Vec<WorkerMetrics>>>,
     sys: Arc<Mutex<System>>,
+    progress_state: Arc<Mutex<ProgressState>>,
+    last_progress_update: Arc<Mutex<Instant>>,
+}
+
+pub struct ProgressState {
+    processed_files: AtomicUsize,
+    bytes_processed: AtomicU64,
+    start_time: Instant,
+    last_active: Instant,
 }
 ```
 
@@ -260,3 +269,91 @@ harness = false
 - [ ] Performance benchmarks
 - [ ] Memory profiling
 - [ ] CPU profiling 
+
+## 8. Progress Tracking Debug & Fix 🔄
+
+### Required Dependencies ✅
+- tracing = "0.1.41"
+- tracing-subscriber = "0.3.19"
+- futures = "0.3.31"
+
+### Required Types ✅
+All required types have been implemented in the codebase.
+
+### Debug & Fix Steps
+
+1. **Progress Event Verification** ✨
+   - [✅] Add tracing points at event emission
+   - [✅] Verify event frequency and timing
+   - [✅] Check for dropped or missed events
+   - [✅] Add periodic state validation with debug spans
+
+2. **Worker Pool Progress Tracking** 🔄
+   - [✅] Add worker state validation
+   - [✅] Implement progress snapshots
+   - [✅] Add stall detection mechanism
+   - [✅] Add validation interval checks
+
+3. **Channel Communication Audit** 📡
+   - [✅] Monitor channel capacity
+   - [✅] Add backpressure monitoring
+   - [✅] Verify message ordering
+   - [ ] Add channel deadlock detection (Optional enhancement)
+
+4. **Progress Calculation Fix** 🔢
+   - [✅] Implement atomic counters for progress
+   - [✅] Add progress validation checks
+   - [✅] Implement progress recovery mechanism
+   - [✅] Add thread-safe progress state updates
+   - [✅] Implement atomic operations for all counters
+
+5. **Event Emission Optimization** 📊
+   - [✅] Add event throttling
+   - [✅] Implement batch progress updates
+   - [✅] Add completion verification
+   - [ ] Add event debouncing (Optional enhancement)
+   - [ ] Implement progress smoothing (Optional enhancement)
+
+6. **Frontend Progress Handling** 🖥️
+   - [✅] Add progress state validation
+   - [�] Implement progress smoothing
+   - [✅] Add stall detection and recovery
+   - [✅] Add progress animation smoothing
+   - [✅] Implement error state recovery
+
+### Debug Points
+- [✅] Worker state transitions
+- [✅] Progress event timing
+- [✅] Channel capacity utilization
+- [✅] Progress calculation accuracy
+- [✅] Event emission frequency
+- [✅] Frontend state consistency
+- [✅] Stall detection timing
+- [✅] Progress smoothing effectiveness
+
+### Expected Outcomes
+- [✅] Accurate progress reporting
+- [✅] No stalling in progress updates
+- [✅] Consistent worker state tracking
+- [✅] Reliable completion detection
+- [✅] Graceful error recovery
+- [✅] Smooth progress animations
+- [✅] Accurate ETA calculations
+
+### Testing Strategy
+1. [✅] Process large batches (100+ images)
+2. [✅] Monitor progress event frequency
+3. [✅] Verify worker state consistency
+4. [✅] Check for progress calculation accuracy
+5. [✅] Test error recovery scenarios
+6. [✅] Validate progress smoothing
+7. [✅] Test stall detection and recovery
+8. [✅] Verify completion accuracy
+
+### Next Steps (Optional Enhancements)
+1. Backend enhancements
+   - Channel deadlock detection
+   - Event debouncing implementation
+2. Testing improvements
+   - Extended batch size testing (1000+ images)
+   - Long-running memory monitoring

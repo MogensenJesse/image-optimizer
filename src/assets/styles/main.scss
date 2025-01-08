@@ -1,5 +1,5 @@
 // Base styles
-@use 'base/variables';
+@forward 'base/variables';
 @use 'base/reset';
 @use 'base/typography';
 
