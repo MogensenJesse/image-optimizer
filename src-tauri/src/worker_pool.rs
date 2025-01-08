@@ -4,7 +4,7 @@ use tauri_plugin_shell::ShellExt;
 use tauri::Emitter;
 use std::sync::{Arc, atomic::{AtomicUsize, AtomicU64, Ordering}};
 use tokio::sync::Mutex;
-use std::time::{Instant, SystemTime};
+use std::time::Instant;
 use sysinfo::*;
 use std::collections::VecDeque;
 
@@ -16,19 +16,18 @@ pub struct ImageTask {
     pub priority: u8,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ProgressSnapshot {
-    pub timestamp: SystemTime,
     pub processed_files: usize,
     pub total_files: usize,
     pub bytes_processed: u64,
     pub active_workers: usize,
-    pub last_event_time: SystemTime,
 }
 
 pub struct ProgressState {
     processed_files: AtomicUsize,
     bytes_processed: AtomicU64,
+    #[allow(dead_code)]
     start_time: Instant,
     last_active: Arc<Mutex<Instant>>,
     total_files: AtomicUsize,
@@ -525,12 +524,10 @@ impl WorkerPool {
         
         // Create snapshot after atomic updates
         let snapshot = ProgressSnapshot {
-            timestamp: SystemTime::now(),
             processed_files: current_processed + 1,
             total_files,
             bytes_processed: current_bytes + bytes,
             active_workers: *self.active_tasks.lock().await,
-            last_event_time: SystemTime::now(),
         };
 
         // Validate progress
@@ -569,6 +566,7 @@ impl WorkerPool {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub async fn resume_processing(&self) -> Result<(), String> {
         tracing::info!("Attempting to resume processing");
         

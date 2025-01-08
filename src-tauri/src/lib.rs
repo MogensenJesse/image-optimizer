@@ -3,6 +3,11 @@ mod commands;
 mod worker_pool;
 
 pub use commands::*;
+pub use crate::worker_pool::{
+    WorkerPool,
+    WorkerMetrics,
+    resume_processing,
+};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
