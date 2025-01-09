@@ -1,6 +1,7 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 mod commands;
 mod worker_pool;
+mod progress_debouncer;
 
 pub use commands::*;
 pub use crate::worker_pool::{
@@ -8,6 +9,7 @@ pub use crate::worker_pool::{
     WorkerMetrics,
     resume_processing,
 };
+pub use crate::progress_debouncer::ProgressDebouncer;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

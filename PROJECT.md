@@ -192,24 +192,29 @@ A sophisticated worker management system that optimizes CPU usage and memory all
        active_tasks: Arc<Mutex<usize>>,
        metrics: Arc<Mutex<Vec<WorkerMetrics>>>,
        sys: Arc<Mutex<System>>,
+       progress_state: Arc<Mutex<ProgressState>>,
+       progress_debouncer: Arc<ProgressDebouncer>,
    }
    ```
 
 2. **Adaptive Buffer Sizing**
    Dynamic adjustment of processing buffers based on available system memory and CPU capabilities.
    ```rust
+   let total_memory_gb = sys.total_memory() / (1024 * 1024);
    let buffer_size = if total_memory_gb == 0 || total_memory_gb > 1024 {
-       size * 2
+       println!("Warning: Memory detection unreliable, using conservative settings");
+       size * 3
    } else {
        let base_size = if total_memory_gb < 8 {
-           size * 2
-       } else if total_memory_gb < 16 {
            size * 3
-       } else {
+       } else if total_memory_gb < 16 {
            size * 4
+       } else {
+           size * 6
        };
-       // Adjust based on CPU frequency
-       if avg_freq > 3000 { base_size + size } else { base_size }
+       // Adjust based on CPU frequency and core count
+       let avg_freq = cpus.iter().map(|cpu| cpu.frequency()).sum::<u64>() / cpus.len() as u64;
+       if avg_freq > 3000 { base_size + (size * 2) } else { base_size + size }
    };
    ```
 
@@ -225,7 +230,7 @@ A sophisticated worker management system that optimizes CPU usage and memory all
    ```
 
 # Progress Tracking System ✨
-A thread-safe, real-time progress monitoring system that provides accurate processing statistics.
+A thread-safe, real-time progress monitoring system with debouncing and error recovery.
 
 1. **Core Progress State**
    Thread-safe state management using atomic operations for accurate progress tracking.
@@ -239,25 +244,61 @@ A thread-safe, real-time progress monitoring system that provides accurate proce
    }
    ```
 
-2. **Progress Snapshots**
-   Historical progress tracking for accurate ETA calculations and stall detection.
+2. **Progress Debouncing**
+   Efficient event emission with adaptive timing and CPU-aware throttling.
    ```rust
-   pub struct ProgressSnapshot {
-       pub timestamp: SystemTime,
-       pub processed_files: usize,
-       pub total_files: usize,
-       pub bytes_processed: u64,
-       pub active_workers: usize,
-       pub last_event_time: SystemTime,
+   pub struct DebouncerConfig {
+       pub min_interval: Duration,
+       pub max_interval: Duration,
+       pub channel_capacity: usize,
+       pub max_merge_count: usize,
+       pub adaptive_timing: bool,
+       pub cpu_threshold: f32,
+       pub slowdown_factor: f32,
+   }
+
+   pub struct ProgressDebouncer {
+       config: DebouncerConfig,
+       last_update: Arc<Mutex<Instant>>,
+       pending_updates: Sender<ProcessingProgress>,
+       update_receiver: Receiver<ProcessingProgress>,
+       shutdown: Arc<AtomicBool>,
+       sys: Arc<Mutex<System>>,
+       worker_healthy: Arc<AtomicBool>,
+       last_worker_health_check: Arc<Mutex<Instant>>,
    }
    ```
 
-3. **Event Emission**
-   Throttled progress updates to frontend with comprehensive processing metrics.
-   - Atomic counter updates from worker threads
-   - Progress history maintenance for trend analysis
-   - Adaptive throttling based on system load
-   - Stall detection and recovery mechanisms
+3. **Error Recovery**
+   Robust error handling and worker health monitoring.
+   - Health monitoring with automatic recovery
+   - Channel error handling with retries
+   - Worker stall detection and recovery
+   - Comprehensive error logging
+
+4. **Adaptive Performance**
+   Dynamic performance adjustments based on system load.
+   - CPU-aware update intervals
+   - Automatic throttling under high load
+   - Configurable thresholds and intervals
+   - Update merging for efficiency
+
+5. **Progress Metrics**
+   Comprehensive progress tracking and performance metrics.
+   ```rust
+   pub struct ProcessingProgress {
+       pub total_files: usize,
+       pub processed_files: usize,
+       pub current_file: String,
+       pub elapsed_time: f64,
+       pub bytes_processed: u64,
+       pub bytes_saved: i64,
+       pub estimated_time_remaining: f64,
+       pub active_workers: usize,
+       pub throughput_files_per_sec: f64,
+       pub throughput_mb_per_sec: f64,
+   }
+   ```
 
 # Task Processing ✨
 Advanced task management system that ensures efficient processing while preventing system overload.

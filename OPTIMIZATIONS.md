@@ -111,6 +111,10 @@ pub struct ProgressState {
 ```toml
 [dependencies]
 sysinfo = "0.33.1"  # For system monitoring
+tokio = { version = "1.42.0", features = ["full"] }
+crossbeam-channel = "0.5.14"
+parking_lot = "0.12.1"
+tracing = "0.1"
 ```
 
 ### Required Types ✅
@@ -120,6 +124,27 @@ pub struct WorkerMetrics {
     pub thread_id: usize,
     pub task_count: usize,
     pub avg_processing_time: f64,
+}
+
+pub struct DebouncerConfig {
+    pub min_interval: Duration,
+    pub max_interval: Duration,
+    pub channel_capacity: usize,
+    pub max_merge_count: usize,
+    pub adaptive_timing: bool,
+    pub cpu_threshold: f32,
+    pub slowdown_factor: f32,
+}
+
+pub struct ProgressDebouncer {
+    config: DebouncerConfig,
+    last_update: Arc<Mutex<Instant>>,
+    pending_updates: Sender<ProcessingProgress>,
+    update_receiver: Receiver<ProcessingProgress>,
+    shutdown: Arc<AtomicBool>,
+    sys: Arc<Mutex<System>>,
+    worker_healthy: Arc<AtomicBool>,
+    last_worker_health_check: Arc<Mutex<Instant>>,
 }
 ```
 
@@ -135,10 +160,29 @@ pub struct WorkerMetrics {
   - [✅] Efficient result collection
   - [✅] Progress event emission
   - [✅] Error propagation
+- [✅] Implement progress debouncing
+  - [✅] Add DebouncerConfig with configurable intervals
+  - [✅] Implement update merging logic
+  - [✅] Add adaptive timing based on CPU usage
+  - [✅] Integrate with WorkerPool
+- [✅] Add error recovery
+  - [✅] Implement health monitoring
+  - [✅] Add worker recovery mechanisms
+  - [✅] Handle channel errors with retries
+  - [✅] Add logging for debugging
+- [ ] Add channel deadlock detection
+  - [ ] Create ChannelMonitor struct
+  - [ ] Implement activity tracking
+  - [ ] Add size monitoring
+  - [ ] Set up thresholds
 - [✅] Debug points
   - [✅] Worker metrics logging
   - [✅] Channel capacity monitoring
   - [✅] Task processing timing
+  - [✅] Monitor update frequency
+  - [✅] Track CPU impact
+  - [✅] Verify update merging
+  - [✅] Test recovery scenarios
 
 ## 4. Frontend Optimizations 🎨 ✅
 ### Required Dependencies
@@ -311,7 +355,7 @@ All required types have been implemented in the codebase.
    - [✅] Add event throttling
    - [✅] Implement batch progress updates
    - [✅] Add completion verification
-   - [ ] Add event debouncing (Optional enhancement)
+   - [✅] Add event debouncing (Optional enhancement)
    - [ ] Implement progress smoothing (Optional enhancement)
 
 6. **Frontend Progress Handling** 🖥️
@@ -353,119 +397,6 @@ All required types have been implemented in the codebase.
 ### Next Steps (Optional Enhancements)
 1. Backend enhancements
    - Channel deadlock detection
-   - Event debouncing implementation
 2. Testing improvements
    - Extended batch size testing (1000+ images)
    - Long-running memory monitoring
-
-## 9. Backend Progress Enhancements 🔄
-
-### Required Dependencies
-```toml
-[dependencies]
-tokio = { version = "1.42.0", features = ["full", "time"] }
-futures = "0.3.31"
-crossbeam-channel = "0.5.14"
-parking_lot = "0.12"  # For deadlock detection
-tracing = "0.1.41"
-```
-
-### Channel Deadlock Detection
-
-1. **Monitoring System Implementation**
-   - [ ] Create ChannelMonitor struct
-   - [ ] Implement activity tracking
-   - [ ] Add size monitoring
-   - [ ] Set up thresholds
-
-2. **Implementation Steps**
-   - [ ] Add activity timestamps
-   ```rust
-   impl WorkerPool {
-       fn update_channel_activity(&self) {
-           *self.monitor.last_activity.lock() = Instant::now();
-       }
-   }
-   ```
-   - [ ] Implement stall detection
-   ```rust
-   impl ChannelMonitor {
-       pub fn check_deadlock(&self) -> Option<DeadlockInfo> {
-           // ... implementation
-       }
-   }
-   ```
-   - [ ] Add automatic recovery
-   ```rust
-   impl WorkerPool {
-       async fn monitor_channels(&self) {
-           // ... implementation
-       }
-   }
-   ```
-
-3. **Integration Points**
-   - [ ] Initialize monitoring in WorkerPool
-   - [ ] Add activity updates to channel operations
-   - [ ] Start monitoring task in new()
-   - [ ] Add recovery event handlers
-   - [ ] Implement frontend notifications
-
-### Event Debouncing
-
-1. **Core Implementation**
-   - [ ] Create ProgressDebouncer struct
-   - [ ] Implement interval tracking
-   - [ ] Set up update queue
-   - [ ] Add thread-safe state management
-
-2. **Implementation Steps**
-   - [ ] Add debouncing logic
-   ```rust
-   impl ProgressDebouncer {
-       pub fn new(min_interval: Duration) -> Self {
-           // ... implementation
-       }
-   }
-   ```
-   - [ ] Implement update merging
-   - [ ] Add queue management
-   - [ ] Handle edge cases
-
-3. **WorkerPool Integration**
-   - [ ] Add debouncer to WorkerPool
-   - [ ] Implement callback wrapping
-   - [ ] Update batch processing
-   - [ ] Add error handling
-
-4. **Frontend Integration**
-   - [ ] Add smooth transitions
-   - [ ] Handle merged updates
-   - [ ] Optimize UI updates
-   - [ ] Add progress interpolation
-
-### Testing Implementation
-1. **Deadlock Detection**
-   - [ ] Implement stall simulation
-   - [ ] Add recovery testing
-   - [ ] Test threshold variations
-   - [ ] Monitor success rates
-
-2. **Event Debouncing**
-   - [ ] Test update frequency
-   - [ ] Verify progress accuracy
-   - [ ] Implement load testing
-   - [ ] Check UI performance
-
-### Expected Outcomes
-1. **Channel Deadlock Detection**
-   - [ ] Stall detection working
-   - [ ] Automatic recovery functioning
-   - [ ] System stability improved
-   - [ ] User feedback implemented
-
-2. **Event Debouncing**
-   - [ ] Update frequency optimized
-   - [ ] Progress reporting efficient
-   - [ ] Animations smooth
-   - [ ] System overhead reduced
