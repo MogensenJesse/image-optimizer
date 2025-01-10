@@ -1,15 +1,14 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+// Module declarations
 mod commands;
-mod worker_pool;
-mod progress_debouncer;
+pub mod core;
+pub mod worker;
+pub mod processing;
 
+// Public exports
 pub use commands::*;
-pub use crate::worker_pool::{
-    WorkerPool,
-    WorkerMetrics,
-    resume_processing,
-};
-pub use crate::progress_debouncer::ProgressDebouncer;
+pub use core::{AppState, ImageSettings, OptimizationResult};
+pub use worker::{WorkerPool, ImageTask};
+pub use processing::{ImageOptimizer, ImageValidator, ValidationResult};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -19,11 +18,11 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
+        .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
             optimize_image,
             optimize_images,
             get_active_tasks,
-            get_worker_metrics,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

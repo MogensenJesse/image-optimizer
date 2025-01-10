@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from '@tauri-apps/api/event';
 import { dirname, join } from '@tauri-apps/api/path';
 import { mkdir } from "@tauri-apps/plugin-fs";
 import FloatingMenu from "./components/FloatingMenu";
-import CpuMetrics from "./components/CpuMetrics";
 
 function formatSize(bytes) {
   const absBytes = Math.abs(bytes);
@@ -18,16 +17,6 @@ function formatSize(bytes) {
 function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [optimizationStats, setOptimizationStats] = useState({
-    totalFiles: 0,
-    processedFiles: 0,
-    elapsedTime: 0,
-    currentFile: '',
-    bytesProcessed: 0,
-    bytesSaved: 0,
-    estimatedTimeRemaining: 0,
-    activeWorkers: 0
-  });
   const [optimizationResults, setOptimizationResults] = useState([]);
   const processingRef = useRef(false);
   const [settings, setSettings] = useState({
@@ -47,36 +36,12 @@ function App() {
     },
     outputFormat: 'original'
   });
-  const [smoothedProgress, setSmoothedProgress] = useState(0);
-  const [smoothedStats, setSmoothedStats] = useState({
-    bytesProcessed: 0,
-    bytesSaved: 0,
-    processedFiles: 0
-  });
-  const [isStalled, setIsStalled] = useState(false);
-  const [stallDuration, setStallDuration] = useState(0);
-  const stallStartTimeRef = useRef(null);
 
   const handleSettingsChange = (newSettings) => {
     setSettings(newSettings);
   };
 
   useEffect(() => {
-    // Add progress event listener
-    const unsubscribeProgress = listen("optimization_progress", (event) => {
-      const progress = event.payload;
-      setOptimizationStats({
-        totalFiles: progress.total_files,
-        processedFiles: progress.processed_files,
-        currentFile: progress.current_file,
-        elapsedTime: progress.elapsed_time.toFixed(2),
-        bytesProcessed: progress.bytes_processed,
-        bytesSaved: progress.bytes_saved,
-        estimatedTimeRemaining: progress.estimated_time_remaining.toFixed(2),
-        activeWorkers: progress.active_workers
-      });
-    });
-
     const unsubscribeDrop = listen("tauri://drag-drop", async (event) => {
       if (processingRef.current) return;
       processingRef.current = true;
@@ -88,14 +53,7 @@ function App() {
       if (paths && paths.length > 0) {
         try {
           setIsProcessing(true);
-          const batchStartTime = performance.now();
           
-          setOptimizationStats({
-            totalFiles: paths.length,
-            processedFiles: 0,
-            elapsedTime: 0
-          });
-
           // Create all required directories first
           await Promise.all(paths.map(async (path) => {
             const parentDir = await dirname(path);
@@ -114,11 +72,6 @@ function App() {
           // Process batch
           const results = await invoke('optimize_images', { tasks });
           setOptimizationResults(results);
-          setOptimizationStats(prev => ({
-            ...prev,
-            processedFiles: results.length,
-            elapsedTime: ((performance.now() - batchStartTime) / 1000).toFixed(2)
-          }));
 
         } catch (error) {
           console.error('Error processing images:', error);
@@ -143,157 +96,53 @@ function App() {
       unsubscribeDrop.then(fn => fn());
       unsubscribeEnter.then(fn => fn());
       unsubscribeLeave.then(fn => fn());
-      unsubscribeProgress.then(fn => fn());
     };
   }, [settings]);
-
-  // Add smooth progress animation
-  useEffect(() => {
-    if (!isProcessing) {
-      setSmoothedProgress(0);
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setSmoothedStats(prev => ({
-        bytesProcessed: prev.bytesProcessed + (optimizationStats.bytesProcessed - prev.bytesProcessed) * 0.1,
-        bytesSaved: prev.bytesSaved + (optimizationStats.bytesSaved - prev.bytesSaved) * 0.1,
-        processedFiles: prev.processedFiles + (optimizationStats.processedFiles - prev.processedFiles) * 0.1
-      }));
-
-      setSmoothedProgress(prev => {
-        const target = optimizationStats.totalFiles > 0 
-          ? (optimizationStats.processedFiles / optimizationStats.totalFiles) * 100 
-          : 0;
-        return prev + (target - prev) * 0.1;
-      });
-    }, 50); // Update every 50ms for smooth animation
-
-    return () => clearInterval(interval);
-  }, [isProcessing, optimizationStats]);
-
-  // Update stall detection
-  useEffect(() => {
-    if (!isProcessing) {
-      setIsStalled(false);
-      setStallDuration(0);
-      stallStartTimeRef.current = null;
-      return;
-    }
-
-    let lastProgress = optimizationStats.processedFiles;
-    let stallCheckInterval;
-    let stallDurationInterval;
-
-    const checkStall = () => {
-      if (lastProgress === optimizationStats.processedFiles && isProcessing) {
-        if (!isStalled) {
-          console.warn('Processing stall detected');
-          setIsStalled(true);
-          stallStartTimeRef.current = Date.now();
-          // Start tracking stall duration
-          stallDurationInterval = setInterval(() => {
-            setStallDuration(Math.round((Date.now() - stallStartTimeRef.current) / 1000));
-          }, 1000);
-        }
-      } else {
-        if (isStalled) {
-          console.log('Processing resumed');
-          setIsStalled(false);
-          setStallDuration(0);
-          stallStartTimeRef.current = null;
-          if (stallDurationInterval) {
-            clearInterval(stallDurationInterval);
-          }
-        }
-      }
-      lastProgress = optimizationStats.processedFiles;
-    };
-
-    stallCheckInterval = setInterval(checkStall, 5000); // Check every 5 seconds
-
-    return () => {
-      clearInterval(stallCheckInterval);
-      if (stallDurationInterval) {
-        clearInterval(stallDurationInterval);
-      }
-    };
-  }, [isProcessing, optimizationStats.processedFiles, isStalled]);
-
-  // Add recovery attempt handler
-  const handleRecoveryAttempt = async () => {
-    console.log('Attempting to recover from stall...');
-    try {
-      // Attempt to resume processing
-      await invoke('resume_processing');
-      setIsStalled(false);
-      setStallDuration(0);
-      stallStartTimeRef.current = null;
-    } catch (error) {
-      console.error('Recovery attempt failed:', error);
-    }
-  };
 
   return (
     <>
       <div 
         className={`dropzone ${isDragging ? 'dropzone--dragging' : ''} 
-          ${isProcessing ? 'dropzone--processing' : ''}
-          ${isStalled ? 'dropzone--stalled' : ''}`}
+          ${isProcessing ? 'dropzone--processing' : ''}`}
       >
         <div className="dropzone__content">
           {isProcessing ? (
-            <div className={`processing-info ${isStalled ? 'stalled' : ''}`}>
+            <div className="processing-info">
               <h2 className="processing-info__title">Processing...</h2>
-              <div className="progress-bar">
-                <div 
-                  className="progress-bar__fill" 
-                  style={{ width: `${smoothedProgress}%` }}
-                />
-              </div>
-              <p>Processed {Math.round(smoothedStats.processedFiles)} of {optimizationStats.totalFiles} files</p>
-              <p>Time elapsed: {optimizationStats.elapsedTime}s</p>
-              <p>Current file: {optimizationStats.currentFile}</p>
-              <p>Processed: {formatSize(Math.round(smoothedStats.bytesProcessed))}</p>
-              <p>Saved: {formatSize(Math.round(smoothedStats.bytesSaved))}</p>
-              <p>Estimated time remaining: {optimizationStats.estimatedTimeRemaining}s</p>
-              <p>Active workers: {optimizationStats.activeWorkers}</p>
-              
-              {isStalled && (
-                <div className="stall-warning">
-                  <p className="stall-warning__text">
-                    Processing stalled for {stallDuration} seconds
-                  </p>
-                  <button 
-                    className="stall-warning__button"
-                    onClick={handleRecoveryAttempt}
-                  >
-                    Attempt Recovery
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : optimizationResults.length > 0 ? (
-            <div className="completion-info">
-              <h2 className="completion-info__title">Optimization Complete</h2>
-              <p>{optimizationResults.length} files processed in {optimizationStats.elapsedTime}s</p>
-              <p>Total size reduction: {formatSize(optimizationResults.reduce((total, result) => 
-                total + result.savedBytes, 0))}</p>
-              <p>Average compression: {(optimizationResults.reduce((total, result) => 
-                total + parseFloat(result.compressionRatio), 0) / optimizationResults.length).toFixed(2)}%</p>
             </div>
           ) : (
-            <div className="dropzone__placeholder">
-              <p>Drop images here</p>
+            <div className="dropzone__message">
+              <h2>Drop images here</h2>
+              <p>Supported formats: JPEG, PNG, WebP, AVIF</p>
             </div>
           )}
         </div>
       </div>
-      {isProcessing && <CpuMetrics />}
+
       <FloatingMenu 
         settings={settings}
         onSettingsChange={handleSettingsChange}
+        disabled={isProcessing}
       />
+
+      {optimizationResults.length > 0 && (
+        <div className="results">
+          <h2>Results</h2>
+          <div className="results__grid">
+            {optimizationResults.map((result, index) => (
+              <div key={index} className="result-card">
+                <div className="result-card__path">{result.original_path}</div>
+                <div className="result-card__stats">
+                  <div>Original: {formatSize(result.original_size || 0)}</div>
+                  <div>Optimized: {formatSize(result.optimized_size || 0)}</div>
+                  <div>Saved: {formatSize(result.saved_bytes || 0)}</div>
+                  <div>Ratio: {(result.compression_ratio || 0).toFixed(1)}%</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </>
   );
 }
