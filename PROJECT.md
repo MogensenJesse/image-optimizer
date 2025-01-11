@@ -179,250 +179,63 @@ The event system manages user interactions and provides real-time feedback durin
 ### 1.2 Backend (Tauri/Rust)
 The Rust backend is built with a modular architecture that provides high-performance image processing capabilities while managing system resources efficiently. The system is divided into several key modules, each with specific responsibilities.
 
-# Module Structure
-```
-src/
-├── lib.rs               # Module declarations and public exports
-├── commands/           # Frontend-facing command interfaces
-│   ├── mod.rs         # Command module exports
-│   ├── image.rs       # Image optimization commands
-│   └── worker.rs      # Worker management commands
-├── core/              # Core types and state management
-│   ├── mod.rs        # Core module exports
-│   ├── types.rs      # Shared type definitions
-│   └── state.rs      # Global application state
-├── worker/            # Worker pool and task management
-│   ├── mod.rs        # Worker module exports
-│   ├── pool.rs       # Worker pool implementation
-│   └── types.rs      # Worker-specific types
-└── processing/        # Image processing logic
-    ├── mod.rs        # Processing module exports
-    ├── optimizer.rs  # Image optimization implementation
-    └── validation.rs # Input validation logic
-```
+# Module Organization
+The backend is organized into four primary modules:
 
-# Module Dependencies
-```
-commands → core → worker → processing
-     ↑         ↑          ↑
-     └─────────┴──────────┘
-     (circular dependencies prevented)
-```
-
-# Module Responsibilities & Interactions
-
-1. **Commands Layer** (`commands/`)
-   - Exposes Tauri commands to the frontend
-   - Handles command validation and parameter parsing
-   - Coordinates between frontend events and backend operations
-   - Manages command response serialization
-
-2. **Core Layer** (`core/`)
-   - Provides shared type definitions used across modules
-   - Manages global application state
-   - Handles state synchronization and thread safety
-   - Implements core traits and interfaces
-
-3. **Worker Layer** (`worker/`)
-   - Manages the worker pool lifecycle
-   - Implements task distribution and load balancing
-   - Handles worker health monitoring
-   - Provides worker metrics and status tracking
-
-4. **Processing Layer** (`processing/`)
-   - Implements image optimization algorithms
-   - Handles input/output validation
-   - Manages Sharp sidecar communication
-   - Provides progress tracking and metrics
-
-# Module Communication Flow
-1. Frontend → Commands: Through Tauri IPC
-2. Commands → Core: Direct function calls
-3. Core → Worker: Through thread-safe state
-4. Worker → Processing: Task execution
-5. Processing → Core: Results and metrics
-6. Core → Commands: Response aggregation
-
-# Core Module (`src/core/`)
-The foundation of the backend system, managing application state and core types.
-
-1. **Application State Management** (`state.rs`)
-   ```rust
-   pub struct AppState {
-       worker_pool: Arc<Mutex<Option<WorkerPool>>>
-   }
-   ```
-   - Singleton worker pool management
-   - Lazy initialization pattern
-   - Thread-safe state access
-
-2. **Core Types** (`types.rs`)
-   - Image settings configuration
-   - Optimization results structure
-   - Cross-module type definitions
-
-# Worker Module (`src/worker/`)
-Handles concurrent image processing with efficient resource utilization.
-
-1. **Worker Pool** (`pool.rs`)
-   ```rust
-   pub struct WorkerPool {
-       optimizer: ImageOptimizer,
-       app: AppHandle,
-       active_workers: Arc<Mutex<usize>>,
-       semaphore: Arc<Semaphore>,
-       worker_count: usize,
-   }
-   ```
-   - Dynamic worker scaling (2-8 workers)
-   - CPU-aware initialization
-   - Semaphore-based concurrency control
-   - Task distribution and monitoring
-
-2. **Task Management** (`types.rs`)
-   ```rust
-   pub struct ImageTask {
-       pub input_path: String,
-       pub output_path: String,
-       pub settings: ImageSettings,
-   }
-   ```
-   - Structured task representation
-   - Settings encapsulation
-   - Path management
-
-# Processing Module (`src/processing/`)
-Handles image optimization and validation logic.
-
-1. **Image Optimizer** (`optimizer.rs`)
-   ```rust
-   pub struct ImageOptimizer {
-       active_tasks: Arc<Mutex<Vec<String>>>
-   }
-   ```
-   - Sharp sidecar integration
-   - Progress tracking
-   - Error handling
-   - Compression metrics calculation
-
-2. **Validation System** (`validation.rs`)
-   ```rust
-   pub struct ImageValidator;
-   pub struct ValidationResult {
-       pub is_valid: bool,
-       pub error: Option<String>,
-   }
-   ```
-   - Input/output path validation
-   - Settings validation
-   - Error reporting
-
-# Commands Module (`src/commands/`)
-Exposes backend functionality to the frontend through Tauri commands.
-
-1. **Image Commands** (`image.rs`)
-   ```rust
-   #[tauri::command]
-   pub async fn optimize_image(...) -> Result<OptimizationResult, String>
-   #[tauri::command]
-   pub async fn optimize_images(...) -> Result<Vec<OptimizationResult>, String>
-   ```
-   - Single image optimization
-   - Batch processing
+1. **Commands Module**
+   - Frontend-facing Tauri commands interface
+   - Single and batch image optimization
+   - Worker pool monitoring
    - Error handling and validation
 
-2. **Worker Commands** (`worker.rs`)
-   ```rust
-   #[tauri::command]
-   pub async fn get_active_tasks(...) -> Result<usize, String>
-   ```
-   - Worker status monitoring
-   - Task tracking
+2. **Core Module**
+   - Application state management
+   - Type definitions for settings and results
+   - Thread-safe worker pool access
+   - Serializable data structures
 
-# Internal Communication
-The system uses a sophisticated communication pattern for efficient operation.
+3. **Processing Module**
+   - Image optimization using Sharp sidecar
+   - Input/output validation
+   - Format-specific optimizations
+   - Progress tracking and metrics
 
-1. **Command Flow**
-   ```
-   Frontend → Tauri Command → AppState → WorkerPool → ImageOptimizer → Sharp Sidecar
-   ```
-   - Asynchronous command handling
-   - State management through Arc<Mutex>
-   - Error propagation
-
-2. **Concurrency Control**
-   ```rust
-   semaphore: Arc<Semaphore>  // Controls concurrent task execution
-   active_workers: Arc<Mutex<usize>>  // Tracks active worker count
-   ```
-   - Semaphore-based task limiting
-   - Thread-safe worker tracking
-   - Resource contention prevention
-
-3. **Task Processing Pipeline**
-   ```
-   Task Validation → Worker Acquisition → Processing → Result Collection
-   ```
-   - Input validation
-   - Resource allocation
-   - Error handling
-   - Result aggregation
-
-# Performance Features
-
-1. **Dynamic Worker Scaling**
-   ```rust
-   let cpu_count = num_cpus::get();
-   let worker_count = cpu_count.max(2).min(8);
-   ```
-   - CPU-aware worker allocation
-   - Minimum 2, maximum 8 workers
-   - Automatic scaling based on system capabilities
-
-2. **Batch Processing**
-   ```rust
-   pub async fn process_batch(&self, tasks: Vec<ImageTask>) -> Result<Vec<OptimizationResult>, String>
-   ```
-   - Parallel task execution
-   - Progress tracking
-   - Success/failure counting
-   - Resource-aware scheduling
-
-3. **Resource Management**
+4. **Worker Module**
+   - Thread-safe worker pool (2-8 workers)
    - Semaphore-based concurrency control
-   - Active task tracking
-   - Memory-efficient processing
-   - Error recovery mechanisms
+   - Batch processing capabilities
+   - Resource management
 
-# Error Handling & Logging
+# Key Features
+- Adaptive worker pool based on CPU cores
+- Thread-safe state management
+- Comprehensive error handling
+- Real-time progress tracking
+- Format-specific optimizations
+- Efficient batch processing
 
-1. **Comprehensive Logging**
-   ```rust
-   use tracing::{info, debug, warn};
-   ```
-   - Initialization logging
-   - Task progress tracking
-   - Error reporting
-   - Performance metrics
+# Data Flow
+```mermaid
+sequenceDiagram
+    Frontend->>Commands: Optimization Request
+    Commands->>Core: Validate & Initialize
+    Core->>Worker: Allocate Resources
+    Worker->>Processing: Optimize Image
+    Processing->>Sharp: Execute Process
+    Sharp-->>Processing: Result
+    Processing-->>Worker: Update Metrics
+    Worker-->>Core: Aggregate Results
+    Core-->>Commands: Format Response
+    Commands-->>Frontend: Return Result
+```
 
-2. **Error Propagation**
-   - Structured error types
-   - Clear error messages
-   - Frontend-friendly error formatting
-   - Recovery mechanisms
-
-# Security Features
-
-1. **Path Validation**
-   - Input/output path checking
-   - Directory creation safety
-   - Permission verification
-
-2. **Resource Protection**
-   - Controlled sidecar execution
-   - Memory usage monitoring
-   - CPU usage management
-   - File system access control
+# Performance Considerations
+- Dynamic worker scaling
+- Memory-efficient processing
+- Throttled progress updates
+- Parallel batch processing
+- Resource cleanup guarantees
+- Optimized sidecar communication
 
 ### 1.3 Node.js Sidecar (Sharp)
 The Sharp sidecar provides professional-grade image processing capabilities through a well-optimized Node.js implementation.
@@ -720,7 +533,8 @@ The system implements comprehensive error handling across all communication laye
        "args": [
          "optimize",
          {"validator": "\\S+"},
-         {"validator": "\\S+"}
+         {"validator": "\\S+"},
+         {"validator": ".*"}
        ]
      }]
    }
