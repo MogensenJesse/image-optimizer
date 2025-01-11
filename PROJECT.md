@@ -583,6 +583,12 @@ This process ensures the Sharp sidecar is:
 
 The application uses a multi-layered communication system to coordinate between the React frontend, Rust backend, and Node.js sidecar. This architecture ensures efficient image processing while maintaining a responsive user interface.
 
+# Communication Layers
+```
+Frontend (React) ←→ Backend (Rust) ←→ Sidecar (Sharp)
+     Tauri IPC        Process Control
+```
+
 # Frontend → Backend Flow
 The frontend communicates with the Rust backend through Tauri's IPC system, using both commands for direct actions and event listeners for continuous updates.
 
@@ -598,13 +604,13 @@ The frontend communicates with the Rust backend through Tauri's IPC system, usin
    // Batch optimization
    const results = await invoke('optimize_images', { tasks });
 
-   // Worker metrics
-   const metrics = await invoke('get_worker_metrics');
+   // Worker status
+   const activeWorkers = await invoke('get_active_tasks');
    ```
 
 2. **Event Listeners** - Real-time updates and user interactions
    ```javascript
-   // Progress tracking - Updates UI with current processing status
+   // Progress tracking with throttled updates
    const unsubscribeProgress = listen("optimization_progress", (event) => {
      const progress = event.payload;
      setOptimizationStats({
@@ -618,52 +624,116 @@ The frontend communicates with the Rust backend through Tauri's IPC system, usin
        activeWorkers: progress.active_workers
      });
    });
-
-   // File drop handling - Processes files dropped into the application
-   const unsubscribeDrop = listen("tauri://drag-drop", async (event) => {
-     const paths = event.payload.paths;
-     // Process dropped files...
-   });
    ```
 
 # Backend → Sidecar Flow
-The Rust backend manages a pool of workers that process images using the Sharp sidecar. This system ensures optimal resource utilization and prevents system overload.
+The Rust backend manages a pool of workers that process images using the Sharp sidecar, with efficient resource management and error handling.
 
-1. **Command Execution** - Worker pool management and task processing
+1. **Worker Pool Management**
    ```rust
-   #[tauri::command]
-   pub async fn optimize_image(
-       app: tauri::AppHandle,
-       input_path: String,
-       output_path: String,
-       settings: ImageSettings,
-   ) -> Result<OptimizationResult, String> {
-       let pool = {
-           let mut pool_guard = WORKER_POOL.lock().await;
-           if pool_guard.is_none() {
-               let num_workers = get_optimal_worker_count();
-               *pool_guard = Some(WorkerPool::new(num_workers, app.clone()));
-           }
-           pool_guard.as_mut().unwrap().clone()
-       };
-
-       let task = ImageTask {
-           input_path,
-           output_path,
-           settings,
-           priority: 0,
-       };
-
-       pool.process(task).await
+   pub struct WorkerPool {
+       optimizer: ImageOptimizer,
+       app: AppHandle,
+       active_workers: Arc<Mutex<usize>>,
+       semaphore: Arc<Semaphore>,
+       worker_count: usize,
    }
    ```
+   - Dynamic worker scaling (2-8 workers)
+   - Semaphore-based concurrency control
+   - Thread-safe worker tracking
+   - Graceful error handling
 
-2. **Progress Events** - Real-time progress updates to frontend
+2. **Task Processing**
    ```rust
-   pool.process_batch(tasks, move |progress| {
-       let _ = app_handle.emit("optimization_progress", progress);
-   }).await
+   pub async fn process(&self, task: ImageTask) -> Result<OptimizationResult, String> {
+       let _permit = self.semaphore.acquire().await?;
+       let mut count = self.active_workers.lock().await;
+       *count += 1;
+       
+       let result = self.optimizer.process_image(&self.app, task).await;
+       
+       *count -= 1;
+       result
+   }
    ```
+   - Asynchronous task execution
+   - Resource cleanup on completion
+   - Detailed error propagation
+   - Progress tracking
+
+3. **Batch Processing**
+   ```rust
+   pub async fn process_batch(&self, tasks: Vec<ImageTask>) -> Result<Vec<OptimizationResult>, String> {
+       let mut handles = Vec::with_capacity(tasks.len());
+       for task in tasks {
+           handles.push(tokio::spawn(self.process(task)));
+       }
+       // Collect and aggregate results...
+   }
+   ```
+   - Parallel task execution
+   - Order-independent processing
+   - Aggregated error handling
+   - Progress tracking per task
+
+# Error Handling & Recovery
+The system implements comprehensive error handling across all communication layers:
+
+1. **Frontend Layer**
+   ```javascript
+   try {
+     const result = await invoke('optimize_image', {...});
+   } catch (error) {
+     console.error(`Error processing ${path}:`, error);
+   }
+   ```
+   - User-friendly error messages
+   - Graceful UI updates
+   - Retry mechanisms
+
+2. **Backend Layer**
+   ```rust
+   pub async fn process(&self, task: ImageTask) -> Result<OptimizationResult, String> {
+       self.semaphore.acquire().await.map_err(|e| e.to_string())?;
+       // Process with error handling...
+   }
+   ```
+   - Structured error types
+   - Resource cleanup on failure
+   - Error context preservation
+
+3. **Sidecar Layer**
+   - Process exit code handling
+   - stderr capture and parsing
+   - Timeout management
+   - Resource cleanup
+
+# Security Measures
+1. **Command Validation**
+   ```json
+   {
+     "identifier": "shell:allow-execute",
+     "allow": [{
+       "name": "binaries/sharp-sidecar",
+       "sidecar": true,
+       "args": [
+         "optimize",
+         {"validator": "\\S+"},
+         {"validator": "\\S+"}
+       ]
+     }]
+   }
+   ```
+   - Strict argument validation
+   - Path sanitization
+   - Permission checks
+
+2. **Resource Protection**
+   - Memory usage limits
+   - CPU usage monitoring
+   - File system access control
+   - Process isolation
 
 # Data Types
 The application uses strongly-typed data structures to ensure type safety and clear communication between layers.
