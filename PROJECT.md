@@ -177,65 +177,159 @@ The event system manages user interactions and provides real-time feedback durin
    ```
 
 ### 1.2 Backend (Tauri/Rust)
-The Rust backend is built with a modular architecture that provides high-performance image processing capabilities while managing system resources efficiently. The system is divided into several key modules, each with specific responsibilities.
+The Rust backend implements a modular, high-performance architecture optimized for efficient image processing and resource management.
 
-# Module Organization
-The backend is organized into four primary modules:
-
-1. **Commands Module**
-   - Frontend-facing Tauri commands interface
-   - Single and batch image optimization
-   - Worker pool monitoring
-   - Error handling and validation
-
-2. **Core Module**
-   - Application state management
-   - Type definitions for settings and results
-   - Thread-safe worker pool access
-   - Serializable data structures
-
-3. **Processing Module**
-   - Image optimization using Sharp sidecar
-   - Input/output validation
-   - Format-specific optimizations
-   - Progress tracking and metrics
-
-4. **Worker Module**
-   - Thread-safe worker pool (2-8 workers)
-   - Semaphore-based concurrency control
-   - Batch processing capabilities
-   - Resource management
-
-# Key Features
-- Adaptive worker pool based on CPU cores
-- Thread-safe state management
-- Comprehensive error handling
-- Real-time progress tracking
-- Format-specific optimizations
-- Efficient batch processing
-
-# Data Flow
+#### Core Architecture
 ```mermaid
-sequenceDiagram
-    Frontend->>Commands: Optimization Request
-    Commands->>Core: Validate & Initialize
-    Core->>Worker: Allocate Resources
-    Worker->>Processing: Optimize Image
-    Processing->>Sharp: Execute Process
-    Sharp-->>Processing: Result
-    Processing-->>Worker: Update Metrics
-    Worker-->>Core: Aggregate Results
-    Core-->>Commands: Format Response
-    Commands-->>Frontend: Return Result
+graph TD
+    A[main.rs] --> B[lib.rs]
+    B --> C[utils]
+    C --> D[core]
+    D --> E[processing]
+    E --> F[worker]
+    F --> G[commands]
 ```
 
-# Performance Considerations
-- Dynamic worker scaling
-- Memory-efficient processing
-- Throttled progress updates
-- Parallel batch processing
-- Resource cleanup guarantees
-- Optimized sidecar communication
+1. **Base Layer (utils)**
+   - Error handling with structured types
+   - Format-specific operations (JPEG, PNG, WebP, AVIF)
+   - File system operations with security checks
+   - Input validation and sanitization
+
+2. **Core Layer**
+   - Thread-safe state management
+   - Centralized type definitions
+   - Configuration management
+   - Resource lifecycle handling
+
+3. **Processing Layer**
+   - Sharp sidecar integration
+   - Batch processing optimization
+   - Format-specific optimizations
+   - Progress tracking
+
+4. **Worker Layer**
+   - Dynamic worker pool (2-8 workers)
+   - Semaphore-based concurrency
+   - Resource-aware scaling
+   - Task distribution
+
+5. **Command Layer**
+   - Frontend-facing Tauri commands
+   - State management
+   - Error handling
+   - Progress reporting
+
+#### Key Features
+
+1. **Performance Optimizations**
+   - Batch processing reduces process spawning
+   - HashSet for O(1) task lookups
+   - Memory-aware chunking
+   - Efficient IPC with Sharp
+
+2. **Resource Management**
+   - Dynamic worker scaling
+   - Automatic cleanup on errors
+   - Memory usage monitoring
+   - CPU utilization control
+
+3. **Error Handling**
+   - Structured error types
+   - Automatic recovery
+   - Detailed error context
+   - Resource cleanup
+
+4. **Security**
+   - Path validation and sanitization
+   - Process isolation
+   - Resource limits
+   - Permission checks
+
+#### Data Flow
+```mermaid
+sequenceDiagram
+    Frontend->>+Commands: Optimization Request
+    Commands->>+Core: Get/Init Worker Pool
+    Core->>+Worker: Process Task(s)
+    Worker->>+Processing: Optimize Image(s)
+    Processing->>Sharp: Execute Process
+    Sharp-->>Processing: Process Result
+    Processing-->>-Worker: Results
+    Worker-->>-Core: Update State
+    Core-->>-Commands: Aggregate Results
+    Commands-->>-Frontend: Response
+```
+
+#### Type System
+
+1. **Task Types**
+   ```rust
+   pub struct ImageTask {
+       pub input_path: String,
+       pub output_path: String,
+       pub settings: ImageSettings,
+   }
+   ```
+
+2. **Settings**
+   ```rust
+   pub struct ImageSettings {
+       pub quality: QualitySettings,
+       pub resize: ResizeSettings,
+       pub output_format: String,
+   }
+   ```
+
+3. **Results**
+   ```rust
+   pub struct OptimizationResult {
+       pub original_size: u64,
+       pub optimized_size: u64,
+       pub saved_bytes: i64,
+       pub compression_ratio: f64,
+   }
+   ```
+
+#### Monitoring
+
+1. **Performance Metrics**
+   - File processing counts
+   - Size statistics
+   - Processing duration
+   - Compression ratios
+
+2. **Resource Metrics**
+   - Active worker count
+   - Memory usage
+   - CPU utilization
+   - Task queue status
+
+3. **Error Tracking**
+   - Error categorization
+   - Recovery attempts
+   - Resource impact
+   - User feedback
+
+#### Security Model
+
+1. **File System**
+   - Restricted directory access
+   - Path sanitization
+   - Permission validation
+   - Format verification
+
+2. **Process**
+   - Sidecar isolation
+   - Resource limits
+   - Error containment
+   - Clean shutdown
+
+3. **Input**
+   - Format validation
+   - Size limits
+   - Path checks
+   - Settings validation
 
 ### 1.3 Node.js Sidecar (Sharp)
 The Sharp sidecar provides professional-grade image processing capabilities through a well-optimized Node.js implementation.
