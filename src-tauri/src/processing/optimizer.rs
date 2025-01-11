@@ -1,126 +1,150 @@
-use std::path::Path;
 use std::sync::Arc;
+use std::collections::HashSet;
 use tokio::sync::Mutex;
 use tauri_plugin_shell::ShellExt;
-use crate::core::OptimizationResult;
-use crate::worker::ImageTask;
+use crate::core::{OptimizationResult, ImageTask};
+use crate::utils::{
+    OptimizerError,
+    OptimizerResult,
+    get_file_size,
+    ensure_parent_dir,
+    validate_input_path,
+    validate_output_path,
+};
 use serde_json;
+
+const BATCH_SIZE: usize = 10;
 
 #[derive(Clone)]
 pub struct ImageOptimizer {
-    active_tasks: Arc<Mutex<Vec<String>>>,
+    active_tasks: Arc<Mutex<HashSet<String>>>,
 }
 
 impl ImageOptimizer {
     pub fn new() -> Self {
         Self {
-            active_tasks: Arc::new(Mutex::new(Vec::new())),
+            active_tasks: Arc::new(Mutex::new(HashSet::new())),
         }
     }
 
-    pub async fn process_image(
+    pub async fn process_batch(
         &self,
         app: &tauri::AppHandle,
-        task: ImageTask,
-    ) -> Result<OptimizationResult, String> {
-        let input_path = Path::new(&task.input_path);
-        let output_path = Path::new(&task.output_path);
-
-        // Validate paths
-        if !input_path.exists() {
-            return Err(format!("Input file does not exist: {}", task.input_path));
+        tasks: Vec<ImageTask>,
+    ) -> OptimizerResult<Vec<OptimizationResult>> {
+        let mut results = Vec::with_capacity(tasks.len());
+        
+        // Process tasks in chunks to reduce process spawning
+        for chunk in tasks.chunks(BATCH_SIZE) {
+            let chunk_results = self.process_chunk(app, chunk.to_vec()).await?;
+            results.extend(chunk_results);
         }
-        if let Some(parent) = output_path.parent() {
-            if !parent.exists() {
-                tokio::fs::create_dir_all(parent)
-                    .await
-                    .map_err(|e| format!("Failed to create output directory: {}", e))?;
-            }
+        
+        Ok(results)
+    }
+
+    async fn process_chunk(
+        &self,
+        app: &tauri::AppHandle,
+        tasks: Vec<ImageTask>,
+    ) -> OptimizerResult<Vec<OptimizationResult>> {
+        let mut results = Vec::with_capacity(tasks.len());
+        let mut original_sizes = Vec::with_capacity(tasks.len());
+
+        // Validate paths and get original sizes
+        for task in &tasks {
+            // Validate input and output paths
+            validate_input_path(&task.input_path).await?;
+            validate_output_path(&task.output_path).await?;
+            
+            // Ensure output directory exists
+            ensure_parent_dir(&task.output_path).await?;
+
+            // Get original file size
+            let original_size = get_file_size(&task.input_path).await?;
+            original_sizes.push(original_size);
+
+            // Track active task
+            let mut active = self.active_tasks.lock().await;
+            active.insert(task.input_path.clone());
         }
 
-        // Get original file size
-        let original_size = tokio::fs::metadata(&task.input_path)
-            .await
-            .map_err(|e| format!("Failed to get original file size: {}", e))?
-            .len();
-
-        // Track active task
-        {
-            let mut tasks = self.active_tasks.lock().await;
-            tasks.push(task.input_path.clone());
-        }
-
-        // Process image using Sharp sidecar
-        let result = self.run_sharp_process(app, &task).await;
+        // Process the batch using Sharp sidecar
+        let result = self.run_sharp_process_batch(app, &tasks).await;
 
         // Remove from active tasks
         {
-            let mut tasks = self.active_tasks.lock().await;
-            if let Some(pos) = tasks.iter().position(|x| x == &task.input_path) {
-                tasks.remove(pos);
+            let mut active = self.active_tasks.lock().await;
+            for task in &tasks {
+                active.remove(&task.input_path);
             }
         }
 
-        // Get optimized file size and create result
         match result {
             Ok(_) => {
-                let optimized_size = tokio::fs::metadata(&task.output_path)
-                    .await
-                    .map_err(|e| format!("Failed to get optimized file size: {}", e))?
-                    .len();
+                // Collect results for each task
+                for (task, original_size) in tasks.into_iter().zip(original_sizes) {
+                    let optimized_size = get_file_size(&task.output_path).await?;
 
-                // Calculate metrics
-                let bytes_saved = original_size as i64 - optimized_size as i64;
-                let compression_ratio = if original_size > 0 {
-                    (bytes_saved as f64 / original_size as f64) * 100.0
-                } else {
-                    0.0
-                };
+                    let bytes_saved = original_size as i64 - optimized_size as i64;
+                    let compression_ratio = if original_size > 0 {
+                        (bytes_saved as f64 / original_size as f64) * 100.0
+                    } else {
+                        0.0
+                    };
 
-                Ok(OptimizationResult {
-                    original_path: task.input_path,
-                    optimized_path: task.output_path,
-                    original_size,
-                    optimized_size,
-                    success: true,
-                    error: None,
-                    saved_bytes: bytes_saved,
-                    compression_ratio,
-                })
+                    results.push(OptimizationResult {
+                        original_path: task.input_path,
+                        optimized_path: task.output_path,
+                        original_size,
+                        optimized_size,
+                        success: true,
+                        error: None,
+                        saved_bytes: bytes_saved,
+                        compression_ratio,
+                    });
+                }
+                Ok(results)
             }
             Err(e) => Err(e),
         }
     }
 
-    async fn run_sharp_process(&self, app: &tauri::AppHandle, task: &ImageTask) -> Result<(), String> {
+    async fn run_sharp_process_batch(&self, app: &tauri::AppHandle, tasks: &[ImageTask]) -> OptimizerResult<()> {
         let command = app.shell()
             .sidecar("sharp-sidecar")
-            .map_err(|e| format!("Failed to create Sharp sidecar: {}", e))?;
+            .map_err(|e| OptimizerError::sidecar(format!("Failed to create Sharp sidecar: {}", e)))?;
 
-        // Serialize settings to JSON
-        let settings_json = serde_json::to_string(&task.settings)
-            .map_err(|e| format!("Failed to serialize settings: {}", e))?;
+        // Create batch task data
+        let batch_data = tasks.iter().map(|task| {
+            serde_json::json!({
+                "input": task.input_path,
+                "output": task.output_path,
+                "settings": task.settings
+            })
+        }).collect::<Vec<_>>();
+
+        let batch_json = serde_json::to_string(&batch_data)
+            .map_err(|e| OptimizerError::processing(format!("Failed to serialize batch settings: {}", e)))?;
 
         let output = command
             .args(&[
-                "optimize",
-                &task.input_path,
-                &task.output_path,
-                &settings_json,
+                "optimize-batch",
+                &batch_json,
             ])
             .output()
             .await
-            .map_err(|e| format!("Failed to run Sharp process: {}", e))?;
+            .map_err(|e| OptimizerError::sidecar(format!("Failed to run Sharp process: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            Err(format!("Sharp process failed: {}", stderr))
+            Err(OptimizerError::sidecar(format!("Sharp process failed: {}", stderr)))
         } else {
             Ok(())
         }
     }
 
     pub async fn get_active_tasks(&self) -> Vec<String> {
-        self.active_tasks.lock().await.clone()
+        self.active_tasks.lock().await.iter().cloned().collect()
     }
 } 

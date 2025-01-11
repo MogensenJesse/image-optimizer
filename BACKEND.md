@@ -23,18 +23,20 @@ The main library configuration that sets up the application structure.
 
 ```rust
 // src-tauri/src/lib.rs
-mod commands;
+pub mod utils;
 pub mod core;
-pub mod worker;
 pub mod processing;
+pub mod worker;
+mod commands;
 ```
 
 **Components:**
 1. **Module Structure**
-   - `commands`: Frontend-facing Tauri commands
+   - `utils`: Base utilities and shared functionality
    - `core`: State management and shared types
-   - `worker`: Parallel processing pool
    - `processing`: Image optimization logic
+   - `worker`: Parallel processing pool
+   - `commands`: Frontend-facing Tauri commands
 
 2. **Tauri Plugins**
    - Process management (`tauri_plugin_process`)
@@ -43,88 +45,78 @@ pub mod processing;
    - Shell commands (`tauri_plugin_shell`)
    - File/URL opening (`tauri_plugin_opener`)
 
-3. **Command Handlers**
-   - `optimize_image`: Single image processing
-   - `optimize_images`: Batch optimization
-   - `get_active_tasks`: Worker status monitoring
-
 ## Architecture Overview
 
 ```mermaid
 graph TD
     A[main.rs] --> B[lib.rs]
-    B --> C[Commands]
-    B --> D[Core]
-    B --> E[Worker]
-    B --> F[Processing]
-    C --> D
-    E --> F
+    B --> C[utils]
+    C --> D[core]
+    D --> E[processing]
+    E --> F[worker]
+    F --> G[commands]
 ```
 
 The architecture follows a modular design where:
 - `main.rs` bootstraps the application
 - `lib.rs` orchestrates the components
 - Each module has a specific responsibility
-- Dependencies flow from high-level to low-level components
+- Dependencies flow from low-level to high-level components
+- Circular dependencies are eliminated through proper type placement
 
-## Command Interface
+## Utils Module
 
-The `commands` module serves as the bridge between the frontend and backend, exposing Tauri commands for image optimization and worker management.
+The `utils` module provides foundational utilities used throughout the application.
 
 ### Module Structure
 ```rust
-// src-tauri/src/commands/mod.rs
-mod image;   // Image optimization commands
-mod worker;  // Worker pool management
+// src-tauri/src/utils/mod.rs
+mod error;    // Error types and handling
+mod formats;  // Image format handling
+mod fs;       // File system operations
+mod validation; // Input validation
 ```
 
-### Image Commands (`image.rs`)
-Handles image optimization requests from the frontend.
+### Error Handling (`error.rs`)
+Centralized error types for consistent error handling.
 
 **Key Components:**
-1. **Types:**
+1. **OptimizerError:**
+   - Structured error types for different failure cases
+   - Conversion implementations for common error types
+   - Error context preservation
+   - Serializable for frontend communication
+
+### Format Handling (`formats.rs`)
+Manages image format-specific operations and validation.
+
+**Key Features:**
+1. **ImageFormat Enum:**
    ```rust
-   pub struct BatchImageTask {
-       pub input_path: String,
-       pub output_path: String,
-       pub settings: ImageSettings,
+   pub enum ImageFormat {
+       JPEG,
+       AVIF,
+       // ... other formats
    }
    ```
+   - Format detection from extensions
+   - Default quality values per format
+   - Format-specific validation rules
+   - Conversion compatibility checks
 
-2. **Commands:**
-   - `optimize_image`: Process single image
-     - Validates input task
-     - Initializes worker pool if needed
-     - Returns optimization result
-   
-   - `optimize_images`: Batch processing
-     - Handles multiple images concurrently
-     - Validates each task
-     - Returns array of results
+### File System (`fs.rs`)
+Handles all file system operations with proper error handling.
 
-### Worker Commands (`worker.rs`)
-Manages the worker pool state and monitoring.
-
-**Commands:**
-- `get_active_tasks`: Monitor worker pool
-  - Returns current active worker count
-  - Handles uninitialized pool state
-  - Thread-safe state access
-
-### Command Flow
-```mermaid
-sequenceDiagram
-    Frontend->>+Commands: Optimization Request
-    Commands->>+Validator: Validate Input
-    Validator-->>-Commands: Validation Result
-    Commands->>+Worker Pool: Process Image(s)
-    Worker Pool-->>-Commands: Optimization Result
-    Commands-->>-Frontend: Response
-```
+**Key Operations:**
+- File size retrieval
+- Directory creation and validation
+- Path validation and sanitization
+- Extension handling
+- Parent directory management
 
 ## Core Module
 
-The `core` module provides fundamental types and state management for the application.
+The `core` module provides fundamental types and state management.
 
 ### Module Structure
 ```rust
@@ -134,7 +126,7 @@ mod types;  // Shared type definitions
 ```
 
 ### Type System (`types.rs`)
-Defines the core data structures used throughout the application.
+Defines core data structures used throughout the application.
 
 1. **Image Settings:**
    ```rust
@@ -144,26 +136,24 @@ Defines the core data structures used throughout the application.
        pub output_format: String,
    }
    ```
-   - `QualitySettings`: Format-specific quality controls
-   - `ResizeSettings`: Image dimension configurations
-   - Serializable for frontend-backend communication
+   - Format-specific quality controls
+   - Resize configurations with aspect ratio handling
+   - Output format specification
 
-2. **Optimization Results:**
+2. **Task Types:**
    ```rust
-   pub struct OptimizationResult {
-       pub original_size: u64,
-       pub optimized_size: u64,
-       pub saved_bytes: i64,
-       pub compression_ratio: f64,
-       // ... other fields
+   pub struct ImageTask {
+       pub input_path: String,
+       pub output_path: String,
+       pub settings: ImageSettings,
    }
    ```
-   - Tracks optimization metrics
-   - Provides error handling
-   - Serializable for frontend feedback
+   - Centralized task definition
+   - Used across worker and processing modules
+   - Serializable for IPC
 
 ### State Management (`state.rs`)
-Manages application-wide state using thread-safe patterns.
+Manages application-wide state with thread safety.
 
 **Key Features:**
 1. **Worker Pool Management:**
@@ -174,33 +164,12 @@ Manages application-wide state using thread-safe patterns.
    ```
    - Thread-safe worker pool access
    - Lazy initialization
-   - Singleton pattern implementation
-
-2. **State Operations:**
-   - `new()`: Create fresh application state
-   - `get_or_init_worker_pool()`: Lazy worker pool initialization
-   - Thread-safe state access patterns
-
-### State Flow
-```mermaid
-flowchart LR
-    A[Frontend Request] --> B[AppState]
-    B --> C{Worker Pool Exists?}
-    C -->|Yes| D[Use Existing Pool]
-    C -->|No| E[Initialize New Pool]
-    D --> F[Process Request]
-    E --> F
-```
-
-The core module ensures:
-- Type safety across the application
-- Thread-safe state management
-- Efficient resource utilization
-- Clean frontend-backend communication
+   - Graceful shutdown implementation
+   - Resource cleanup on drop
 
 ## Processing Module
 
-The `processing` module handles image optimization and validation logic, serving as the core image processing engine.
+The `processing` module handles image optimization logic.
 
 ### Module Structure
 ```rust
@@ -210,267 +179,123 @@ mod validation;   // Input validation
 ```
 
 ### Image Optimizer (`optimizer.rs`)
-Handles the core image processing functionality using Sharp as a sidecar process.
+Core image processing functionality using Sharp sidecar.
 
-**Key Components:**
-1. **Optimizer State:**
+**Key Features:**
+1. **Batch Processing:**
    ```rust
    pub struct ImageOptimizer {
-       active_tasks: Arc<Mutex<Vec<String>>>
+       active_tasks: Arc<Mutex<HashSet<String>>>,
+       // ... other fields
    }
    ```
-   - Tracks active processing tasks
-   - Thread-safe task management
-   - Concurrent processing support
+   - Efficient task tracking with HashSet
+   - Parallel processing support
+   - Progress monitoring
+   - Resource cleanup
 
-2. **Core Operations:**
-   - `process_image`: Main image processing pipeline
-     - Path validation
-     - Directory creation
-     - Size tracking
-     - Sharp process execution
-     - Metrics calculation
-   
-   - `run_sharp_process`: Sidecar process management
-     - JSON settings serialization
-     - Process execution
-     - Error handling
+2. **Sharp Integration:**
+   - Batch command processing
+   - Optimized IPC communication
+   - Error handling and recovery
+   - Performance monitoring
 
-### Image Validator (`validation.rs`)
-Ensures input data integrity and validates processing parameters.
+### Validation (`validation.rs`)
+Input validation and error checking.
 
-1. **Validation Types:**
-   ```rust
-   pub struct ValidationResult {
-       pub is_valid: bool,
-       pub error: Option<String>,
-   }
-   ```
-
-2. **Validation Checks:**
-   - Input path validation
-     - File existence
-     - Format support
-     - Extension checking
-   
-   - Output path validation
-     - Directory existence
-     - Format compatibility
-     - Path accessibility
-   
-   - Settings validation
-     - Quality ranges (1-100)
-     - Dimension constraints
-     - Format compatibility
-
-### Processing Flow
-```mermaid
-flowchart TB
-    A[Image Task] --> B[Validator]
-    B -->|Valid| C[Optimizer]
-    B -->|Invalid| D[Error Response]
-    C --> E[Sharp Sidecar]
-    E --> F[Result]
-    F --> G{Success?}
-    G -->|Yes| H[Optimization Metrics]
-    G -->|No| I[Error Details]
-```
-
-The processing module ensures:
-- Robust input validation
-- Efficient image processing
-- Accurate optimization metrics
-- Comprehensive error handling
-- Safe concurrent processing
+**Key Features:**
+- Path validation using fs utilities
+- Format validation using ImageFormat
+- Settings validation with format-specific rules
+- Error aggregation and reporting
 
 ## Worker Module
 
-The `worker` module implements a thread-safe, concurrent task processing system for image optimization.
+The `worker` module manages parallel processing.
 
-### Module Structure
-```rust
-// src-tauri/src/worker/mod.rs
-mod pool;    // Worker pool implementation
-mod types;   // Task type definitions
-```
+### Worker Pool (`worker/pool.rs`)
+Handles concurrent image processing tasks.
 
-### Task Types (`types.rs`)
-Defines the core task structure for image processing.
-
-```rust
-pub struct ImageTask {
-    pub input_path: String,
-    pub output_path: String,
-    pub settings: ImageSettings,
-}
-```
-- Serializable task definition
-- Contains all necessary processing parameters
-- Used for both single and batch operations
-
-### Worker Pool (`pool.rs`)
-Implements a thread-safe, semaphore-controlled worker pool for concurrent image processing.
-
-**Key Components:**
-1. **Pool Structure:**
+**Key Features:**
+1. **Resource Management:**
    ```rust
    pub struct WorkerPool {
        optimizer: ImageOptimizer,
-       app: AppHandle,
-       active_workers: Arc<Mutex<usize>>,
        semaphore: Arc<Semaphore>,
-       worker_count: usize,
+       // ... other fields
    }
    ```
-   - Dynamic worker count based on CPU cores (2-8 workers)
-   - Semaphore-based concurrency control
-   - Thread-safe worker tracking
-   - Shared optimizer instance
-
-2. **Core Operations:**
-   - `process`: Single task processing
-     - Semaphore-controlled execution
-     - Active worker tracking
-     - Comprehensive logging
-     - Error handling
-   
-   - `process_batch`: Concurrent batch processing
-     - Parallel task execution
-     - Progress tracking
-     - Result aggregation
-     - Success/failure statistics
-
-### Concurrency Model
-```mermaid
-flowchart TB
-    A[Tasks] --> B[Worker Pool]
-    B --> C[Semaphore]
-    C -->|Permit Available| D[Process Task]
-    C -->|No Permit| E[Queue Task]
-    D --> F[Release Permit]
-    F --> C
-    D --> G[Update Metrics]
-```
-
-### Batch Processing Flow
-```mermaid
-sequenceDiagram
-    participant T as Tasks
-    participant P as Pool
-    participant W as Workers
-    participant R as Results
-    
-    T->>P: Submit Batch
-    loop For Each Task
-        P->>W: Spawn Worker
-        W->>W: Process Image
-        W->>R: Collect Result
-    end
-    P->>R: Aggregate Results
-```
-
-The worker module ensures:
-- Efficient resource utilization
-- Controlled concurrency
-- Robust error handling
-- Comprehensive progress tracking
-- Thread-safe operation
-- Graceful task management
-
-## Project Configuration
-
-### Dependencies
-```toml
-[dependencies]
-tokio = { version = "1.42.0", features = ["full", "time"] }
-futures = "0.3.31"
-num_cpus = "1.16.0"
-crossbeam-channel = "0.5.14"
-tracing = "0.1.41"
-tracing-subscriber = "0.3.19"
-parking_lot = "0.12.3"
-lazy_static = "1.5.0"
-sysinfo = "0.33.1"
-```
-
-### Build Configuration
-- Release mode optimizations
-- Windows-specific configurations
-- Debug symbols management
-- Sidecar binary packaging
-
-### Error Handling
-The command interface implements comprehensive error handling:
-- Input validation errors
-- Processing failures
-- Resource allocation errors
-- State management issues
-
-### Response Types
-```rust
-// Common response patterns
-Result<OptimizationResult, String>    // Single image
-Result<Vec<OptimizationResult>, String> // Batch processing
-Result<usize, String>                 // Worker metrics
-```
-
-### Thread Safety Guarantees
-The core module provides the following thread safety mechanisms:
-- Atomic reference counting (`Arc`)
-- Mutex-protected shared state
-- Interior mutability patterns
-- Lock-free operations where possible
-
-### State Initialization
-```mermaid
-sequenceDiagram
-    participant A as Application
-    participant S as AppState
-    participant W as WorkerPool
-    
-    A->>S: Create AppState
-    S->>S: Initialize Empty Pool
-    A->>S: First Request
-    S->>W: Lazy Init Pool
-    W->>S: Return Pool Instance
-    S->>A: Process Request
-```
-
-### Supported Formats
-| Format | Input | Output | Quality Range |
-|--------|--------|---------|---------------|
-| JPEG   | ✓      | ✓       | 1-100         |
-| PNG    | ✓      | ✓       | 1-100         |
-| WebP   | ✓      | ✓       | 1-100         |
-| AVIF   | ✓      | ✓       | 1-100         |
-
-### Sharp Configuration
-- Sidecar process management
-- Memory allocation limits
-- Concurrent process limits
-- Error recovery strategies
-
-### Worker Lifecycle
-1. **Initialization**
-   - CPU core detection
-   - Worker count calculation
-   - Resource allocation
-   - Semaphore setup
-
-2. **Operation**
-   - Task acquisition
-   - Resource management
-   - Progress tracking
-   - Error handling
-
-3. **Shutdown**
-   - Task completion
+   - Dynamic worker scaling
+   - Semaphore-based concurrency
    - Resource cleanup
-   - Error reporting
-   - State cleanup
+   - Error recovery
 
-### Performance Tuning
-- Worker count: `min(max(2, cpu_count), 8)`
-- Memory per worker: Dynamically allocated
-- Batch size recommendations: Based on available resources
-- Monitoring and metrics collection
+2. **Batch Processing:**
+   - Efficient task distribution
+   - Progress tracking
+   - Error handling per task
+   - Resource balancing
+
+## Command Interface
+
+The `commands` module bridges frontend and backend.
+
+### Module Structure
+```rust
+// src-tauri/src/commands/mod.rs
+mod image;   // Image optimization commands
+mod worker;  // Worker pool management
+```
+
+### Command Flow
+```mermaid
+sequenceDiagram
+    Frontend->>+Commands: Optimization Request
+    Commands->>+Core: Get/Init Worker Pool
+    Core->>+Worker: Process Task(s)
+    Worker->>+Processing: Optimize Image(s)
+    Processing-->>-Worker: Results
+    Worker-->>-Core: Update State
+    Core-->>-Commands: Aggregate Results
+    Commands-->>-Frontend: Response
+```
+
+## Performance Optimizations
+
+Recent optimizations include:
+1. **Batch Processing:**
+   - Reduced process spawning overhead
+   - Efficient task batching
+   - Optimized Sharp communication
+
+2. **Resource Management:**
+   - HashSet for active tasks (O(1) operations)
+   - Efficient worker pool scaling
+   - Proper resource cleanup
+
+3. **Module Organization:**
+   - Eliminated circular dependencies
+   - Optimized module initialization order
+   - Centralized type definitions
+
+4. **Error Handling:**
+   - Structured error types
+   - Consistent error propagation
+   - Detailed error context
+
+## Security Measures
+
+1. **File System Access:**
+   - Restricted to user-selected directories
+   - Path validation and sanitization
+   - Permission checks before operations
+
+2. **Process Isolation:**
+   - Sidecar process sandboxing
+   - Resource usage limits
+   - Proper cleanup on errors
+
+3. **Input Validation:**
+   - Format-specific validation
+   - Path sanitization
+   - Settings validation

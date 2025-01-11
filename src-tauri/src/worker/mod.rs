@@ -1,5 +1,4 @@
 mod pool;
-mod types;
 
 pub use pool::WorkerPool;
-pub use types::ImageTask; 
+pub use crate::core::types::ImageTask; 

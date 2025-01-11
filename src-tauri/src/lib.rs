@@ -1,14 +1,16 @@
-// Module declarations
-mod commands;
-pub mod core;
-pub mod worker;
-pub mod processing;
+// Module declarations in dependency order
+pub mod utils;      // Base utilities, no internal dependencies
+pub mod core;       // Core types and state
+pub mod processing; // Processing logic, depends on core and utils
+pub mod worker;     // Worker implementation, depends on processing and core
+mod commands;       // Command handlers, depends on all other modules
 
 // Public exports
-pub use commands::*;
 pub use core::{AppState, ImageSettings, OptimizationResult};
 pub use worker::{WorkerPool, ImageTask};
 pub use processing::{ImageOptimizer, ImageValidator, ValidationResult};
+pub use utils::{OptimizerError, OptimizerResult};
+pub use commands::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

@@ -1,9 +1,11 @@
 use std::path::Path;
-use crate::worker::ImageTask;
+use crate::core::ImageTask;
+use crate::utils::{OptimizerError, OptimizerResult};
 
+#[derive(Debug)]
 pub struct ValidationResult {
     pub is_valid: bool,
-    pub error: Option<String>,
+    pub error: Option<OptimizerError>,
 }
 
 pub struct ImageValidator;
@@ -40,60 +42,76 @@ impl ImageValidator {
         }
     }
 
-    fn validate_input_path(path: &str) -> Result<(), String> {
+    fn validate_input_path(path: &str) -> OptimizerResult<()> {
         let path = Path::new(path);
         
         if !path.exists() {
-            return Err(format!("Input file does not exist: {}", path.display()));
+            return Err(OptimizerError::validation(
+                format!("Input file does not exist: {}", path.display())
+            ));
         }
 
         if !path.is_file() {
-            return Err(format!("Input path is not a file: {}", path.display()));
+            return Err(OptimizerError::validation(
+                format!("Input path is not a file: {}", path.display())
+            ));
         }
 
         let extension = path.extension()
             .and_then(|e| e.to_str())
-            .ok_or_else(|| format!("Input file has no extension: {}", path.display()))?;
+            .ok_or_else(|| OptimizerError::format(
+                format!("Input file has no extension: {}", path.display())
+            ))?;
 
         match extension.to_lowercase().as_str() {
             "jpg" | "jpeg" | "png" | "webp" | "avif" => Ok(()),
-            _ => Err(format!("Unsupported file format: {}", extension)),
+            _ => Err(OptimizerError::format(
+                format!("Unsupported file format: {}", extension)
+            )),
         }
     }
 
-    fn validate_output_path(path: &str) -> Result<(), String> {
+    fn validate_output_path(path: &str) -> OptimizerResult<()> {
         let path = Path::new(path);
         
         if let Some(parent) = path.parent() {
             if !parent.exists() {
-                return Err(format!("Output directory does not exist: {}", parent.display()));
+                return Err(OptimizerError::validation(
+                    format!("Output directory does not exist: {}", parent.display())
+                ));
             }
         }
 
         let extension = path.extension()
             .and_then(|e| e.to_str())
-            .ok_or_else(|| format!("Output file has no extension: {}", path.display()))?;
+            .ok_or_else(|| OptimizerError::format(
+                format!("Output file has no extension: {}", path.display())
+            ))?;
 
         match extension.to_lowercase().as_str() {
             "jpg" | "jpeg" | "png" | "webp" | "avif" => Ok(()),
-            _ => Err(format!("Unsupported output format: {}", extension)),
+            _ => Err(OptimizerError::format(
+                format!("Unsupported output format: {}", extension)
+            )),
         }
     }
 
-    fn validate_settings(settings: &crate::core::ImageSettings) -> Result<(), String> {
+    fn validate_settings(settings: &crate::core::ImageSettings) -> OptimizerResult<()> {
         if settings.quality.global == 0 || settings.quality.global > 100 {
-            return Err(format!("Invalid quality value: {}. Must be between 1 and 100", settings.quality.global));
+            return Err(OptimizerError::validation(
+                format!("Invalid quality value: {}. Must be between 1 and 100", settings.quality.global)
+            ));
         }
 
         if let Some(width) = settings.resize.width {
             if width == 0 {
-                return Err("Width cannot be 0".to_string());
+                return Err(OptimizerError::validation("Width cannot be 0"));
             }
         }
 
         if let Some(height) = settings.resize.height {
             if height == 0 {
-                return Err("Height cannot be 0".to_string());
+                return Err(OptimizerError::validation("Height cannot be 0"));
             }
         }
 

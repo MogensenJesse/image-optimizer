@@ -205,10 +205,46 @@ async function optimizeImage(input, output, settings) {
       format: outputFormat
     };
     
-    console.log(JSON.stringify(result));
     return result;
   } catch (err) {
     console.error('Error in optimizeImage:', err);
+    throw err;
+  }
+}
+
+async function optimizeBatch(batchJson) {
+  try {
+    const batch = JSON.parse(batchJson);
+    console.error('Processing batch of', batch.length, 'images');
+    
+    const results = [];
+    for (const task of batch) {
+      try {
+        const result = await optimizeImage(task.input, task.output, task.settings);
+        results.push({
+          ...result,
+          success: true,
+          error: null
+        });
+      } catch (err) {
+        console.error('Error processing task:', task.input, err);
+        results.push({
+          path: task.output,
+          originalSize: 0,
+          optimizedSize: 0,
+          savedBytes: 0,
+          compressionRatio: 0,
+          format: null,
+          success: false,
+          error: err.message
+        });
+      }
+    }
+    
+    console.log(JSON.stringify(results));
+    return results;
+  } catch (err) {
+    console.error('Error in batch processing:', err);
     throw err;
   }
 }
@@ -219,7 +255,34 @@ switch (command) {
       console.error('Input and output paths are required');
       process.exit(1);
     }
-    optimizeImage(inputPath, outputPath, settings);
+    try {
+      const settings = settingsArg ? JSON.parse(settingsArg) : {
+        quality: { global: 90 },
+        resize: { mode: 'none', maintainAspect: true },
+        outputFormat: 'original'
+      };
+      optimizeImage(inputPath, outputPath, settings)
+        .then(result => console.log(JSON.stringify(result)))
+        .catch(err => {
+          console.error(err);
+          process.exit(1);
+        });
+    } catch (err) {
+      console.error('Error parsing settings:', err);
+      process.exit(1);
+    }
+    break;
+
+  case 'optimize-batch':
+    if (!inputPath) {
+      console.error('Batch JSON is required');
+      process.exit(1);
+    }
+    optimizeBatch(inputPath)
+      .catch(err => {
+        console.error(err);
+        process.exit(1);
+      });
     break;
 
   default:

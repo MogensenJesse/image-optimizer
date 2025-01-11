@@ -2,7 +2,7 @@ use serde::Deserialize;
 use tauri::State;
 use crate::core::{AppState, ImageSettings, OptimizationResult};
 use crate::worker::ImageTask;
-use crate::processing::ImageValidator;
+use crate::utils::{OptimizerResult, validate_task};
 
 #[derive(Debug, Deserialize)]
 pub struct BatchImageTask {
@@ -18,7 +18,7 @@ pub async fn optimize_image(
     input_path: String,
     output_path: String,
     settings: ImageSettings,
-) -> Result<OptimizationResult, String> {
+) -> OptimizerResult<OptimizationResult> {
     let task = ImageTask {
         input_path,
         output_path,
@@ -26,11 +26,7 @@ pub async fn optimize_image(
     };
 
     // Validate task
-    let validation = ImageValidator::validate_task(&task).await;
-    if !validation.is_valid {
-        let error = validation.error.unwrap_or_else(|| "Invalid task".to_string());
-        return Err(error);
-    }
+    validate_task(&task).await?;
 
     // Get or initialize worker pool
     let pool = state.get_or_init_worker_pool(app).await;
@@ -44,7 +40,7 @@ pub async fn optimize_images(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     tasks: Vec<BatchImageTask>,
-) -> Result<Vec<OptimizationResult>, String> {
+) -> OptimizerResult<Vec<OptimizationResult>> {
     let mut image_tasks = Vec::with_capacity(tasks.len());
     
     // Convert and validate tasks
@@ -56,12 +52,7 @@ pub async fn optimize_images(
         };
 
         // Validate task
-        let validation = ImageValidator::validate_task(&image_task).await;
-        if !validation.is_valid {
-            let error = validation.error.unwrap_or_else(|| "Invalid task".to_string());
-            return Err(error);
-        }
-
+        validate_task(&image_task).await?;
         image_tasks.push(image_task);
     }
 

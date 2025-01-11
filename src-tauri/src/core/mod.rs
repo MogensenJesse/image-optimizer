@@ -1,5 +1,5 @@
 mod state;
-mod types;
+pub mod types;
 
 pub use state::AppState;
-pub use types::{ImageSettings, OptimizationResult}; 
+pub use types::{ImageSettings, OptimizationResult, ImageTask}; 
