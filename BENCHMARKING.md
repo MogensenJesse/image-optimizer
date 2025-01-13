@@ -137,7 +137,7 @@ impl BenchmarkMetrics {
 }
 ```
 
-#### 2. Frontend Integration [⚠️]
+#### 2. Frontend Integration [ ]
 ```javascript
 const benchmarkState = {
     startTime: null,
@@ -147,7 +147,7 @@ const benchmarkState = {
 };
 ```
 
-#### 3. Sidecar Integration [⚠️]
+#### 3. Sidecar Integration [ ]
 ```javascript
 const processMetrics = {
     imageProcessingStages: [],
@@ -158,7 +158,7 @@ const processMetrics = {
 
 ### Implementation Steps [🔄]
 
-0. Modular Setup [⚠️]
+0. Modular Setup [ ]
    - [ ] Add CLI flag support
      ```json
      // In package.json
@@ -196,7 +196,7 @@ const processMetrics = {
      ```
 
 1. Backend Implementation [🔄]
-   - [✅] Add BenchmarkMetrics struct to core/state.rs
+   - [ ] Add BenchmarkMetrics struct to core/state.rs
    - [ ] Add conditional metrics collection
      ```rust
      impl WorkerPool {
@@ -327,13 +327,6 @@ const processMetrics = {
 3. Report generation
 4. Frontend hooks
 5. Sidecar instrumentation
-
-### Testing Steps:
-1. Unit test metrics collection
-2. Test report generation
-3. Benchmark overhead measurement
-4. End-to-end test with sample images
-5. Test with and without benchmark flag
 
 ### Usage
 
