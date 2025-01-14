@@ -19,10 +19,18 @@ impl AppState {
         }
     }
 
+    pub fn get_worker_pool(&self) -> Option<WorkerPool> {
+        if let Ok(pool) = self.worker_pool.try_lock() {
+            pool.clone()
+        } else {
+            None
+        }
+    }
+
     pub async fn get_or_init_worker_pool(&self, app: tauri::AppHandle) -> Arc<WorkerPool> {
         let mut pool = self.worker_pool.lock().await;
         if pool.is_none() {
-            *pool = Some(WorkerPool::new(app, Some(4)));
+            *pool = Some(WorkerPool::new(app, None));
         }
         Arc::new(pool.as_ref().unwrap().clone())
     }

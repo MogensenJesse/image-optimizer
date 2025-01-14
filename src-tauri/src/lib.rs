@@ -3,13 +3,15 @@ pub mod utils;      // Base utilities, no internal dependencies
 pub mod core;       // Core types and state
 pub mod processing; // Processing logic, depends on core and utils
 pub mod worker;     // Worker implementation, depends on processing and core
+pub mod benchmarking; // Benchmarking functionality
 mod commands;       // Command handlers, depends on all other modules
 
 // Public exports
 pub use core::{AppState, ImageSettings, OptimizationResult};
 pub use worker::{WorkerPool, ImageTask};
-pub use processing::{ImageOptimizer, ImageValidator, ValidationResult};
+pub use processing::ImageOptimizer;
 pub use utils::{OptimizerError, OptimizerResult};
+pub use benchmarking::{BenchmarkMetrics, BenchmarkReporter};
 pub use commands::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

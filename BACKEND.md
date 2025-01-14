@@ -127,11 +127,13 @@ The architecture follows a modular design where:
   - Shared interfaces
   - Clear ownership boundaries
 
-## Utils Module
+## Modules
+
+### Utils Module
 
 The `utils` module provides foundational utilities used throughout the application.
 
-### Module Structure
+#### Module Structure
 ```rust
 // src-tauri/src/utils/mod.rs
 mod error;    // Error types and handling
@@ -145,7 +147,7 @@ pub use fs::{get_file_size, validate_path, ensure_parent_dir};
 pub use validation::{validate_settings, validate_resize};
 ```
 
-### Error Handling (`error.rs`)
+#### Error Handling (`error.rs`)
 Centralized error types for consistent error handling.
 
 **Key Components:**
@@ -177,7 +179,7 @@ Centralized error types for consistent error handling.
    - Simplified error handling with `?` operator
    - Clear error propagation paths
 
-### Format Handling (`formats.rs`)
+#### Format Handling (`formats.rs`)
 Manages image format-specific operations and validation.
 
 **Key Features:**
@@ -223,7 +225,7 @@ Manages image format-specific operations and validation.
    - Validation rules
    - Conversion between formats
 
-### File System (`fs.rs`)
+#### File System (`fs.rs`)
 Handles all file system operations with proper error handling.
 
 **Key Operations:**
@@ -255,11 +257,11 @@ Handles all file system operations with proper error handling.
    - Path sanitization
    - Format detection support
 
-## Core Module
+### Core Module
 
 The `core` module provides fundamental types and state management.
 
-### Module Structure
+#### Module Structure
 ```rust
 // src-tauri/src/core/mod.rs
 mod state;  // Application state management
@@ -269,7 +271,7 @@ pub use state::{AppState, StateError};
 pub use types::{ImageTask, ImageSettings, OptimizationResult};
 ```
 
-### Type System (`types.rs`)
+#### Type System (`types.rs`)
 Defines core data structures used throughout the application.
 
 1. **Image Settings:**
@@ -335,7 +337,7 @@ Defines core data structures used throughout the application.
      - Frontend communication
      - Result reporting
 
-### State Management (`state.rs`)
+3. **State Management (`state.rs`)
 Manages application-wide state with thread safety.
 
 **Key Features:**
@@ -377,11 +379,11 @@ Manages application-wide state with thread safety.
    - Runtime configuration
    - Default values
 
-## Processing Module
+### Processing Module
 
 The `processing` module handles image optimization logic.
 
-### Module Structure
+#### Module Structure
 ```rust
 // src-tauri/src/processing/mod.rs
 mod optimizer;    // Image optimization logic
@@ -391,7 +393,7 @@ pub use optimizer::{ImageOptimizer, OptimizeError};
 pub use validation::{validate_task, ValidationError};
 ```
 
-### Image Optimizer (`optimizer.rs`)
+#### Image Optimizer (`optimizer.rs`)
 Core image processing functionality using Sharp sidecar.
 
 **Key Features:**
@@ -441,7 +443,7 @@ Core image processing functionality using Sharp sidecar.
      - Size metrics
      - Timing information
 
-### Validation (`validation.rs`)
+3. **Validation (`validation.rs`)
 Input validation and error checking.
 
 **Key Features:**
@@ -472,11 +474,11 @@ Input validation and error checking.
    - Conversion rules
    - Quality constraints
 
-## Worker Module
+### Worker Module
 
 The `worker` module manages parallel processing.
 
-### Worker Pool (`worker/pool.rs`)
+#### Worker Pool (`worker/pool.rs`)
 Handles concurrent image processing tasks.
 
 **Key Features:**
@@ -528,11 +530,11 @@ Handles concurrent image processing tasks.
      - Worker scaling
      - Resource allocation
 
-## Command Interface
+### Command Interface Module
 
 The `commands` module bridges frontend and backend.
 
-### Module Structure
+#### Module Structure
 ```rust
 // src-tauri/src/commands/mod.rs
 mod image;   // Image optimization commands
@@ -542,7 +544,7 @@ pub use image::{optimize_image, optimize_images};
 pub use worker::get_active_tasks;
 ```
 
-### Command Implementation
+#### Command Implementation
 1. **Image Commands:**
    ```rust
    #[tauri::command]
@@ -575,7 +577,7 @@ pub use worker::get_active_tasks;
    - Task counting
    - Error handling
 
-### Command Flow
+#### Command Flow
 ```mermaid
 sequenceDiagram
     Frontend->>+Commands: Optimization Request
@@ -589,6 +591,142 @@ sequenceDiagram
     Core-->>-Commands: Aggregate Results
     Commands-->>-Frontend: Response
 ```
+
+### Benchmarking Module
+
+The `benchmarking` module provides comprehensive performance tracking and analysis capabilities.
+
+#### Module Structure
+```rust
+// src-tauri/src/benchmarking/mod.rs
+mod metrics;    // Performance metrics collection
+mod reporter;   // Metrics formatting and reporting
+
+pub use metrics::{BenchmarkMetrics, Duration, ProcessingStage};
+pub use reporter::BenchmarkReporter;
+```
+
+#### Performance Metrics (`metrics.rs`)
+Collects and manages detailed performance data.
+
+**Key Components:**
+1. **Duration Type:**
+   ```rust
+   pub struct Duration(f64);
+
+   impl Duration {
+       pub fn new_unchecked(seconds: f64) -> Self
+       pub fn as_secs_f64(&self) -> f64
+       pub fn zero() -> Self
+       pub fn is_valid(&self) -> bool
+   }
+   ```
+   - Type-safe duration measurements
+   - Validation and bounds checking
+   - Arithmetic operations support
+   - Human-readable formatting
+
+2. **Benchmark Metrics:**
+   ```rust
+   pub struct BenchmarkMetrics {
+       worker_metrics: WorkerPoolMetrics,
+       compression_ratios: Vec<f64>,
+       total_duration: Duration,
+       stage_timings: HashMap<ProcessingStage, Duration>,
+   }
+   ```
+   - Worker pool performance tracking
+     - Queue length monitoring
+     - Worker utilization metrics
+     - Task distribution analysis
+   - Compression effectiveness
+     - Ratio statistics
+     - Size reduction tracking
+   - Stage-specific timing
+     - Loading duration
+     - Processing duration
+     - Saving duration
+   - Overall performance metrics
+     - Total processing time
+     - Resource utilization
+     - Throughput calculations
+
+#### Metrics Reporter (`reporter.rs`)
+Formats and presents performance data.
+
+**Key Features:**
+1. **Report Generation:**
+   ```rust
+   pub struct BenchmarkReporter {
+       metrics: BenchmarkMetrics,
+   }
+
+   impl BenchmarkReporter {
+       pub fn from_metrics(metrics: BenchmarkMetrics) -> Self
+       fn calculate_stage_percentage(&self, stage_time: Duration) -> Percentage
+       fn calculate_worker_efficiency(&self, busy: Duration, total: Duration) -> Percentage
+   }
+   ```
+   - Human-readable formatting
+     - Stage breakdowns
+     - Efficiency calculations
+     - Size statistics
+   - Performance analysis
+     - Worker efficiency
+     - Stage distribution
+     - Bottleneck identification
+   - Data visualization preparation
+     - Percentage calculations
+     - Ratio formatting
+     - Time breakdowns
+
+#### Integration Points
+1. **Worker Pool Integration:**
+   ```rust
+   impl WorkerPool {
+       fn record_metrics(&self, metrics: &mut BenchmarkMetrics)
+       fn update_worker_stats(&self, metrics: &mut WorkerPoolMetrics)
+   }
+   ```
+   - Real-time metric collection
+   - Worker performance tracking
+   - Resource utilization monitoring
+
+2. **Processing Integration:**
+   ```rust
+   impl ImageOptimizer {
+       fn record_optimization_metrics(&self, metrics: &mut BenchmarkMetrics)
+       fn track_processing_stage(&self, stage: ProcessingStage)
+   }
+   ```
+   - Stage timing collection
+   - Compression ratio tracking
+   - Performance data aggregation
+
+#### Performance Analysis
+```mermaid
+graph TD
+    A[Worker Pool] -->|Metrics| B[BenchmarkMetrics]
+    C[Image Optimizer] -->|Stage Timings| B
+    D[File Operations] -->|IO Metrics| B
+    B -->|Analysis| E[BenchmarkReporter]
+    E -->|Reports| F[Frontend/Logging]
+```
+
+1. **Data Collection:**
+   - Automatic metric gathering
+   - Low-overhead tracking
+   - Thread-safe updates
+
+2. **Analysis Features:**
+   - Performance bottleneck detection
+   - Resource utilization analysis
+   - Optimization recommendations
+
+3. **Reporting Capabilities:**
+   - Detailed performance breakdowns
+   - Statistical analysis
+   - Trend identification
 
 ## Performance Optimizations
 

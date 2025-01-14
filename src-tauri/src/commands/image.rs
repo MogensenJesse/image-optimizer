@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use tauri::State;
+use tracing::{info, debug};
 use crate::core::{AppState, ImageSettings, OptimizationResult};
 use crate::worker::ImageTask;
 use crate::utils::{OptimizerResult, validate_task};
@@ -19,6 +20,8 @@ pub async fn optimize_image(
     output_path: String,
     settings: ImageSettings,
 ) -> OptimizerResult<OptimizationResult> {
+    debug!("Received optimize_image command for: {}", input_path);
+    
     let task = ImageTask {
         input_path,
         output_path,
@@ -32,7 +35,11 @@ pub async fn optimize_image(
     let pool = state.get_or_init_worker_pool(app).await;
     
     // Process image
-    pool.process(task).await
+    info!("Starting image optimization");
+    let result = pool.process(task).await;
+    debug!("Image optimization completed");
+    
+    result
 }
 
 #[tauri::command]
@@ -41,6 +48,7 @@ pub async fn optimize_images(
     state: State<'_, AppState>,
     tasks: Vec<BatchImageTask>,
 ) -> OptimizerResult<Vec<OptimizationResult>> {
+    info!("Received optimize_images command for {} images", tasks.len());
     let mut image_tasks = Vec::with_capacity(tasks.len());
     
     // Convert and validate tasks
@@ -60,5 +68,9 @@ pub async fn optimize_images(
     let pool = state.get_or_init_worker_pool(app.clone()).await;
     
     // Process images in batch
-    pool.process_batch(image_tasks).await
+    info!("Starting batch optimization of {} images", image_tasks.len());
+    let results = pool.process_batch(image_tasks).await;
+    debug!("Batch optimization completed");
+    
+    results
 }

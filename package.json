@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "build:sharp": "cd sharp-sidecar && npm run build:rename",
-    "tauri": "npm run build:sharp && tauri"
+    "tauri": "npm run build:sharp && tauri",
+    "tauri:dev": "npm run build:sharp && tauri dev",
+    "tauri:benchmark": "npm run build:sharp && cross-env BENCHMARK=1 tauri dev"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
@@ -25,6 +27,7 @@
   "devDependencies": {
     "@tauri-apps/cli": "^2",
     "@vitejs/plugin-react": "^4.3.4",
+    "cross-env": "^7.0.3",
     "vite": "^6.0.3"
   }
 }
