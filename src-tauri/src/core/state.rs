@@ -19,14 +19,6 @@ impl AppState {
         }
     }
 
-    pub fn get_worker_pool(&self) -> Option<WorkerPool> {
-        if let Ok(pool) = self.worker_pool.try_lock() {
-            pool.clone()
-        } else {
-            None
-        }
-    }
-
     pub async fn get_or_init_worker_pool(&self, app: tauri::AppHandle) -> Arc<WorkerPool> {
         let mut pool = self.worker_pool.lock().await;
         if pool.is_none() {
@@ -41,9 +33,9 @@ impl AppState {
         if let Ok(mut pool) = self.worker_pool.try_lock() {
             if let Some(worker_pool) = pool.take() {
                 // Get active tasks before shutdown
-                let active_count = worker_pool.get_active_workers().await;
+                let (active_count, active_tasks) = worker_pool.get_active_workers_detailed().await;
                 if active_count > 0 {
-                    warn!("Shutting down with {} active tasks", active_count);
+                    warn!("Shutting down with {} active tasks: {:?}", active_count, active_tasks);
                 }
                 info!("Worker pool shutdown complete");
             }

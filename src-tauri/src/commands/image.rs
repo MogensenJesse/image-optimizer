@@ -64,13 +64,13 @@ pub async fn optimize_images(
         image_tasks.push(image_task);
     }
 
-    // Get or initialize worker pool
+    // Get or initialize worker pool and keep it alive
     let pool = state.get_or_init_worker_pool(app.clone()).await;
     
     // Process images in batch
     info!("Starting batch optimization of {} images", image_tasks.len());
-    let results = pool.process_batch(image_tasks).await;
+    let results = pool.process_batch(image_tasks).await?;
     debug!("Batch optimization completed");
     
-    results
+    Ok(results)
 }

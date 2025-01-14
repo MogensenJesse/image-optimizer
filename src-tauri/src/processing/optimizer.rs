@@ -7,11 +7,9 @@ use crate::utils::{
     OptimizerError,
     OptimizerResult,
     get_file_size,
-    ensure_parent_dir,
-    validate_input_path,
-    validate_output_path,
 };
-use crate::benchmarking::{BenchmarkMetrics, ProcessingStage, Duration};
+use crate::benchmarking::{Duration, ProcessingStage};
+use crate::processing::validation::validate_task;
 use serde_json;
 use tracing::debug;
 
@@ -58,17 +56,13 @@ impl ImageOptimizer {
 
         // Start loading phase timing
         let loading_start = std::time::Instant::now();
-        debug!("Starting loading phase");
+        debug!("Starting {} phase", ProcessingStage::Loading);
 
         // Validate paths and get original sizes
         for task in &tasks {
-            // Validate input and output paths
-            validate_input_path(&task.input_path).await?;
-            validate_output_path(&task.output_path).await?;
+            // Validate task (includes path and settings validation)
+            validate_task(task).await?;
             
-            // Ensure output directory exists
-            ensure_parent_dir(&task.output_path).await?;
-
             // Get original file size
             let original_size = get_file_size(&task.input_path).await?;
             original_sizes.push(original_size);
@@ -79,21 +73,21 @@ impl ImageOptimizer {
         }
 
         let loading_time = Duration::new_unchecked(loading_start.elapsed().as_secs_f64());
-        debug!("Loading phase completed in {} (validation and file reading)", loading_time);
+        debug!("{} phase completed in {} (validation and file reading)", ProcessingStage::Loading, loading_time);
 
         // Start optimization phase timing
         let optimization_start = std::time::Instant::now();
-        debug!("Starting optimization phase");
+        debug!("Starting {} phase", ProcessingStage::Optimization);
 
         // Process the batch using Sharp sidecar
         let result = self.run_sharp_process_batch(app, &tasks).await;
 
         let optimization_time = Duration::new_unchecked(optimization_start.elapsed().as_secs_f64());
-        debug!("Optimization phase completed in {} (Sharp processing)", optimization_time);
+        debug!("{} phase completed in {} (Sharp processing)", ProcessingStage::Optimization, optimization_time);
 
         // Start saving phase timing
         let saving_start = std::time::Instant::now();
-        debug!("Starting saving phase");
+        debug!("Starting {} phase", ProcessingStage::Saving);
 
         // Remove from active tasks and collect results
         let saving_result = async {
@@ -133,7 +127,7 @@ impl ImageOptimizer {
         }.await;
 
         let saving_time = Duration::new_unchecked(saving_start.elapsed().as_secs_f64());
-        debug!("Saving phase completed in {} (result collection and verification)", saving_time);
+        debug!("{} phase completed in {} (result collection and verification)", ProcessingStage::Saving, saving_time);
 
         match saving_result {
             Ok(_) => Ok((results, (loading_time, optimization_time, saving_time))),
@@ -165,11 +159,17 @@ impl ImageOptimizer {
             ])
             .output()
             .await
-            .map_err(|e| OptimizerError::sidecar(format!("Failed to run Sharp process: {}", e)))?;
+            .map_err(|e| {
+                let error_message = format!("Failed to run Sharp process: {}", e);
+                debug!("Error during conversion: {}", error_message);
+                OptimizerError::sidecar(error_message)
+            })?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            Err(OptimizerError::sidecar(format!("Sharp process failed: {}", stderr)))
+            let error_message = format!("Sharp process failed: {}", stderr);
+            debug!("Error during conversion: {}", error_message);
+            Err(OptimizerError::sidecar(error_message))
         } else {
             Ok(())
         }

@@ -19,9 +19,6 @@ pub enum OptimizerError {
     #[error("Format error: {0}")]
     FormatError(String),
 
-    #[error("Configuration error: {0}")]
-    ConfigError(String),
-
     #[error("Sidecar error: {0}")]
     SidecarError(String),
 }

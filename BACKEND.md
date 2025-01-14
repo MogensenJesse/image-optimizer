@@ -30,6 +30,7 @@ pub mod utils;
 pub mod core;
 pub mod processing;
 pub mod worker;
+pub mod benchmarking;  // Performance tracking and analysis
 mod commands;
 ```
 
@@ -52,6 +53,10 @@ mod commands;
      - Worker management
      - Resource allocation
      - Task distribution
+   - `benchmarking`: Performance tracking
+     - Metrics collection
+     - Performance analysis
+     - Reporting capabilities
    - `commands`: Frontend-facing Tauri commands
      - Command handlers
      - IPC interface
@@ -85,22 +90,28 @@ graph TD
     D --> E[processing]
     E --> F[worker]
     F --> G[commands]
+    F --> H[benchmarking]
 
     subgraph Utils
-        C --> H[error.rs]
-        C --> I[formats.rs]
-        C --> J[fs.rs]
-        C --> K[validation.rs]
+        C --> I[error.rs]
+        C --> J[formats.rs]
+        C --> K[fs.rs]
+        C --> L[validation.rs]
     end
 
     subgraph Core
-        D --> L[state.rs]
-        D --> M[types.rs]
+        D --> M[state.rs]
+        D --> N[types.rs]
     end
 
     subgraph Processing
-        E --> N[optimizer.rs]
-        E --> O[validation.rs]
+        E --> O[optimizer.rs]
+        E --> P[validation.rs]
+    end
+
+    subgraph Benchmarking
+        H --> Q[metrics.rs]
+        H --> R[reporter.rs]
     end
 ```
 
@@ -120,12 +131,14 @@ The architecture follows a modular design where:
   - Focused functionality
 - Dependencies flow from low-level to high-level components
   - Utils → Core → Processing → Worker → Commands
+  - Worker → Benchmarking (for performance tracking)
   - Prevents dependency cycles
   - Simplifies testing
 - Circular dependencies are eliminated through proper type placement
   - Common types in core module
   - Shared interfaces
   - Clear ownership boundaries
+  - Metrics types in benchmarking module
 
 ## Modules
 
@@ -763,6 +776,10 @@ Recent optimizations include:
    - Centralized type definitions
      - Shared interfaces
      - Clear ownership
+   - Dedicated benchmarking module
+     - Isolated performance tracking
+     - Low-overhead metrics collection
+     - Efficient data aggregation
 
 4. **Error Handling:**
    - Structured error types
@@ -856,6 +873,7 @@ Recent optimizations include:
    - File counts
    - Size statistics
    - Timing information
+   - Integration with benchmarking module
 
 2. **Worker Metrics:**
    ```rust
@@ -869,6 +887,7 @@ Recent optimizations include:
    - Worker status
    - Task statistics
    - Error counts
+   - Performance tracking via benchmarking
 
 3. **System Metrics:**
    ```rust
@@ -881,3 +900,15 @@ Recent optimizations include:
    - Resource usage
    - System load
    - Storage utilization
+   - Benchmarking integration
+
+4. **Benchmark Analysis:**
+   - Real-time performance tracking
+     - Stage-by-stage timing
+     - Worker efficiency metrics
+   - Resource utilization monitoring
+     - CPU and memory usage
+     - I/O operations
+   - Optimization insights
+     - Bottleneck identification
+     - Performance recommendations
