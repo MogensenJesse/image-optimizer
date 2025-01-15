@@ -9,7 +9,7 @@ mod benchmarking;
 mod commands;
 
 use std::env;
-use tracing::{info, debug, warn};
+use tracing::{info, debug};
 use tauri::Manager;
 use crate::core::AppState;
 use crate::commands::{optimize_image, optimize_images, get_active_tasks};
