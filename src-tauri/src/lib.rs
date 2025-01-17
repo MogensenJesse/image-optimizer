@@ -11,7 +11,8 @@ pub use core::{AppState, ImageSettings, OptimizationResult};
 pub use worker::{WorkerPool, ImageTask};
 pub use processing::ImageOptimizer;
 pub use utils::{OptimizerError, OptimizerResult};
-pub use benchmarking::{BenchmarkMetrics, BenchmarkReporter};
+pub use benchmarking::metrics::BenchmarkMetrics;
+pub use benchmarking::reporter::BenchmarkReporter;
 pub use commands::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

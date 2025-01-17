@@ -15,7 +15,7 @@ pub async fn validate_task(task: &ImageTask) -> OptimizerResult<()> {
     Ok(())
 }
 
-fn validate_settings(settings: &crate::core::ImageSettings) -> OptimizerResult<()> {
+pub fn validate_settings(settings: &crate::core::ImageSettings) -> OptimizerResult<()> {
     if settings.quality.global == 0 || settings.quality.global > 100 {
         return Err(OptimizerError::validation(
             format!("Invalid quality value: {}. Must be between 1 and 100", settings.quality.global)

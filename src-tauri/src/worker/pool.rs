@@ -4,8 +4,9 @@ use tauri::AppHandle;
 use crate::core::OptimizationResult;
 use crate::worker::ImageTask;
 use crate::processing::ImageOptimizer;
-use crate::utils::{OptimizerError, OptimizerResult};
-use crate::benchmarking::{BenchmarkMetrics, ProcessingStage, Duration};
+use crate::benchmarking::{BenchmarkMetrics, Duration, Benchmarkable};
+use crate::benchmarking::reporter::BenchmarkReporter;
+use crate::worker::error::{WorkerError, WorkerResult};
 use tracing::{debug, warn, info};
 use std::sync::Mutex as StdMutex;
 use lazy_static;
@@ -34,18 +35,15 @@ pub struct WorkerPool {
 }
 
 impl WorkerPool {
-    fn safe_div(numerator: f64, denominator: f64) -> f64 {
-        if denominator == 0.0 {
-            0.0
-        } else {
-            numerator / denominator
-        }
-    }
-
-    pub fn new(app: AppHandle, worker_count: Option<usize>) -> Self {
+    pub fn new(app: AppHandle, worker_count: Option<usize>) -> WorkerResult<Self> {
         let worker_count = worker_count.unwrap_or_else(calculate_optimal_workers);
         debug!("Creating worker pool with {} workers", worker_count);
         let start_time = std::time::Instant::now();
+        
+        // Validate worker count
+        if worker_count == 0 {
+            return Err(WorkerError::InitializationError("Worker count cannot be zero".to_string()));
+        }
         
         let pool = Self {
             optimizer: ImageOptimizer::new(),
@@ -59,9 +57,11 @@ impl WorkerPool {
         let init_time = Duration::new_unchecked(start_time.elapsed().as_secs_f64());
         if let Ok(mut time) = INIT_TIME.lock() {
             *time = init_time;
+        } else {
+            return Err(WorkerError::InitializationError("Failed to initialize worker pool timing".to_string()));
         }
         debug!("Worker pool initialized in {}", init_time);
-        pool
+        Ok(pool)
     }
 
     pub fn get_worker_count(&self) -> usize {
@@ -72,23 +72,14 @@ impl WorkerPool {
         debug!("Enabling benchmarking for worker pool");
         let mut metrics = self.benchmark_metrics.try_lock()
             .expect("Failed to lock benchmark metrics mutex - this indicates a poisoned lock");
-        let mut new_metrics = BenchmarkMetrics::new_with_capacity(self.worker_count, 100); // Default expected tasks
+        let mut new_metrics = BenchmarkMetrics::new(100); // Default expected tasks
+        new_metrics.start_benchmarking();
         
-        if let Ok(time) = INIT_TIME.lock() {
-            new_metrics.worker_init_time = *time;
-            debug!("Recorded worker initialization time: {}", new_metrics.worker_init_time);
-        } else {
-            warn!("Failed to read initialization time - using default value");
-        }
-            
         *metrics = Some(new_metrics);
-        if let Some(ref mut m) = *metrics {
-            m.start_benchmark();
-            debug!("Benchmark metrics initialized and started");
-        }
+        debug!("Benchmark metrics initialized and started");
     }
 
-    pub async fn process(&self, task: ImageTask) -> OptimizerResult<OptimizationResult> {
+    pub async fn process(&self, task: ImageTask) -> WorkerResult<OptimizationResult> {
         let task_path = task.input_path.clone();
         debug!("Processing single task: {}", task_path);
         
@@ -96,7 +87,8 @@ impl WorkerPool {
         if let Ok(mut metrics) = self.benchmark_metrics.try_lock() {
             if let Some(ref mut m) = *metrics {
                 let queue_len = self.get_queue_length().await;
-                m.record_queue_length(queue_len);
+                let contention = queue_len > 0;
+                <dyn Benchmarkable>::record_queue_metrics(m, contention);
                 debug!("Current queue length: {}", queue_len);
             }
         }
@@ -109,26 +101,26 @@ impl WorkerPool {
                 // Record contention and wait for permit
                 if let Ok(mut metrics) = self.benchmark_metrics.try_lock() {
                     if let Some(ref mut m) = *metrics {
-                        m.record_contention();
+                        <dyn Benchmarkable>::record_queue_metrics(m, true);
                         debug!("Recorded contention event");
                     }
                 }
                 self.semaphore.acquire().await.map_err(|e| {
                     warn!("Failed to acquire semaphore: {}", e);
-                    OptimizerError::worker(format!("Failed to acquire worker: {}", e))
+                    WorkerError::CapacityError(format!("Failed to acquire worker: {}", e))
                 })?
             }
         };
         
         let mut count = self.active_workers.lock().await;
-        let worker_id = *count;
+        let worker_id = (*count) % self.worker_count;
         *count += 1;
         
         // Record worker idle time and update concurrent tasks
         let idle_time = Duration::new_unchecked(permit_start.elapsed().as_secs_f64());
         if let Ok(mut metrics) = self.benchmark_metrics.try_lock() {
             if let Some(ref mut m) = *metrics {
-                m.record_worker_idle(worker_id, idle_time);
+                <dyn Benchmarkable>::record_worker_metrics(m, worker_id, idle_time, Duration::zero());
                 m.update_concurrent_tasks(*count);
                 debug!("Active workers: {}, Worker {} idle time: {}", *count, worker_id, idle_time);
             }
@@ -147,9 +139,9 @@ impl WorkerPool {
         let process_result = self.optimizer.process_batch(&self.app, vec![task]).await;
         
         match process_result {
-            Ok((results, stage_times)) => {
+            Ok(results) => {
                 let result = results.into_iter().next().ok_or_else(|| {
-                    OptimizerError::worker("No result returned from batch processing".to_string())
+                    WorkerError::ProcessingError("No result returned from batch processing".to_string())
                 })?;
 
                 let processing_time = Duration::new_unchecked(start_time.elapsed().as_secs_f64());
@@ -158,17 +150,13 @@ impl WorkerPool {
                 // Update benchmark metrics if enabled
                 if let Ok(mut metrics) = self.benchmark_metrics.try_lock() {
                     if let Some(ref mut m) = *metrics {
-                        m.record_processing_time(processing_time);
-                        m.record_worker_busy(worker_id, processing_time);
+                        <dyn Benchmarkable>::add_processing_time(m, processing_time);
                         
-                        // Record stage times if available
-                        if let Some((loading, optimization, saving)) = stage_times {
-                            m.record_stage_time(ProcessingStage::Loading, loading);
-                            m.record_stage_time(ProcessingStage::Optimization, optimization);
-                            m.record_stage_time(ProcessingStage::Saving, saving);
-                        }
+                        // Record worker metrics using the same time as processing
+                        <dyn Benchmarkable>::record_worker_metrics(m, worker_id, Duration::zero(), processing_time);
                         
-                        m.add_compression_ratio(result.original_size, result.optimized_size);
+                        // Add compression ratio
+                        m.record_compression(result.original_size, result.optimized_size);
                         debug!("Updated benchmark metrics for task: {}", task_path);
                     }
                 }
@@ -189,7 +177,7 @@ impl WorkerPool {
                     }
                 }
                 self.finalize_benchmarking();  // Ensure metrics are finalized
-                Err(e)
+                Err(e.into())
             }
         }
     }
@@ -203,139 +191,63 @@ impl WorkerPool {
         active_workers.saturating_add(total_capacity - available_permits).saturating_sub(total_capacity)
     }
 
-    pub async fn process_batch(&self, tasks: Vec<ImageTask>) -> OptimizerResult<Vec<OptimizationResult>> {
-        info!("Processing batch of {} tasks", tasks.len());
-        
-        // Try to get previous batch report without blocking
-        if let Ok(metrics) = self.benchmark_metrics.try_lock() {
-            if let Some(ref m) = *metrics {
-                if !m.compression_ratios.is_empty() {
-                    use crate::benchmarking::BenchmarkReporter;
-                    let reporter = BenchmarkReporter::from_metrics(m.clone());
-                    let report = reporter.to_string();
-                    info!("\nPrevious Batch Processing Report:\n{}", report);
-                }
-            }
-        }
-        
-        // Reset and start timing for the entire batch
+    pub async fn process_batch(&self, tasks: Vec<ImageTask>) -> WorkerResult<(Vec<OptimizationResult>, Duration)> {
+        info!("Starting batch processing of {} tasks", tasks.len());
         let start_time = std::time::Instant::now();
-        if let Ok(mut metrics) = self.benchmark_metrics.try_lock() {
-            if let Some(ref mut m) = *metrics {
-                debug!("Resetting metrics for new batch");
-                *m = BenchmarkMetrics::new_with_capacity(self.worker_count, tasks.len());
-                m.start_benchmark();
-            }
-        } else {
-            warn!("Failed to lock benchmark metrics - metrics will not be recorded");
-        }
-
-        let start_overhead = std::time::Instant::now();
-        debug!("Starting task management overhead timing");
-
-        // Calculate tasks per worker
-        let tasks_per_worker = (Self::safe_div(tasks.len() as f64, self.worker_count as f64)).ceil() as usize;
-        debug!("Distributing {} tasks across {} workers ({} tasks per worker)", 
-            tasks.len(), self.worker_count, tasks_per_worker);
-
-        // Track initial queue length
-        if let Ok(mut metrics) = self.benchmark_metrics.try_lock() {
-            if let Some(ref mut m) = *metrics {
-                let queue_len = tasks.len();
-                m.record_queue_length(queue_len);
-                debug!("Initial queue length: {}", queue_len);
-            }
-        } else {
-            warn!("Failed to lock benchmark metrics - queue length will not be recorded");
-        }
-
-        // Process tasks in batches using the optimizer's batch processing
-        let (results, stage_times) = self.optimizer.process_batch(&self.app, tasks).await?;
-
-        let total_time = Duration::new_unchecked(start_overhead.elapsed().as_secs_f64());
-        let processing_time = stage_times
-            .map(|(l, o, s)| l + o + s)
-            .unwrap_or_else(|| {
-                warn!("Stage times not available - using total time for processing time");
-                total_time
-            });
-        let overhead_time = Duration::new_unchecked(total_time.as_secs_f64() - processing_time.as_secs_f64());
+        let total_tasks = tasks.len();
         
-        debug!("Task management overhead: {:.3}s (total: {:.3}s - processing: {:.3}s)", 
-            overhead_time.as_secs_f64(), total_time.as_secs_f64(), processing_time.as_secs_f64());
-
-        // Record metrics and generate report in a single lock
+        // Record queue metrics before processing
         if let Ok(mut metrics) = self.benchmark_metrics.try_lock() {
             if let Some(ref mut m) = *metrics {
-                // Record overhead time
-                m.record_stage_time(ProcessingStage::Overhead, overhead_time);
-                debug!("Recorded overhead time: {:.3}s", overhead_time.as_secs_f64());
-                
-                // Add compression ratios for all results
-                for result in &results {
-                    m.add_compression_ratio(result.original_size, result.optimized_size);
-                }
-                
-                // Record worker metrics with more precise task distribution
-                let total_tasks = results.len();
-                let tasks_per_worker = (total_tasks as f64 / self.worker_count as f64).ceil() as usize;
-                let active_workers = ((total_tasks as f64 - 1.0) / tasks_per_worker as f64).ceil() as usize + 1;
-                let mut remaining_tasks = total_tasks;
-                
-                debug!("Using {} active workers for {} tasks", active_workers, total_tasks);
-                
-                for worker_id in 0..active_workers {
-                    let tasks_for_this_worker = if remaining_tasks >= tasks_per_worker {
-                        tasks_per_worker
-                    } else {
-                        remaining_tasks
-                    };
-                    
-                    if tasks_for_this_worker > 0 {
-                        let worker_processing_time = Duration::new_unchecked(
-                            processing_time.as_secs_f64() * (tasks_for_this_worker as f64 / total_tasks as f64)
-                        );
-                        let worker_idle_time = Duration::new_unchecked(
-                            overhead_time.as_secs_f64() / active_workers as f64
-                        );
-
-                        m.record_worker_busy(worker_id, worker_processing_time);
-                        m.record_worker_idle(worker_id, worker_idle_time);
-                        
-                        // Record actual number of tasks for this worker
-                        for _ in 0..tasks_for_this_worker {
-                            m.record_task_for_worker(worker_id);
-                        }
-                        
-                        remaining_tasks -= tasks_for_this_worker;
-                    }
-                }
-                
-                // Record stage times
-                if let Some((loading, optimization, saving)) = stage_times {
-                    m.record_stage_time(ProcessingStage::Loading, loading);
-                    m.record_stage_time(ProcessingStage::Optimization, optimization);
-                    m.record_stage_time(ProcessingStage::Saving, saving);
-                    debug!("Recorded stage times - Loading: {:.3}s, Optimization: {:.3}s, Saving: {:.3}s",
-                        loading.as_secs_f64(), optimization.as_secs_f64(), saving.as_secs_f64());
-                }
-                
-                // Finalize metrics and generate report in one go
-                m.finalize(start_time);
-                debug!("Finalized benchmark metrics");
-                
-                // Generate report immediately while we still have the lock
-                use crate::benchmarking::BenchmarkReporter;
-                let reporter = BenchmarkReporter::from_metrics(m.clone());
-                let report = reporter.to_string();
-                info!("\nBatch Processing Report:\n{}", report);
-                debug!("Generated benchmark report after batch processing");
+                let contention = total_tasks > self.worker_count;
+                <dyn Benchmarkable>::record_queue_metrics(m, contention);
+                debug!("Queue metrics recorded: contention={}", contention);
             }
-        } else {
-            warn!("Failed to lock benchmark metrics - metrics will not be recorded");
         }
 
-        Ok(results)
+        // Process the batch
+        info!("Processing batch with {} tasks using {} workers", total_tasks, self.worker_count);
+        let results = self.optimizer.process_batch(&self.app, tasks).await
+            .map_err(|e| WorkerError::ProcessingError(format!("Batch processing failed: {}", e)))?;
+        let total_time = Duration::new_unchecked(start_time.elapsed().as_secs_f64());
+        info!("Batch processing completed in {}", total_time);
+        
+        // Record metrics
+        if let Ok(mut metrics) = self.benchmark_metrics.try_lock() {
+            if let Some(ref mut m) = *metrics {
+                debug!("Recording batch metrics");
+                <dyn Benchmarkable>::add_processing_time(m, total_time);
+                
+                // Calculate actual parallel execution metrics
+                let tasks_per_worker = (total_tasks + self.worker_count - 1) / self.worker_count;
+                let parallel_time = total_time.as_secs_f64() / self.worker_count as f64;
+                debug!("Calculated parallel metrics: {} tasks per worker", tasks_per_worker);
+                
+                // Record metrics for active workers
+                for task_idx in 0..total_tasks {
+                    let worker_id = task_idx % self.worker_count;
+                    let worker_processing_time = Duration::new_unchecked(parallel_time);
+                    let worker_idle_time = Duration::new_unchecked(
+                        total_time.as_secs_f64() - parallel_time
+                    );
+                    <dyn Benchmarkable>::record_worker_metrics(m, worker_id, worker_idle_time, worker_processing_time);
+                }
+
+                // Add compression ratios for all results
+                debug!("Recording compression ratios for {} results", results.len());
+                for result in &results {
+                    m.record_compression(result.original_size, result.optimized_size);
+                }
+                
+                // Finalize and generate report
+                info!("Finalizing benchmark metrics");
+                let metrics = <dyn Benchmarkable>::finalize_benchmarking(m);
+                let reporter = BenchmarkReporter::from_metrics(metrics);
+                info!("\nBatch Processing Report:\n{}", reporter);
+            }
+        }
+        
+        Ok((results, total_time))
     }
 
     pub async fn get_active_workers(&self) -> usize {
@@ -352,9 +264,46 @@ impl WorkerPool {
     pub fn finalize_benchmarking(&self) {
         if let Ok(mut metrics) = self.benchmark_metrics.try_lock() {
             if let Some(ref mut m) = *metrics {
-                m.finalize(std::time::Instant::now());
+                let _ = <dyn Benchmarkable>::finalize_benchmarking(m);
                 debug!("Finalized benchmarking metrics");
             }
         }
+    }
+}
+
+impl Benchmarkable for WorkerPool {
+    fn add_processing_time(&mut self, duration: Duration) {
+        if let Ok(mut metrics) = self.benchmark_metrics.try_lock() {
+            if let Some(ref mut m) = *metrics {
+                m.record_processing_time(duration);
+            }
+        }
+    }
+    
+    fn record_worker_metrics(&mut self, worker_id: usize, idle_time: Duration, busy_time: Duration) {
+        if let Ok(mut metrics) = self.benchmark_metrics.try_lock() {
+            if let Some(ref mut m) = *metrics {
+                m.record_worker_metrics(worker_id, idle_time, busy_time);
+            }
+        }
+    }
+    
+    fn record_queue_metrics(&mut self, contention: bool) {
+        if let Ok(mut metrics) = self.benchmark_metrics.try_lock() {
+            if let Some(ref mut m) = *metrics {
+                if contention {
+                    m.record_contention();
+                }
+            }
+        }
+    }
+    
+    fn finalize_benchmarking(&mut self) -> BenchmarkMetrics {
+        if let Ok(mut metrics) = self.benchmark_metrics.try_lock() {
+            if let Some(ref mut m) = *metrics {
+                return m.finalize();
+            }
+        }
+        BenchmarkMetrics::default()
     }
 } 

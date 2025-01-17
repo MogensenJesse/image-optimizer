@@ -2,13 +2,13 @@ use std::sync::Arc;
 use std::collections::HashSet;
 use tokio::sync::Mutex;
 use tauri_plugin_shell::ShellExt;
-use crate::core::{OptimizationResult, ImageTask};
+use crate::core::OptimizationResult;
+use crate::worker::ImageTask;
 use crate::utils::{
     OptimizerError,
     OptimizerResult,
     get_file_size,
 };
-use crate::benchmarking::{Duration, ProcessingStage};
 use crate::processing::validation::validate_task;
 use serde_json;
 use tracing::debug;
@@ -31,32 +31,25 @@ impl ImageOptimizer {
         &self,
         app: &tauri::AppHandle,
         tasks: Vec<ImageTask>,
-    ) -> OptimizerResult<(Vec<OptimizationResult>, Option<(Duration, Duration, Duration)>)> {
+    ) -> OptimizerResult<Vec<OptimizationResult>> {
         let mut results = Vec::with_capacity(tasks.len());
-        let mut stage_times = None;
         
         // Process tasks in chunks to reduce process spawning
         for chunk in tasks.chunks(BATCH_SIZE) {
-            let (chunk_results, times) = self.process_chunk(app, chunk.to_vec()).await?;
+            let chunk_results = self.process_chunk(app, chunk.to_vec()).await?;
             results.extend(chunk_results);
-            // Only keep the last chunk's timing info
-            stage_times = Some(times);
         }
         
-        Ok((results, stage_times))
+        Ok(results)
     }
 
     async fn process_chunk(
         &self,
         app: &tauri::AppHandle,
         tasks: Vec<ImageTask>,
-    ) -> OptimizerResult<(Vec<OptimizationResult>, (Duration, Duration, Duration))> {
+    ) -> OptimizerResult<Vec<OptimizationResult>> {
         let mut results = Vec::with_capacity(tasks.len());
         let mut original_sizes = Vec::with_capacity(tasks.len());
-
-        // Start loading phase timing
-        let loading_start = std::time::Instant::now();
-        debug!("Starting {} phase", ProcessingStage::Loading);
 
         // Validate paths and get original sizes
         for task in &tasks {
@@ -72,22 +65,8 @@ impl ImageOptimizer {
             active.insert(task.input_path.clone());
         }
 
-        let loading_time = Duration::new_unchecked(loading_start.elapsed().as_secs_f64());
-        debug!("{} phase completed in {} (validation and file reading)", ProcessingStage::Loading, loading_time);
-
-        // Start optimization phase timing
-        let optimization_start = std::time::Instant::now();
-        debug!("Starting {} phase", ProcessingStage::Optimization);
-
         // Process the batch using Sharp sidecar
         let result = self.run_sharp_process_batch(app, &tasks).await;
-
-        let optimization_time = Duration::new_unchecked(optimization_start.elapsed().as_secs_f64());
-        debug!("{} phase completed in {} (Sharp processing)", ProcessingStage::Optimization, optimization_time);
-
-        // Start saving phase timing
-        let saving_start = std::time::Instant::now();
-        debug!("Starting {} phase", ProcessingStage::Saving);
 
         // Remove from active tasks and collect results
         let saving_result = async {
@@ -126,11 +105,8 @@ impl ImageOptimizer {
             }
         }.await;
 
-        let saving_time = Duration::new_unchecked(saving_start.elapsed().as_secs_f64());
-        debug!("{} phase completed in {} (result collection and verification)", ProcessingStage::Saving, saving_time);
-
         match saving_result {
-            Ok(_) => Ok((results, (loading_time, optimization_time, saving_time))),
+            Ok(_) => Ok(results),
             Err(e) => Err(e),
         }
     }

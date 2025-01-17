@@ -2,6 +2,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use crate::worker::WorkerPool;
 use tracing::{info, warn};
+use crate::utils::OptimizerError;
 
 lazy_static::lazy_static! {
     pub(crate) static ref WORKER_POOL: Arc<Mutex<Option<WorkerPool>>> = Arc::new(Mutex::new(None));
@@ -19,12 +20,15 @@ impl AppState {
         }
     }
 
-    pub async fn get_or_init_worker_pool(&self, app: tauri::AppHandle) -> Arc<WorkerPool> {
+    pub async fn get_or_init_worker_pool(&self, app: tauri::AppHandle) -> Result<Arc<WorkerPool>, OptimizerError> {
         let mut pool = self.worker_pool.lock().await;
         if pool.is_none() {
-            *pool = Some(WorkerPool::new(app, None));
+            match WorkerPool::new(app, None) {
+                Ok(new_pool) => *pool = Some(new_pool),
+                Err(e) => return Err(OptimizerError::worker(e.to_string())),
+            }
         }
-        Arc::new(pool.as_ref().unwrap().clone())
+        Ok(Arc::new(pool.as_ref().unwrap().clone()))
     }
 
     /// Attempt to gracefully shutdown the worker pool

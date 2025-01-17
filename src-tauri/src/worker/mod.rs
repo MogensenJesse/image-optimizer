@@ -1,4 +1,7 @@
 mod pool;
+mod task;
+mod error;
 
 pub use pool::WorkerPool;
-pub use crate::core::types::ImageTask; 
+pub use task::ImageTask;
+pub use error::WorkerError; 

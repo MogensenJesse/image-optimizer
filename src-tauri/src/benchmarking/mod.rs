@@ -1,5 +1,4 @@
-mod metrics;
-mod reporter;
+pub mod metrics;
+pub mod reporter;
 
-pub use metrics::{BenchmarkMetrics, Duration, ProcessingStage};
-pub use reporter::BenchmarkReporter; 
+pub use metrics::{BenchmarkMetrics, Duration, Benchmarkable}; 

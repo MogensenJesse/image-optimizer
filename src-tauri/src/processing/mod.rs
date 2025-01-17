@@ -1,4 +1,4 @@
 mod optimizer;
-mod validation;
+pub mod validation;
 
 pub use optimizer::ImageOptimizer; 

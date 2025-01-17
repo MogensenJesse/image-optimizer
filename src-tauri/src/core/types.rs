@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+pub use crate::worker::ImageTask;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageSettings {
@@ -39,11 +40,4 @@ pub struct OptimizationResult {
     pub saved_bytes: i64,
     #[serde(rename = "compressionRatio")]
     pub compression_ratio: f64,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ImageTask {
-    pub input_path: String,
-    pub output_path: String,
-    pub settings: ImageSettings,
 } 
