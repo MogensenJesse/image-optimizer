@@ -73,7 +73,6 @@ pub async fn optimize_images(
     // Get or initialize worker pool and process images
     let pool = state.get_or_init_worker_pool(app).await?;
     let pool = Arc::try_unwrap(pool).unwrap_or_else(|arc| (*arc).clone());
-    pool.enable_benchmarking();
     
     let (results, _duration) = pool.process_batch(image_tasks).await
         .map_err(|e| match e {

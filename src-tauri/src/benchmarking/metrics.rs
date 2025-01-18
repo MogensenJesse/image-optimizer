@@ -138,7 +138,6 @@ pub struct WorkerPoolMetrics {
     pub tasks_per_worker: Vec<usize>,     // Number of tasks processed by each worker
     pub failed_tasks: usize,              // Number of failed tasks
     pub contention_count: usize,          // Number of times tasks had to wait
-    pub peak_concurrent_tasks: usize,     // Maximum number of concurrent tasks
 }
 
 impl WorkerPoolMetrics {
@@ -179,7 +178,6 @@ impl Default for WorkerPoolMetrics {
             tasks_per_worker: Vec::new(),
             failed_tasks: 0,
             contention_count: 0,
-            peak_concurrent_tasks: 0,
         }
     }
 }
@@ -188,13 +186,14 @@ impl Default for WorkerPoolMetrics {
 pub struct BenchmarkMetrics {
     // Time-based metrics
     pub total_duration: Duration,
-    pub avg_processing_time: Duration,
+    pub processing_times: Vec<Duration>,  // Track individual processing times
+    pub avg_processing_time: Duration,    // Calculated in finalize()
     
     // Optimization metrics
     pub compression_ratios: Vec<Percentage>,
     pub total_original_size: u64,
     pub total_optimized_size: u64,
-    pub throughput_mbs: f64,  // New field for MB/s throughput
+    pub throughput_mbs: f64,
     
     // Internal tracking
     #[serde(skip)]
@@ -208,6 +207,7 @@ impl Default for BenchmarkMetrics {
     fn default() -> Self {
         Self {
             total_duration: Duration::zero(),
+            processing_times: Vec::new(),
             avg_processing_time: Duration::zero(),
             compression_ratios: Vec::new(),
             total_original_size: 0,
@@ -223,6 +223,7 @@ impl BenchmarkMetrics {
     pub fn new(task_capacity: usize) -> Self {
         Self {
             total_duration: Duration::zero(),
+            processing_times: Vec::with_capacity(task_capacity),
             avg_processing_time: Duration::zero(),
             compression_ratios: Vec::with_capacity(task_capacity),
             total_original_size: 0,
@@ -233,12 +234,28 @@ impl BenchmarkMetrics {
         }
     }
 
+    /// Reset all metrics to their initial state
+    pub fn reset(&mut self) {
+        self.total_duration = Duration::zero();
+        self.processing_times.clear();
+        self.avg_processing_time = Duration::zero();
+        self.compression_ratios.clear();
+        self.total_original_size = 0;
+        self.total_optimized_size = 0;
+        self.throughput_mbs = 0.0;
+        self.start_time = None;
+        self.worker_pool.tasks_per_worker.clear();
+        self.worker_pool.failed_tasks = 0;
+        self.worker_pool.contention_count = 0;
+    }
+
     pub fn start_benchmarking(&mut self) {
+        self.reset(); // Reset metrics when starting a new benchmark
         self.start_time = Some(Instant::now());
     }
 
     pub fn record_processing_time(&mut self, time: Duration) {
-        self.avg_processing_time = time;
+        self.processing_times.push(time);
     }
 
     pub fn record_compression(&mut self, original_size: u64, optimized_size: u64) {
@@ -258,7 +275,17 @@ impl BenchmarkMetrics {
         if let Some(start) = self.start_time.take() {
             self.total_duration = Duration::new_unchecked(start.elapsed().as_secs_f64());
             
-            // Calculate throughput in MB/s
+            // Calculate average processing time from individual times
+            if !self.processing_times.is_empty() {
+                let total_proc_time: f64 = self.processing_times.iter()
+                    .map(|d| d.as_secs_f64())
+                    .sum();
+                self.avg_processing_time = Duration::new_unchecked(
+                    total_proc_time / self.processing_times.len() as f64
+                );
+            }
+            
+            // Calculate throughput in MB/s using total_duration for wall clock time
             let total_bytes = self.total_original_size;
             let duration_secs = self.total_duration.as_secs_f64();
             if duration_secs > 0.0 {
@@ -289,10 +316,6 @@ impl BenchmarkMetrics {
 
     pub fn record_task_failure(&mut self) {
         self.worker_pool.failed_tasks += 1;
-    }
-
-    pub fn update_concurrent_tasks(&mut self, count: usize) {
-        self.worker_pool.peak_concurrent_tasks = self.worker_pool.peak_concurrent_tasks.max(count);
     }
 }
 

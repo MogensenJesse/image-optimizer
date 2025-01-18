@@ -13,7 +13,6 @@ use tracing::{info, debug};
 use tauri::Manager;
 use crate::core::AppState;
 use crate::commands::{optimize_image, optimize_images, get_active_tasks};
-use std::sync::Arc;
 
 fn main() {
     // Initialize logging with more verbose output in benchmark mode
@@ -68,8 +67,9 @@ fn main() {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
             let pool = state.get_or_init_worker_pool(app_handle).await
                 .expect("Failed to initialize worker pool");
-            let pool = Arc::try_unwrap(pool).unwrap_or_else(|arc| (*arc).clone());
-            pool.enable_benchmarking();
+            
+            // Enable benchmarking on the pool
+            pool.enable_benchmarking().await;
             info!("✓ Worker pool initialized with benchmarking enabled");
             debug!("Worker pool configuration: {} workers", pool.get_worker_count());
         });

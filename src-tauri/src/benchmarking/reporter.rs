@@ -84,7 +84,6 @@ impl fmt::Display for BenchmarkReporter {
         
         writeln!(f, "- Contention Metrics:")?;
         writeln!(f, "  └── Contention Events: {}", self.metrics.worker_pool.contention_count)?;
-        writeln!(f, "  └── Peak Concurrent Tasks: {}", self.metrics.worker_pool.peak_concurrent_tasks)?;
         writeln!(f)?;
         
         writeln!(f, "- Task Statistics:")?;
