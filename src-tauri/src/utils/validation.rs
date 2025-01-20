@@ -50,7 +50,7 @@ pub fn validate_settings(settings: &crate::core::ImageSettings) -> OptimizerResu
 
     // Validate output format
     let format = settings.output_format.to_lowercase();
-    if !["jpeg", "jpg", "png", "webp", "avif"].contains(&format.as_str()) {
+    if !["jpeg", "jpg", "png", "webp", "avif", "original"].contains(&format.as_str()) {
         return Err(ValidationError::settings(
             format!("Unsupported output format: {}", format)
         ).into());
