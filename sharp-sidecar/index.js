@@ -198,11 +198,13 @@ async function optimizeImage(input, output, settings) {
 
     const result = {
       path: outputPath,
-      originalSize: inputSize,
-      optimizedSize: outputSize,
-      savedBytes: savedBytes,
-      compressionRatio: compressionRatio,
-      format: outputFormat
+      optimized_size: outputSize,
+      original_size: inputSize,
+      saved_bytes: savedBytes,
+      compression_ratio: compressionRatio,
+      format: outputFormat,
+      success: true,
+      error: null
     };
     
     return result;
@@ -221,19 +223,15 @@ async function optimizeBatch(batchJson) {
     for (const task of batch) {
       try {
         const result = await optimizeImage(task.input, task.output, task.settings);
-        results.push({
-          ...result,
-          success: true,
-          error: null
-        });
+        results.push(result);
       } catch (err) {
         console.error('Error processing task:', task.input, err);
         results.push({
           path: task.output,
-          originalSize: 0,
-          optimizedSize: 0,
-          savedBytes: 0,
-          compressionRatio: 0,
+          optimized_size: 0,
+          original_size: 0,
+          saved_bytes: 0,
+          compression_ratio: "0.00",
           format: null,
           success: false,
           error: err.message

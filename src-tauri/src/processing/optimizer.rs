@@ -13,6 +13,23 @@ use crate::processing::validation::validate_task;
 use serde_json;
 use tracing::{debug, warn};
 use sysinfo::System;
+use serde::Deserialize;
+use futures::future::try_join_all;
+
+#[derive(Debug, Deserialize)]
+struct SharpResult {
+    path: String,
+    optimized_size: u64,
+    original_size: u64,
+    saved_bytes: i64,
+    compression_ratio: String,
+    /// The output format of the image (e.g., 'jpeg', 'png').
+    /// Kept for debugging and future format conversion tracking.
+    #[allow(dead_code)]
+    format: Option<String>,
+    success: bool,
+    error: Option<String>,
+}
 
 #[derive(Debug, Clone)]
 struct BatchSizeConfig {
@@ -140,6 +157,41 @@ impl ImageOptimizer {
         Ok((results, memory_metrics))
     }
 
+    async fn validate_tasks(&self, tasks: &[ImageTask]) -> OptimizerResult<()> {
+        debug!("Starting parallel validation of {} tasks", tasks.len());
+        
+        let validation_tasks: Vec<_> = tasks.iter()
+            .map(|task| {
+                let task = task.clone();
+                tokio::spawn(async move {
+                    validate_task(&task).await
+                })
+            })
+            .collect();
+
+        // Wait for all validations to complete
+        let results = try_join_all(validation_tasks).await
+            .map_err(|e| OptimizerError::processing(format!("Task validation failed: {}", e)))?;
+
+        // Check results and collect any errors
+        let errors: Vec<_> = results
+            .into_iter()
+            .filter_map(|r| r.err())
+            .collect();
+
+        if !errors.is_empty() {
+            warn!("Validation failed for {} tasks", errors.len());
+            return Err(OptimizerError::processing(format!(
+                "Validation failed for {} tasks: {:?}",
+                errors.len(),
+                errors
+            )));
+        }
+
+        debug!("All {} tasks validated successfully", tasks.len());
+        Ok(())
+    }
+
     async fn process_chunk(
         &self,
         app: &tauri::AppHandle,
@@ -148,15 +200,16 @@ impl ImageOptimizer {
         let mut results = Vec::with_capacity(tasks.len());
 
         debug!("Validating {} tasks in chunk", tasks.len());
-        // Validate paths and get original sizes
-        for task in &tasks {
-            // Validate task (includes path and settings validation)
-            validate_task(task).await?;
-            
-            // Track active task
+        // Validate all tasks in parallel
+        self.validate_tasks(&tasks).await?;
+        
+        // Track active tasks
+        {
             let mut active = self.active_tasks.lock().await;
-            active.insert(task.input_path.clone());
-            debug!("Task validated: {}", task.input_path);
+            for task in &tasks {
+                active.insert(task.input_path.clone());
+                debug!("Task tracked: {}", task.input_path);
+            }
         }
 
         // Process the batch using Sharp sidecar
@@ -164,10 +217,12 @@ impl ImageOptimizer {
         let result = self.run_sharp_process_batch(app, &tasks).await?;
         let (sharp_result, output) = result;
 
-        // Remove from active tasks and collect results
-        let mut active = self.active_tasks.lock().await;
-        for task in &tasks {
-            active.remove(&task.input_path);
+        // Remove from active tasks
+        {
+            let mut active = self.active_tasks.lock().await;
+            for task in &tasks {
+                active.remove(&task.input_path);
+            }
         }
 
         match sharp_result {
@@ -175,45 +230,27 @@ impl ImageOptimizer {
                 debug!("Collecting results for {} tasks", tasks.len());
                 // Parse Sharp output to get results
                 let stdout = String::from_utf8_lossy(&output.stdout);
-                let sharp_results: Vec<serde_json::Value> = serde_json::from_str(&stdout)
+                let sharp_results: Vec<SharpResult> = serde_json::from_str(&stdout)
                     .map_err(|e| OptimizerError::processing(format!(
                         "Failed to parse Sharp output: {}", e
                     )))?;
 
                 // Collect results for each task
                 for (task, result) in tasks.into_iter().zip(sharp_results) {
-                    let output_path = result["path"].as_str()
-                        .ok_or_else(|| OptimizerError::processing("Missing path in Sharp output".to_string()))?
-                        .to_string();
-                    
-                    let optimized_size = result["optimizedSize"].as_u64()
-                        .ok_or_else(|| OptimizerError::processing("Missing optimizedSize in Sharp output".to_string()))?;
-
-                    let original_size = result["originalSize"].as_u64()
-                        .ok_or_else(|| OptimizerError::processing("Missing originalSize in Sharp output".to_string()))?;
-
-                    let bytes_saved = result["savedBytes"].as_i64()
-                        .ok_or_else(|| OptimizerError::processing("Missing savedBytes in Sharp output".to_string()))?;
-
-                    let compression_ratio = result["compressionRatio"].as_str()
-                        .ok_or_else(|| OptimizerError::processing("Missing compressionRatio in Sharp output".to_string()))?
-                        .parse::<f64>()
-                        .unwrap_or(0.0);
-
                     debug!(
                         "Task completed - Path: {}, Original: {}, Optimized: {}, Saved: {}%",
-                        task.input_path, original_size, optimized_size, compression_ratio
+                        task.input_path, result.original_size, result.optimized_size, result.compression_ratio
                     );
 
                     results.push(OptimizationResult {
                         original_path: task.input_path,
-                        optimized_path: output_path,
-                        original_size,
-                        optimized_size,
-                        success: true,
-                        error: None,
-                        saved_bytes: bytes_saved,
-                        compression_ratio,
+                        optimized_path: result.path,
+                        original_size: result.original_size,
+                        optimized_size: result.optimized_size,
+                        success: result.success,
+                        error: result.error,
+                        saved_bytes: result.saved_bytes,
+                        compression_ratio: result.compression_ratio.parse().unwrap_or(0.0),
                     });
                 }
                 Ok(results)
