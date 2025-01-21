@@ -182,6 +182,152 @@ impl Default for WorkerPoolMetrics {
     }
 }
 
+/// Metrics for tracking memory usage during batch processing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryMetrics {
+    pub avg_batch_memory: usize,          // Average memory per batch
+    pub max_batch_memory: usize,          // Maximum memory used by any batch
+    pub initial_memory: usize,            // Available memory at start
+    pub peak_pressure: usize,             // Maximum memory pressure observed
+    pub memory_distribution: [usize; 3],  // Distribution across usage ranges
+    batch_memory_usages: Vec<usize>,      // Memory used by each batch
+}
+
+impl Default for MemoryMetrics {
+    fn default() -> Self {
+        Self {
+            avg_batch_memory: 0,
+            max_batch_memory: 0,
+            initial_memory: 0,
+            peak_pressure: 0,
+            memory_distribution: [0; 3],
+            batch_memory_usages: Vec::with_capacity(100),
+        }
+    }
+}
+
+impl MemoryMetrics {
+    #[allow(dead_code)]
+    pub fn record_batch_memory(&mut self, used_memory: usize, available_memory: usize) {
+        self.batch_memory_usages.push(used_memory);
+        
+        // Update average
+        let total = self.batch_memory_usages.iter().sum::<usize>();
+        self.avg_batch_memory = total / self.batch_memory_usages.len();
+        
+        // Update maximum
+        self.max_batch_memory = self.max_batch_memory.max(used_memory);
+        
+        // Update peak pressure
+        let pressure = available_memory.saturating_sub(used_memory);
+        self.peak_pressure = self.peak_pressure.max(pressure);
+        
+        // Update distribution
+        let usage_pct = (used_memory as f64 / self.initial_memory as f64) * 100.0;
+        let index = (usage_pct / 33.33).min(2.0) as usize;
+        self.memory_distribution[index] += 1;
+    }
+}
+
+/// Metrics for tracking batch size performance and distribution.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchSizeMetrics {
+    pub batch_sizes: Vec<usize>,
+    pub size_distribution: [usize; 3],
+    pub memory_metrics: MemoryMetrics,    // Add memory metrics
+    #[serde(skip)]
+    config: BatchSizeConfig,
+}
+
+impl BatchSizeMetrics {
+    pub fn new(config: BatchSizeConfig) -> Self {
+        Self {
+            batch_sizes: Vec::with_capacity(100),
+            size_distribution: [0; 3],
+            memory_metrics: MemoryMetrics::default(),
+            config,
+        }
+    }
+
+    pub fn record_batch_size(&mut self, size: usize) {
+        self.batch_sizes.push(size);
+        
+        // Calculate distribution index based on equal ranges between min and max
+        let range_size = (self.config.max_size - self.config.min_size) / 3;
+        let ranges = [
+            self.config.min_size..=(self.config.min_size + range_size),
+            (self.config.min_size + range_size + 1)..=(self.config.min_size + 2 * range_size),
+            (self.config.min_size + 2 * range_size + 1)..=self.config.max_size
+        ];
+        
+        for (i, range) in ranges.iter().enumerate() {
+            if range.contains(&size) {
+                self.size_distribution[i] += 1;
+                break;
+            }
+        }
+    }
+
+    pub fn average(&self) -> f64 {
+        if self.batch_sizes.is_empty() {
+            0.0
+        } else {
+            self.batch_sizes.iter().sum::<usize>() as f64 / self.batch_sizes.len() as f64
+        }
+    }
+
+    pub fn min(&self) -> usize {
+        *self.batch_sizes.iter().min().unwrap_or(&0)
+    }
+
+    pub fn max(&self) -> usize {
+        *self.batch_sizes.iter().max().unwrap_or(&0)
+    }
+
+    // Add getter methods for config fields
+    pub fn min_size(&self) -> usize {
+        self.config.min_size
+    }
+
+    pub fn max_size(&self) -> usize {
+        self.config.max_size
+    }
+
+    pub fn finalize(&mut self) {
+        if self.batch_sizes.is_empty() {
+            return;
+        }
+
+        // Update distribution using the current config ranges
+        self.size_distribution = [0; 3];
+        for &size in &self.batch_sizes {
+            // Calculate distribution index based on config ranges
+            let range = (self.config.max_size - self.config.min_size) / 3;
+            let index = ((size - self.config.min_size) / range).min(2);
+            self.size_distribution[index] += 1;
+        }
+    }
+}
+
+/// Metrics for tracking batch size configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchSizeConfig {
+    pub min_size: usize,
+    pub max_size: usize,
+    pub target_memory_usage: usize,
+}
+
+impl Default for BatchSizeConfig {
+    fn default() -> Self {
+        Self {
+            min_size: 5,
+            max_size: 50,
+            target_memory_usage: 1024 * 1024 * 512, // 512MB
+        }
+    }
+}
+
+/// Metrics for tracking benchmarking results.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchmarkMetrics {
     // Time-based metrics
@@ -201,6 +347,9 @@ pub struct BenchmarkMetrics {
     
     // Worker pool metrics
     pub worker_pool: WorkerPoolMetrics,
+    
+    // Batch size metrics
+    pub batch_metrics: BatchSizeMetrics,
 }
 
 impl Default for BenchmarkMetrics {
@@ -215,6 +364,7 @@ impl Default for BenchmarkMetrics {
             throughput_mbs: 0.0,
             start_time: None,
             worker_pool: WorkerPoolMetrics::default(),
+            batch_metrics: BatchSizeMetrics::new(BatchSizeConfig::default()),
         }
     }
 }
@@ -231,6 +381,7 @@ impl BenchmarkMetrics {
             throughput_mbs: 0.0,
             start_time: None,
             worker_pool: WorkerPoolMetrics::default(),
+            batch_metrics: BatchSizeMetrics::new(BatchSizeConfig::default()),
         }
     }
 
@@ -247,6 +398,7 @@ impl BenchmarkMetrics {
         self.worker_pool.tasks_per_worker.clear();
         self.worker_pool.failed_tasks = 0;
         self.worker_pool.contention_count = 0;
+        self.batch_metrics = BatchSizeMetrics::new(self.batch_metrics.config.clone());
     }
 
     pub fn start_benchmarking(&mut self) {
@@ -291,8 +443,15 @@ impl BenchmarkMetrics {
             if duration_secs > 0.0 {
                 self.throughput_mbs = (total_bytes as f64 / 1_000_000.0) / duration_secs;
             }
+
+            // Ensure batch metrics are properly finalized
+            self.batch_metrics.finalize();
         }
-        self.clone()
+
+        // Create a clone with preserved batch metrics
+        let mut clone = self.clone();
+        clone.batch_metrics = self.batch_metrics.clone();
+        clone
     }
 
     pub fn record_worker_busy(&mut self, worker_id: usize, _time: Duration) {

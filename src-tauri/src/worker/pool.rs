@@ -7,7 +7,7 @@ use crate::processing::ImageOptimizer;
 use crate::benchmarking::{BenchmarkMetrics, Duration, Benchmarkable};
 use crate::benchmarking::reporter::BenchmarkReporter;
 use crate::worker::error::{WorkerError, WorkerResult};
-use tracing::{debug, warn, info};
+use tracing::{debug, info, warn};
 use std::sync::Mutex as StdMutex;
 use lazy_static;
 
@@ -128,7 +128,6 @@ impl WorkerPool {
         }).await;
         
         // Try to acquire a permit, record contention if we have to wait
-        let permit_start = std::time::Instant::now();
         let _permit = match self.semaphore.try_acquire() {
             Ok(permit) => permit,
             Err(_) => {
@@ -145,73 +144,38 @@ impl WorkerPool {
             }
         };
         
-        let mut count = self.active_workers.lock().await;
-        let worker_id = (*count) % self.worker_count;
-        *count += 1;
-        
-        // Record worker idle time and update concurrent tasks
-        let idle_time = Duration::new_unchecked(permit_start.elapsed().as_secs_f64());
-        if let Ok(mut metrics) = self.benchmark_metrics.try_lock() {
-            if let Some(ref mut m) = *metrics {
-                <dyn Benchmarkable>::record_worker_metrics(m, worker_id, idle_time, Duration::zero());
-                debug!("Active workers: {}, Worker {} idle time: {}", *count, worker_id, idle_time);
-            }
-        }
-
-        let current_workers = *count;
-        let available_permits = self.semaphore.available_permits();
-        info!(
-            "Worker {} started - Active: {}/{}, Available permits: {}, Task: {}", 
-            worker_id, current_workers, self.worker_count, available_permits, task_path
-        );
-
         let start_time = std::time::Instant::now();
         
         // Process single task as a batch of one
         let process_result = self.optimizer.process_batch(&self.app, vec![task]).await;
         
         match process_result {
-            Ok(results) => {
-                let result = results.into_iter().next().ok_or_else(|| {
+            Ok((mut results, _memory_metrics)) => {  // Destructure tuple and ignore memory metrics
+                let result = results.pop().ok_or_else(|| {
                     WorkerError::ProcessingError("No result returned from batch processing".to_string())
                 })?;
 
                 let processing_time = Duration::new_unchecked(start_time.elapsed().as_secs_f64());
                 debug!("Task processed in {}", processing_time);
-
-                // Update benchmark metrics if enabled
-                if let Ok(mut metrics) = self.benchmark_metrics.try_lock() {
-                    if let Some(ref mut m) = *metrics {
-                        // Record individual processing time
-                        <dyn Benchmarkable>::add_processing_time(m, processing_time);
-                        
-                        // Record worker metrics using the same time as processing
-                        <dyn Benchmarkable>::record_worker_metrics(m, worker_id, Duration::zero(), processing_time);
-                        
-                        // Add compression ratio
-                        m.record_compression(result.original_size, result.optimized_size);
-                        debug!("Updated benchmark metrics for task: {}", task_path);
-                    }
-                }
                 
-                *count -= 1;
-                info!(
-                    "Worker {} finished - Active: {}/{}, Available permits: {}", 
-                    worker_id, count.saturating_sub(1), self.worker_count, available_permits + 1
-                );
+                // Record metrics if in benchmark mode
+                self.record_metric(|m, is_benchmark| {
+                    if is_benchmark {
+                        m.add_processing_time(processing_time);
+                    }
+                }).await;
                 
                 Ok(result)
-            }
+            },
             Err(e) => {
                 // Record task failure
-                if let Ok(mut metrics) = self.benchmark_metrics.try_lock() {
-                    if let Some(ref mut m) = *metrics {
+                self.record_metric(|m, is_benchmark| {
+                    if is_benchmark {
                         m.record_task_failure();
                     }
-                }
-                self.finalize_benchmarking();  // Ensure metrics are finalized
+                }).await;
                 Err(e.into())
-            }
+            },
         }
     }
 
@@ -251,15 +215,37 @@ impl WorkerPool {
 
         // Process the batch
         info!("Processing batch with {} tasks using {} workers", total_tasks, self.worker_count);
-        let results = self.optimizer.process_batch(&self.app, tasks).await
+        let optimizer_result = self.optimizer.process_batch(&self.app, tasks).await
             .map_err(|e| WorkerError::ProcessingError(format!("Batch processing failed: {}", e)))?;
         
+        let (results, memory_metrics) = optimizer_result;
         let mut total_duration = Duration::zero();
         
         // Record metrics and generate report if benchmarking
         self.record_metric(|m, is_benchmark| {
             if is_benchmark {
                 debug!("Recording batch metrics");
+                
+                // Record memory metrics
+                m.batch_metrics.memory_metrics.initial_memory = memory_metrics.initial_memory;
+                m.batch_metrics.memory_metrics.avg_batch_memory = memory_metrics.avg_batch_memory;
+                m.batch_metrics.memory_metrics.peak_pressure = memory_metrics.peak_pressure;
+                m.batch_metrics.memory_metrics.memory_distribution = memory_metrics.memory_distribution;
+                
+                // Record each chunk's size as a separate batch
+                let batch_size = 50; // This is from optimizer's BatchSizeConfig::default().max_size
+                let full_chunks = total_tasks / batch_size;
+                let remainder = total_tasks % batch_size;
+                
+                // Record full chunks
+                for _ in 0..full_chunks {
+                    m.batch_metrics.record_batch_size(batch_size);
+                }
+                
+                // Record the remainder chunk if any
+                if remainder > 0 {
+                    m.batch_metrics.record_batch_size(remainder);
+                }
             }
             
             // Get the current total duration
@@ -283,9 +269,11 @@ impl WorkerPool {
                 debug!("Recording compression ratios for {} results", results.len());
             }
             for result in &results {
-                m.record_compression(result.original_size, result.optimized_size);
+                if result.success {
+                    m.record_compression(result.original_size, result.optimized_size);
+                }
             }
-            
+
             // Only generate report in benchmark mode
             if is_benchmark {
                 info!("Finalizing benchmark metrics");
@@ -309,6 +297,7 @@ impl WorkerPool {
     }
 
     // Ensure benchmarking metrics are finalized even if an error occurs
+    #[allow(dead_code)]
     pub fn finalize_benchmarking(&self) {
         if let Ok(mut metrics) = self.benchmark_metrics.try_lock() {
             if let Some(ref mut m) = *metrics {

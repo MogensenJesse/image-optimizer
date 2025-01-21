@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::collections::HashSet;
 use tokio::sync::Mutex;
 use tauri_plugin_shell::{ShellExt, process::Output};
+use tauri;
 use crate::core::OptimizationResult;
 use crate::worker::ImageTask;
 use crate::utils::{
@@ -11,8 +12,70 @@ use crate::utils::{
 use crate::processing::validation::validate_task;
 use serde_json;
 use tracing::{debug, warn};
+use sysinfo::System;
 
-const BATCH_SIZE: usize = 10;
+#[derive(Debug, Clone)]
+struct BatchSizeConfig {
+    min_size: usize,
+    max_size: usize,
+    target_memory_usage: usize, // in bytes
+    target_memory_percentage: f32, // percentage of available memory to use
+}
+
+impl Default for BatchSizeConfig {
+    fn default() -> Self {
+        Self {
+            min_size: 5,
+            max_size: 75,
+            target_memory_usage: 1024 * 1024 * 2048, // Keep 2GB limit as safety net
+            target_memory_percentage: 0.5,     // Increased from 0.3 to 0.5 (50% of available memory)
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BatchMemoryMetrics {
+    pub initial_memory: usize,
+    pub avg_batch_memory: usize,
+    pub peak_pressure: usize,
+    pub memory_distribution: [usize; 3],
+}
+
+impl BatchMemoryMetrics {
+    fn new(initial_memory: usize) -> Self {
+        Self {
+            initial_memory,
+            avg_batch_memory: 0,
+            peak_pressure: 0,
+            memory_distribution: [0; 3],
+        }
+    }
+
+    fn record_usage(&mut self, used_memory: usize, available_memory: usize) {
+        // Update average (exponential moving average with alpha=0.2)
+        if self.avg_batch_memory == 0 {
+            self.avg_batch_memory = used_memory;
+        } else {
+            self.avg_batch_memory = (used_memory / 5) + (self.avg_batch_memory * 4 / 5);
+        }
+        
+        // Update peak pressure (track highest memory usage)
+        self.peak_pressure = self.peak_pressure.max(used_memory);
+        
+        // Update distribution based on percentage of initial memory used
+        let usage_pct = (used_memory as f64 / self.initial_memory as f64) * 100.0;
+        let index = (usage_pct / 33.33).min(2.0) as usize;
+        self.memory_distribution[index] += 1;
+
+        debug!(
+            "Memory usage recorded - Used: {}MB, Available: {}MB, Usage: {:.1}%, Index: {}", 
+            used_memory / (1024 * 1024),
+            available_memory / (1024 * 1024),
+            usage_pct,
+            index
+        );
+    }
+}
 
 #[derive(Clone)]
 pub struct ImageOptimizer {
@@ -26,24 +89,26 @@ impl ImageOptimizer {
         }
     }
 
-    pub async fn process_batch(
-        &self,
-        app: &tauri::AppHandle,
-        tasks: Vec<ImageTask>,
-    ) -> OptimizerResult<Vec<OptimizationResult>> {
+    pub async fn process_batch(&self, app: &tauri::AppHandle, tasks: Vec<ImageTask>) -> OptimizerResult<(Vec<OptimizationResult>, BatchMemoryMetrics)> {
+        let batch_size = self.calculate_batch_size(&tasks);
+        debug!("Calculated optimal batch size: {}", batch_size);
+        
         let mut results = Vec::with_capacity(tasks.len());
+        let available_mem = self.get_available_memory();
         
-        debug!("Starting batch processing of {} tasks", tasks.len());
-        debug!("Using chunk size: {}", BATCH_SIZE);
+        // Initialize memory metrics
+        let mut memory_metrics = BatchMemoryMetrics::new(available_mem);
         
-        // Process tasks in chunks to reduce process spawning
-        for (chunk_index, chunk) in tasks.chunks(BATCH_SIZE).enumerate() {
+        for (chunk_index, chunk) in tasks.chunks(batch_size).enumerate() {
             debug!(
                 "Processing chunk {}/{} ({} tasks)", 
                 chunk_index + 1, 
-                (tasks.len() + BATCH_SIZE - 1) / BATCH_SIZE,
+                (tasks.len() + batch_size - 1) / batch_size,
                 chunk.len()
             );
+            
+            // Record pre-processing memory state
+            let pre_mem = self.get_available_memory();
             
             let chunk_results = match self.process_chunk(app, chunk.to_vec()).await {
                 Ok(res) => {
@@ -55,11 +120,24 @@ impl ImageOptimizer {
                     return Err(e);
                 }
             };
+            
+            // Record post-processing memory state and calculate metrics
+            let post_mem = self.get_available_memory();
+            let used_memory = pre_mem.saturating_sub(post_mem);
+            memory_metrics.record_usage(used_memory, pre_mem);
+            
             results.extend(chunk_results);
         }
         
-        debug!("Batch processing completed. Processed {} tasks", results.len());
-        Ok(results)
+        // Log memory metrics summary
+        debug!(
+            "Memory metrics - Avg: {}MB, Initial: {}MB, Peak Pressure: {}MB", 
+            memory_metrics.avg_batch_memory / (1024 * 1024),
+            memory_metrics.initial_memory / (1024 * 1024),
+            memory_metrics.peak_pressure / (1024 * 1024)
+        );
+        
+        Ok((results, memory_metrics))
     }
 
     async fn process_chunk(
@@ -237,5 +315,50 @@ impl ImageOptimizer {
 
     pub async fn get_active_tasks(&self) -> Vec<String> {
         self.active_tasks.lock().await.iter().cloned().collect()
+    }
+
+    fn get_available_memory(&self) -> usize {
+        let mut system = System::new();
+        system.refresh_memory();
+        system.available_memory() as usize
+    }
+
+    fn calculate_batch_size(&self, tasks: &[ImageTask]) -> usize {
+        let config = BatchSizeConfig::default();
+        
+        // Calculate total and average task size
+        let total_size: u64 = tasks.iter()
+            .filter_map(|t| std::fs::metadata(&t.input_path).ok())
+            .map(|m| m.len())
+            .sum();
+        let avg_size = total_size / tasks.len() as u64;
+        
+        // Get available system memory and calculate target
+        let available_mem = self.get_available_memory();
+        let memory_target = ((available_mem as f32 * config.target_memory_percentage) as usize)
+            .min(config.target_memory_usage);
+        
+        // Calculate batch size based on average task size and memory target
+        let memory_based_size = memory_target / avg_size as usize;
+        
+        // Also consider total tasks - don't make batches larger than needed
+        let task_based_size = tasks.len();
+        
+        // Take the minimum of memory-based and task-based sizes
+        let calculated_size = memory_based_size.min(task_based_size);
+        
+        // Clamp between min and max sizes
+        let batch_size = calculated_size.clamp(config.min_size, config.max_size);
+        
+        debug!(
+            "Batch size calculation: avg_size={}MB, memory_target={}MB, memory_based={}, task_based={}, final={}",
+            avg_size / (1024 * 1024),
+            memory_target / (1024 * 1024),
+            memory_based_size,
+            task_based_size,
+            batch_size
+        );
+        
+        batch_size
     }
 } 

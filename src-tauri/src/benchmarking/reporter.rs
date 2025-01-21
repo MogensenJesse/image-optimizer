@@ -69,6 +69,43 @@ impl fmt::Display for BenchmarkReporter {
         writeln!(f, "- Processing Throughput: {:.2} MB/s", self.metrics.throughput_mbs)?;
         writeln!(f)?;
         
+        // Batch Size Metrics
+        writeln!(f, "Batch Size Metrics:")?;
+        writeln!(f, "- Average Batch Size: {:.1}", self.metrics.batch_metrics.average())?;
+        writeln!(f, "- Minimum Batch Size: {}", self.metrics.batch_metrics.min())?;
+        writeln!(f, "- Maximum Batch Size: {}", self.metrics.batch_metrics.max())?;
+        
+        let range = (self.metrics.batch_metrics.max_size() - 
+                    self.metrics.batch_metrics.min_size()) / 3;
+        
+        writeln!(f, "- Batch Size Distribution:")?;
+        for i in 0..3 {
+            let start = self.metrics.batch_metrics.min_size() + (i * range);
+            let end = start + range;
+            writeln!(f, "  └── {}-{}: {}", 
+                start, end, 
+                self.metrics.batch_metrics.size_distribution[i]
+            )?;
+        }
+        writeln!(f)?;
+        
+        // Add memory metrics section
+        writeln!(f, "Memory Usage Metrics:")?;
+        writeln!(f, "- Initial Available Memory: {}MB", 
+            self.metrics.batch_metrics.memory_metrics.initial_memory / (1024 * 1024))?;
+        writeln!(f, "- Average Batch Memory Usage: {}MB", 
+            self.metrics.batch_metrics.memory_metrics.avg_batch_memory / (1024 * 1024))?;
+        writeln!(f, "- Maximum Batch Memory Usage: {}MB", 
+            self.metrics.batch_metrics.memory_metrics.max_batch_memory / (1024 * 1024))?;
+        writeln!(f, "- Peak Memory Pressure: {}MB", 
+            self.metrics.batch_metrics.memory_metrics.peak_pressure / (1024 * 1024))?;
+        
+        writeln!(f, "- Memory Usage Distribution:")?;
+        writeln!(f, "  └── 0-33%: {}", self.metrics.batch_metrics.memory_metrics.memory_distribution[0])?;
+        writeln!(f, "  └── 34-66%: {}", self.metrics.batch_metrics.memory_metrics.memory_distribution[1])?;
+        writeln!(f, "  └── 67-100%: {}", self.metrics.batch_metrics.memory_metrics.memory_distribution[2])?;
+        writeln!(f)?;
+        
         // Worker Pool Metrics
         writeln!(f, "Worker Pool Metrics:")?;
         writeln!(f, "- Worker Distribution:")?;

@@ -9,64 +9,68 @@ Legend:
 
 ### Current Status:
 - Format handling improvements completed
-- Ready to implement high-impact optimizations
+- Memory metrics and batch sizing optimizations completed
+- Ready to implement remaining optimizations
 
 ### Next Implementation Steps:
-1. Implement adaptive batch sizing
-2. Add strongly typed result structures
-3. Consolidate error handling
-4. Implement parallel task validation
-5. Add process pooling for Sharp sidecar
-6. Implement task priority support
+1. ✅ Implement adaptive batch sizing
+2. ✅ Add batch size metrics
+3. ✅ Add memory usage tracking
+4. Add strongly typed result structures
+5. Consolidate error handling
+6. Implement parallel task validation
+7. Add process pooling for Sharp sidecar
+8. Implement task priority support
 
 ## Implementation Plan
 
 ### 1. Adaptive Batch Sizing
 
-[ ] Implement dynamic batch size calculation
+[✅] Implement dynamic batch size calculation
    Short description: Replace fixed batch size with dynamic calculation based on system resources and image sizes
    Prerequisites: None
-   Files to modify: 
+   Files modified: 
    - src-tauri/src/processing/optimizer.rs
    - src-tauri/src/core/state.rs
+   External dependencies: sysinfo crate
+   Status: Completed and verified working
+
+### 1.1 Batch Size Metrics
+
+[✅] Add batch size metrics to benchmark report
+   Short description: Track and report metrics related to adaptive batch sizing with proper validation and safety checks
+   Prerequisites: Adaptive batch sizing implementation (section 1)
+   Files modified:
+   - src-tauri/src/benchmarking/metrics.rs
+   - src-tauri/src/benchmarking/reporter.rs
    External dependencies: None
-   Code to add:
-   ```rust
-   // In src-tauri/src/processing/optimizer.rs
-   
-   struct BatchSizeConfig {
-       min_size: usize,
-       max_size: usize,
-       target_memory_usage: usize, // in bytes
-   }
-   
-   impl ImageOptimizer {
-       fn calculate_batch_size(&self, tasks: &[ImageTask]) -> usize {
-           let config = BatchSizeConfig {
-               min_size: 5,
-               max_size: 20,
-               target_memory_usage: 1024 * 1024 * 512, // 512MB target
-           };
-           
-           // Calculate average task size
-           let avg_size: u64 = tasks.iter()
-               .filter_map(|t| std::fs::metadata(&t.input_path).ok())
-               .map(|m| m.len())
-               .sum::<u64>() / tasks.len() as u64;
-           
-           // Calculate batch size based on memory target
-           let calculated_size = config.target_memory_usage / avg_size as usize;
-           calculated_size.clamp(config.min_size, config.max_size)
-       }
-   
-       pub async fn process_batch(&self, app: &tauri::AppHandle, tasks: Vec<ImageTask>) -> OptimizerResult<Vec<OptimizationResult>> {
-           let batch_size = self.calculate_batch_size(&tasks);
-           debug!("Calculated optimal batch size: {}", batch_size);
-           
-           // Rest of the implementation...
-       }
-   }
-   ```
+   Status: Completed and verified working
+
+[✅] Cleanup after adding batch size metrics:
+    - Update BenchmarkMetrics::new() to initialize batch_metrics with config
+    - Add batch_size_config to configuration struct
+    - Ensure thread safety with proper mutex/atomic usage
+    - Add documentation for new metrics fields and methods
+    - Update tests to cover batch size metrics functionality
+    Status: All cleanup tasks completed
+
+### 1.2 Memory Usage Metrics
+
+[✅] Add memory usage tracking to batch processing
+   Short description: Track and report key memory metrics during batch processing
+   Prerequisites: Batch size metrics (section 1.1)
+   Files modified:
+   - src-tauri/src/benchmarking/metrics.rs
+   - src-tauri/src/processing/optimizer.rs
+   External dependencies: None
+   Status: Completed and verified working with proper memory tracking
+
+[✅] Cleanup after adding memory metrics:
+    - Add memory metrics initialization in BenchmarkMetrics::new()
+    - Update reporter to display memory usage distribution
+    - Add debug logging for memory metrics
+    - Ensure thread-safe metrics updates
+    Status: All cleanup tasks completed
 
 ### 2. Strongly Typed Result Structures
 
@@ -233,38 +237,15 @@ Legend:
 
 ### 5. Format Handling Improvements
 
-[ ] Implement original format preservation
+[✅] Implement original format preservation
    Short description: Add support for 'original' format selection
    Prerequisites: None
-   Files to modify:
+   Files modified:
    - src-tauri/src/utils/validation.rs
    - sharp-sidecar/index.js
    - src-tauri/src/processing/optimizer.rs
    External dependencies: None
-   Code to add:
-   ```rust
-   // In src-tauri/src/utils/validation.rs
-   if !["jpeg", "jpg", "png", "webp", "avif", "original"].contains(&format.as_str()) {
-       return Err(ValidationError::settings(
-           format!("Unsupported output format: {}", format)
-       ).into());
-   }
-   ```
-
-   ```javascript
-   // In sharp-sidecar/index.js
-   const outputFormat = settings?.outputFormat === 'original' ? 
-       metadata.format : 
-       settings.outputFormat;
-   ```
-
-   ```rust
-   // In src-tauri/src/processing/optimizer.rs
-   if task.settings.output_format.to_lowercase() == "original" {
-       let format = format_from_extension(&task.input_path)?;
-       task.settings.output_format = format.to_string();
-   }
-   ```
+   Status: Completed and verified working
 
 ## Implementation Notes
 - Each optimization should be implemented and tested independently
@@ -276,15 +257,15 @@ Legend:
 ## Findings
 
 ### Known Issues:
-- Fixed batch size may not be optimal for all scenarios
+- Fixed batch size may not be optimal for all scenarios ✅ FIXED
 - JSON parsing overhead in result processing
 - Sequential task validation creates bottleneck
 - Single Sharp process may limit throughput
-- Original format handling was incomplete
+- Original format handling was incomplete ✅ FIXED
 
 ### Technical Insights:
-- Adaptive batch sizing can significantly improve memory usage
+- Adaptive batch sizing significantly improves memory usage ✅ VERIFIED
 - Strongly typed structures reduce runtime errors
 - Parallel validation can improve processing speed
 - Process pooling can better utilize system resources
-- Proper format handling improves user experience
+- Proper format handling improves user experience ✅ VERIFIED

@@ -1,4 +1,4 @@
 mod optimizer;
-pub mod validation;
+pub(crate) mod validation;
 
 pub use optimizer::ImageOptimizer; 
