@@ -102,52 +102,51 @@ Legend:
    Prerequisites: None
    Files to modify:
    - src-tauri/src/processing/optimizer.rs
+   - src-tauri/src/worker/pool.rs
    External dependencies: None
-   Code to add:
+   Code changes needed:
    ```rust
-   // In src-tauri/src/processing/optimizer.rs
-   
-   use tokio::sync::Semaphore;
+   // Updated ProcessPool structure in src-tauri/src/processing/optimizer.rs
+   use tauri_plugin_shell::process::Command;
+   use tokio::sync::{Mutex, Semaphore};
    
    struct ProcessPool {
-       processes: Arc<Mutex<Vec<tauri::api::process::Command>>>,
        semaphore: Arc<Semaphore>,
+       app: tauri::AppHandle,
+       max_size: usize,
    }
    
    impl ProcessPool {
-       fn new(size: usize) -> Self {
+       fn new(app: tauri::AppHandle, size: usize) -> Self {
            Self {
-               processes: Arc::new(Mutex::new(Vec::with_capacity(size))),
                semaphore: Arc::new(Semaphore::new(size)),
+               app,
+               max_size: size,
            }
        }
-   
-       async fn acquire(&self, app: &tauri::AppHandle) -> OptimizerResult<tauri::api::process::Command> {
+       
+       async fn acquire(&self) -> OptimizerResult<Command> {
            let _permit = self.semaphore.acquire().await.map_err(|e| 
-               OptimizerError::sidecar(format!("Failed to acquire process: {}", e))
+               OptimizerError::sidecar(format!("Pool acquisition failed: {}", e))
            )?;
-   
-           let mut processes = self.processes.lock().await;
-           if let Some(process) = processes.pop() {
-               Ok(process)
-           } else {
-               Ok(app.shell().sidecar("sharp-sidecar").map_err(|e| 
-                   OptimizerError::sidecar(format!("Failed to create Sharp sidecar: {}", e))
-               )?)
-           }
-       }
-   
-       async fn release(&self, process: tauri::api::process::Command) {
-           let mut processes = self.processes.lock().await;
-           processes.push(process);
+           
+           self.app.shell()
+               .sidecar("sharp-sidecar")
+               .map_err(|e| OptimizerError::sidecar(format!("Sidecar spawn failed: {}", e)))
        }
    }
    ```
 
-[ ] Cleanup after moving code (if applicable):
-    - Update imports in affected files
-    - Update function calls to use new pooling system
-    - Add proper error handling for pool operations
+[ ] Additional required changes:
+    - Add pool initialization in WorkerPool constructor
+    - Update batch processing to use pool instead of direct sidecar calls
+    - Add pool size configuration to app state
+    - Implement graceful pool shutdown
+
+[ ] Cleanup tasks:
+    - Update all sidecar command invocations to use pool
+    - Add pool metrics to benchmarking reporter
+    - Validate process cleanup on application exit
 
 ### 5. Format Handling Improvements
 

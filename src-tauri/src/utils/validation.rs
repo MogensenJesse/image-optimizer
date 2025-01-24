@@ -41,7 +41,7 @@ pub async fn validate_output_path(path: impl AsRef<Path>) -> OptimizerResult<()>
 
 /// Validates image settings for quality and resize parameters
 pub fn validate_settings(settings: &crate::core::ImageSettings) -> OptimizerResult<()> {
-    // Quality validation
+    // No extra validations beyond current requirements
     if settings.quality.global == 0 || settings.quality.global > 100 {
         return Err(ValidationError::settings(
             format!("Invalid quality: {}. Must be between 1 and 100", settings.quality.global)
