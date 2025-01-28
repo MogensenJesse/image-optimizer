@@ -303,6 +303,19 @@ impl BatchSizeMetrics {
         for &size in &self.batch_sizes {
             // Calculate distribution index based on config ranges
             let range = (self.config.max_size - self.config.min_size) / 3;
+            if range == 0 {
+                // If range is 0, put everything in the first bucket
+                self.size_distribution[0] += 1;
+                continue;
+            }
+            
+            // Handle case where size is less than min_size
+            if size < self.config.min_size {
+                self.size_distribution[0] += 1;
+                continue;
+            }
+            
+            // Now we can safely calculate the index
             let index = ((size - self.config.min_size) / range).min(2);
             self.size_distribution[index] += 1;
         }
@@ -350,6 +363,9 @@ pub struct BenchmarkMetrics {
     
     // Batch size metrics
     pub batch_metrics: BatchSizeMetrics,
+
+    // Process pool metrics
+    pub process_pool: Option<ProcessPoolMetrics>,
 }
 
 impl Default for BenchmarkMetrics {
@@ -365,6 +381,7 @@ impl Default for BenchmarkMetrics {
             start_time: None,
             worker_pool: WorkerPoolMetrics::default(),
             batch_metrics: BatchSizeMetrics::new(BatchSizeConfig::default()),
+            process_pool: None,
         }
     }
 }
@@ -382,6 +399,7 @@ impl BenchmarkMetrics {
             start_time: None,
             worker_pool: WorkerPoolMetrics::default(),
             batch_metrics: BatchSizeMetrics::new(BatchSizeConfig::default()),
+            process_pool: Some(ProcessPoolMetrics::default()),
         }
     }
 
@@ -399,6 +417,7 @@ impl BenchmarkMetrics {
         self.worker_pool.failed_tasks = 0;
         self.worker_pool.contention_count = 0;
         self.batch_metrics = BatchSizeMetrics::new(self.batch_metrics.config.clone());
+        self.process_pool = Some(ProcessPoolMetrics::default());
     }
 
     pub fn start_benchmarking(&mut self) {
@@ -496,5 +515,34 @@ impl Benchmarkable for BenchmarkMetrics {
     
     fn finalize_benchmarking(&mut self) -> BenchmarkMetrics {
         self.finalize()
+    }
+}
+
+/// Core metrics for the Sharp sidecar process pool
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProcessPoolMetrics {
+    pub active_processes: Vec<usize>,      // Track number of active processes at each point
+    pub spawn_times: Vec<Duration>,        // Time taken to spawn each process
+    pub total_spawns: usize,              // Total number of processes spawned
+}
+
+impl Default for ProcessPoolMetrics {
+    fn default() -> Self {
+        Self {
+            active_processes: Vec::with_capacity(100),
+            spawn_times: Vec::with_capacity(100),
+            total_spawns: 0,
+        }
+    }
+}
+
+impl ProcessPoolMetrics {
+    pub fn record_spawn(&mut self, spawn_time: Duration) {
+        self.total_spawns += 1;
+        self.spawn_times.push(spawn_time);
+    }
+    
+    pub fn update_active_count(&mut self, count: usize) {
+        self.active_processes.push(count);
     }
 } 

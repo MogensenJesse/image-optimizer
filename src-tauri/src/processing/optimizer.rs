@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::collections::HashSet;
-use tokio::sync::Mutex;
-use tauri_plugin_shell::{ShellExt, process::Output};
+use tokio::sync::{Mutex, Semaphore};
+use tauri_plugin_shell::{ShellExt, process::{Command, Output}};
 use tauri;
 use crate::core::OptimizationResult;
 use crate::worker::ImageTask;
@@ -10,11 +10,81 @@ use crate::utils::{
     OptimizerResult,
 };
 use crate::processing::validation::validate_task;
+use crate::benchmarking::metrics::{Duration, ProcessPoolMetrics};
 use serde_json;
 use tracing::{debug, warn};
 use sysinfo::System;
 use serde::Deserialize;
 use futures::future::try_join_all;
+use std::time::Instant;
+
+/// Manages a pool of Sharp sidecar processes
+#[derive(Clone)]
+pub struct ProcessPool {
+    semaphore: Arc<Semaphore>,
+    app: tauri::AppHandle,
+    max_size: usize,
+    active_count: Arc<Mutex<usize>>,
+    metrics: Arc<Mutex<ProcessPoolMetrics>>,
+}
+
+impl ProcessPool {
+    pub fn new(app: tauri::AppHandle, size: usize) -> Self {
+        Self {
+            semaphore: Arc::new(Semaphore::new(size)),
+            app,
+            max_size: size,
+            active_count: Arc::new(Mutex::new(0)),
+            metrics: Arc::new(Mutex::new(ProcessPoolMetrics::default())),
+        }
+    }
+    
+    pub async fn acquire(&self) -> OptimizerResult<Command> {
+        let start = Instant::now();
+        
+        let _permit = self.semaphore.acquire().await.map_err(|e| 
+            OptimizerError::sidecar(format!("Pool acquisition failed: {}", e))
+        )?;
+        
+        // Update active count and metrics
+        {
+            let mut count = self.active_count.lock().await;
+            *count += 1;
+            
+            let mut metrics = self.metrics.lock().await;
+            metrics.update_active_count(*count);
+        }
+        
+        // Create the sidecar command
+        let result = self.app.shell()
+            .sidecar("sharp-sidecar")
+            .map_err(|e| OptimizerError::sidecar(format!("Sidecar spawn failed: {}", e)));
+            
+        // Record spawn metrics
+        {
+            let mut metrics = self.metrics.lock().await;
+            metrics.record_spawn(Duration::new_unchecked(start.elapsed().as_secs_f64()));
+        }
+        
+        result
+    }
+    
+    pub async fn release(&self) {
+        let mut count = self.active_count.lock().await;
+        *count = count.saturating_sub(1);
+        
+        let mut metrics = self.metrics.lock().await;
+        metrics.update_active_count(*count);
+    }
+    
+    pub fn get_max_size(&self) -> usize {
+        self.max_size
+    }
+    
+    pub async fn get_metrics(&self) -> ProcessPoolMetrics {
+        self.metrics.lock().await.clone()
+    }
+}
 
 #[derive(Debug, Deserialize)]
 struct SharpResult {
@@ -97,18 +167,25 @@ impl BatchMemoryMetrics {
 #[derive(Clone)]
 pub struct ImageOptimizer {
     active_tasks: Arc<Mutex<HashSet<String>>>,
+    process_pool: ProcessPool,
 }
 
 impl ImageOptimizer {
-    pub fn new() -> Self {
+    pub fn new(app: tauri::AppHandle) -> Self {
         Self {
             active_tasks: Arc::new(Mutex::new(HashSet::new())),
+            process_pool: ProcessPool::new(app, 4), // Start with 4 processes, can be made configurable
         }
     }
 
-    pub async fn process_batch(&self, app: &tauri::AppHandle, tasks: Vec<ImageTask>) -> OptimizerResult<(Vec<OptimizationResult>, BatchMemoryMetrics)> {
+    pub async fn process_batch(&self, tasks: Vec<ImageTask>) -> OptimizerResult<(Vec<OptimizationResult>, BatchMemoryMetrics)> {
         let batch_size = self.calculate_batch_size(&tasks);
-        debug!("Calculated optimal batch size: {}", batch_size);
+        let pool_size = self.process_pool.get_max_size();
+        
+        // Adjust batch size based on pool size to optimize process utilization
+        let adjusted_batch_size = (batch_size / pool_size).max(1) * pool_size;
+        debug!("Calculated optimal batch size: {} (adjusted from {} for {} processes)", 
+            adjusted_batch_size, batch_size, pool_size);
         
         let mut results = Vec::with_capacity(tasks.len());
         let available_mem = self.get_available_memory();
@@ -116,18 +193,25 @@ impl ImageOptimizer {
         // Initialize memory metrics
         let mut memory_metrics = BatchMemoryMetrics::new(available_mem);
         
-        for (chunk_index, chunk) in tasks.chunks(batch_size).enumerate() {
+        // Get initial process metrics for benchmarking
+        let process_metrics = self.process_pool.get_metrics().await;
+        debug!("Initial process pool metrics - Active: {}, Total Spawns: {}", 
+            process_metrics.active_processes.last().unwrap_or(&0),
+            process_metrics.total_spawns
+        );
+        
+        for (chunk_index, chunk) in tasks.chunks(adjusted_batch_size).enumerate() {
             debug!(
                 "Processing chunk {}/{} ({} tasks)", 
                 chunk_index + 1, 
-                (tasks.len() + batch_size - 1) / batch_size,
+                (tasks.len() + adjusted_batch_size - 1) / adjusted_batch_size,
                 chunk.len()
             );
             
             // Record pre-processing memory state
             let pre_mem = self.get_available_memory();
             
-            let chunk_results = match self.process_chunk(app, chunk.to_vec()).await {
+            let chunk_results = match self.process_chunk(chunk.to_vec()).await {
                 Ok(res) => {
                     debug!("Chunk {} processed successfully", chunk_index + 1);
                     res
@@ -145,6 +229,13 @@ impl ImageOptimizer {
             
             results.extend(chunk_results);
         }
+        
+        // Get final process metrics for benchmarking
+        let final_metrics = self.process_pool.get_metrics().await;
+        debug!("Final process pool metrics - Active: {}, Total Spawns: {}", 
+            final_metrics.active_processes.last().unwrap_or(&0),
+            final_metrics.total_spawns
+        );
         
         // Log memory metrics summary
         debug!(
@@ -194,7 +285,6 @@ impl ImageOptimizer {
 
     async fn process_chunk(
         &self,
-        app: &tauri::AppHandle,
         tasks: Vec<ImageTask>,
     ) -> OptimizerResult<Vec<OptimizationResult>> {
         let mut results = Vec::with_capacity(tasks.len());
@@ -208,13 +298,13 @@ impl ImageOptimizer {
             let mut active = self.active_tasks.lock().await;
             for task in &tasks {
                 active.insert(task.input_path.clone());
-                debug!("Task tracked: {}", task.input_path);
             }
+            debug!("Tracked {} tasks for processing", tasks.len());
         }
 
         // Process the batch using Sharp sidecar
-        debug!("Sending tasks to Sharp sidecar for processing");
-        let result = self.run_sharp_process_batch(app, &tasks).await?;
+        debug!("Processing batch with Sharp sidecar - {} tasks", tasks.len());
+        let result = self.run_sharp_process_batch(&tasks).await?;
         let (sharp_result, output) = result;
 
         // Remove from active tasks
@@ -236,11 +326,12 @@ impl ImageOptimizer {
                     )))?;
 
                 // Collect results for each task
+                let mut total_original = 0;
+                let mut total_optimized = 0;
+                
                 for (task, result) in tasks.into_iter().zip(sharp_results) {
-                    debug!(
-                        "Task completed - Path: {}, Original: {}, Optimized: {}, Saved: {}%",
-                        task.input_path, result.original_size, result.optimized_size, result.compression_ratio
-                    );
+                    total_original += result.original_size;
+                    total_optimized += result.optimized_size;
 
                     results.push(OptimizationResult {
                         original_path: task.input_path,
@@ -253,23 +344,30 @@ impl ImageOptimizer {
                         compression_ratio: result.compression_ratio.parse().unwrap_or(0.0),
                     });
                 }
+                
+                let total_saved_percentage = ((total_original - total_optimized) as f64 / total_original as f64 * 100.0).round();
+                debug!(
+                    "Batch completed - Tasks: {}, Total Original: {}, Total Optimized: {}, Average Savings: {}%",
+                    results.len(),
+                    total_original,
+                    total_optimized,
+                    total_saved_percentage
+                );
                 Ok(results)
             }
-            Err(e) => {
-                warn!("Error saving results: {}", e);
-                Err(e)
-            }
+            Err(e) => Err(e),
         }
     }
 
-    async fn run_sharp_process_batch(&self, app: &tauri::AppHandle, tasks: &[ImageTask]) -> OptimizerResult<(OptimizerResult<()>, Output)> {
-        let command = app.shell()
-            .sidecar("sharp-sidecar")
-            .map_err(|e| OptimizerError::sidecar(format!("Failed to create Sharp sidecar: {}", e)))?;
-
+    async fn run_sharp_process_batch(
+        &self,
+        tasks: &[ImageTask],
+    ) -> OptimizerResult<(OptimizerResult<()>, Output)> {
+        // Acquire a process from the pool
+        let cmd = self.process_pool.acquire().await?;
+        
         // Create batch task data
         let batch_data = tasks.iter().map(|task| {
-            debug!("Preparing task - Input: {}, Output: {}", task.input_path, task.output_path);
             serde_json::json!({
                 "input": task.input_path,
                 "output": task.output_path,
@@ -277,40 +375,34 @@ impl ImageOptimizer {
             })
         }).collect::<Vec<_>>();
 
+        debug!("Prepared {} tasks for Sharp processing", tasks.len());
+
         let batch_json = serde_json::to_string(&batch_data)
             .map_err(|e| OptimizerError::processing(format!("Failed to serialize batch settings: {}", e)))?;
-
-        debug!("Executing Sharp sidecar command with {} tasks", tasks.len());
-        let output = command
-            .args(&[
-                "optimize-batch",
-                &batch_json,
-            ])
+        
+        // Run the command
+        let output = cmd
+            .args(&["optimize-batch", &batch_json])
             .output()
             .await
-            .map_err(|e| {
-                let error_message = format!("Failed to run Sharp process: {}", e);
-                warn!("Sharp process error: {}", error_message);
-                OptimizerError::sidecar(error_message)
-            })?;
-
-        let result = if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let error_message = format!("Sharp process failed: {}", stderr);
-            warn!("Sharp process error: {}", error_message);
-            Err(OptimizerError::sidecar(error_message))
-        } else {
+            .map_err(|e| OptimizerError::sidecar(format!("Failed to run Sharp: {}", e)))?;
+        
+        // Release the process back to the pool
+        self.process_pool.release().await;
+        
+        // Check for success and validate output
+        if output.status.success() {
             debug!("Sharp sidecar command completed successfully");
-            // Parse and validate Sharp output
             let stdout = String::from_utf8_lossy(&output.stdout);
+            
             if !stdout.is_empty() {
-                debug!("Sharp sidecar output: {}", stdout);
-                
                 // Parse Sharp output JSON
                 let sharp_results: Vec<serde_json::Value> = serde_json::from_str(&stdout)
                     .map_err(|e| OptimizerError::processing(format!(
                         "Failed to parse Sharp output: {}", e
                     )))?;
+                
+                debug!("Sharp sidecar processed {} results", sharp_results.len());
                 
                 // Verify each result matches a task and the file exists
                 for (task, result) in tasks.iter().zip(sharp_results.iter()) {
@@ -331,9 +423,7 @@ impl ImageOptimizer {
                     
                     // Verify the output file exists
                     match tokio::fs::metadata(output_path).await {
-                        Ok(_) => {
-                            debug!("Output file exists: {}", output_path);
-                        },
+                        Ok(_) => {},
                         Err(e) => {
                             let error_message = format!(
                                 "Output file missing: {} (Error: {})", output_path, e
@@ -343,11 +433,19 @@ impl ImageOptimizer {
                         }
                     }
                 }
+                
+                Ok((Ok(()), output))
+            } else {
+                let error_message = "Empty output from Sharp sidecar".to_string();
+                warn!("{}", error_message);
+                Ok((Err(OptimizerError::processing(error_message)), output))
             }
-            Ok(())
-        };
-
-        Ok((result, output))
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let error_message = format!("Sharp process failed: {}", stderr);
+            warn!("{}", error_message);
+            Ok((Err(OptimizerError::sidecar(error_message)), output))
+        }
     }
 
     pub async fn get_active_tasks(&self) -> Vec<String> {

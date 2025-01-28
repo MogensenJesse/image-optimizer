@@ -139,6 +139,31 @@ impl fmt::Display for BenchmarkReporter {
             Self::format_bytes(self.metrics.total_optimized_size)
         )?;
         
+        // Add Process Pool Metrics section
+        if let Some(process_pool) = &self.metrics.process_pool {
+            writeln!(f)?;
+            writeln!(f, "Process Pool Metrics:")?;
+            writeln!(f, "- Total Processes Spawned: {}", process_pool.total_spawns)?;
+            
+            // Average spawn time
+            if !process_pool.spawn_times.is_empty() {
+                let avg_spawn_time = process_pool.spawn_times.iter()
+                    .map(|d| d.as_secs_f64())
+                    .sum::<f64>() / process_pool.spawn_times.len() as f64;
+                writeln!(f, "- Average Spawn Time: {:.2}ms", avg_spawn_time * 1000.0)?;
+            }
+            
+            // Process utilization
+            if !process_pool.active_processes.is_empty() {
+                let avg_active = process_pool.active_processes.iter().sum::<usize>() as f64 
+                    / process_pool.active_processes.len() as f64;
+                let max_active = process_pool.active_processes.iter().max().unwrap_or(&0);
+                writeln!(f, "- Process Utilization:")?;
+                writeln!(f, "  └── Average Active: {:.1}", avg_active)?;
+                writeln!(f, "  └── Peak Active: {}", max_active)?;
+            }
+        }
+        
         Ok(())
     }
 } 

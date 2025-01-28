@@ -27,6 +27,10 @@ lazy_static::lazy_static! {
 #[derive(Clone)]
 pub struct WorkerPool {
     optimizer: ImageOptimizer,
+    /// The application handle, kept for potential optimizer restarts
+    /// or future process management operations.
+    /// Currently only used during initialization.
+    #[allow(dead_code)]
     app: AppHandle,
     active_workers: Arc<Mutex<usize>>,
     semaphore: Arc<Semaphore>,
@@ -47,7 +51,7 @@ impl WorkerPool {
         }
         
         let pool = Self {
-            optimizer: ImageOptimizer::new(),
+            optimizer: ImageOptimizer::new(app.clone()),
             app,
             active_workers: Arc::new(Mutex::new(0)),
             semaphore: Arc::new(Semaphore::new(worker_count)),
@@ -147,7 +151,7 @@ impl WorkerPool {
         let start_time = std::time::Instant::now();
         
         // Process single task as a batch of one
-        let process_result = self.optimizer.process_batch(&self.app, vec![task]).await;
+        let process_result = self.optimizer.process_batch(vec![task]).await;
         
         match process_result {
             Ok((mut results, _memory_metrics)) => {  // Destructure tuple and ignore memory metrics
@@ -215,7 +219,7 @@ impl WorkerPool {
 
         // Process the batch
         info!("Processing batch with {} tasks using {} workers", total_tasks, self.worker_count);
-        let optimizer_result = self.optimizer.process_batch(&self.app, tasks).await
+        let optimizer_result = self.optimizer.process_batch(tasks).await
             .map_err(|e| WorkerError::ProcessingError(format!("Batch processing failed: {}", e)))?;
         
         let (results, memory_metrics) = optimizer_result;

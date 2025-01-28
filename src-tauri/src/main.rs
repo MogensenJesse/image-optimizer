@@ -24,14 +24,14 @@ fn main() {
         } else {
             tracing::Level::INFO
         })
-        .with_file(true)
-        .with_line_number(true)
-        .with_thread_ids(true)
-        .with_thread_names(true)
-        .with_target(false) // Cleaner output
-        .with_ansi(true)   // Colored output
-        .with_writer(std::io::stdout) // Write to stdout instead of stderr
-        .pretty(); // Use pretty formatter
+        .with_file(false)         // Remove file path
+        .with_line_number(false)  // Remove line numbers
+        .with_thread_ids(false)   // Remove thread IDs
+        .with_thread_names(false) // Remove thread names
+        .with_target(false)       // Remove module path
+        .with_ansi(true)         // Keep colored output
+        .with_writer(std::io::stdout)
+        .compact();              // Use compact formatter instead of pretty
 
     subscriber.init();
     
