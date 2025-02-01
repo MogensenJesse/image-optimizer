@@ -9,14 +9,14 @@ Legend:
 
 ### Current Status:
 - System functional but has room for performance improvements
-- Low memory utilization (0.2% of available)
-- Process pool underutilized (4 fixed processes)
+- Memory utilization improved (target 70% of available) ✅
+- Process pool now uses dynamic sizing based on CPU cores ✅
 - Sequential chunk processing
 - Uneven worker task distribution
 
 ### Next Implementation Steps:
-1. Dynamic process pool sizing
-2. Improved batch size configuration
+1. ✅ Dynamic process pool sizing
+2. ✅ Improved batch size configuration
 3. Parallel chunk processing
 4. Worker task distribution balancing
 5. Process warmup and reuse
@@ -24,45 +24,154 @@ Legend:
 
 ## Implementation Plan
 
-### 1. Dynamic Process Pool Sizing
+### 1. Dynamic Process Pool Sizing ✅
 
-[ ] Implement dynamic process count
+[x] Implement dynamic process count
    Short description: Scale process count based on CPU cores
    Prerequisites: None
-   Files to modify: src-tauri/src/processing/optimizer.rs
-   External dependencies: None
-   Code to add/change/remove/move:
+   Files modified: src-tauri/src/processing/optimizer.rs
+   External dependencies: num_cpus
+   Changes made:
    ```rust
+   // Added dynamic process count calculation
    impl ProcessPool {
+       fn calculate_optimal_processes() -> usize {
+           let cpu_count = num_cpus::get();
+           // Use half of CPU cores, with min 2 and max 16
+           (cpu_count / 2).max(2).min(16)
+       }
+
        pub fn new(app: tauri::AppHandle) -> Self {
-           let optimal_processes = (num_cpus::get() / 2).max(2).min(8);
-           Self::new_with_size(app, optimal_processes)
+           let size = Self::calculate_optimal_processes();
+           debug!("Creating process pool with {} processes (based on {} CPU cores)", size, num_cpus::get());
+           Self::new_with_size(app, size)
+       }
+   }
+
+   // Updated ImageOptimizer to use dynamic process count
+   impl ImageOptimizer {
+       pub fn new(app: tauri::AppHandle) -> Self {
+           Self {
+               active_tasks: Arc::new(Mutex::new(HashSet::new())),
+               process_pool: ProcessPool::new(app),
+           }
        }
    }
    ```
-   [ ] Cleanup after moving code:
-    - Update ImageOptimizer creation
-    - Update batch size calculations
+   [x] Cleanup completed:
+    - Updated ImageOptimizer creation to use dynamic process count
+    - Added better debug logging for process pool creation
+    - Maintained backward compatibility with new_with_size method
+    - Process count now scales with available CPU cores
 
-### 2. Batch Size Configuration
+### 2. Batch Size Configuration ✅
 
-[ ] Update batch size parameters
+[x] Update batch size parameters
    Short description: Optimize batch sizes and memory usage
    Prerequisites: None
-   Files to modify: src-tauri/src/processing/optimizer.rs
+   Files modified: src-tauri/src/processing/optimizer.rs
    External dependencies: None
-   Code to add/change/remove/move:
+   Changes made:
    ```rust
    struct BatchSizeConfig {
-       min_size: 10,
-       max_size: 100,
-       target_memory_percentage: 0.7,
-       tasks_per_process: 20,
+       min_size: 10,          // Increased from 5
+       max_size: 100,         // Increased from 75
+       target_memory_usage: usize,
+       target_memory_percentage: 0.7,  // Increased from 0.5
+       tasks_per_process: 20,          // New parameter
    }
    ```
-   [ ] Cleanup after moving code:
-    - Update batch size calculations
-    - Adjust memory metrics
+   Key improvements:
+   - Increased memory utilization (70% of available)
+   - Added process-aware batch sizing
+   - Better handling of empty/small batches
+   - Improved batch size calculation logic
+   - Enhanced debug logging
+
+   [x] Cleanup completed:
+    - Updated batch size calculations to consider process count
+    - Added process-based size calculation
+    - Improved error handling for empty tasks
+    - Added detailed debug logging
+    - Optimized memory target (4GB limit)
+
+### 2.1. Windows Long Path Support
+
+[ ] Enable Windows long path support
+   Short description: Add support for paths exceeding MAX_PATH (260 characters)
+   Prerequisites: None
+   Files to modify: 
+   - src-tauri/src/utils/fs.rs
+   External dependencies: None
+   Implementation steps:
+
+   1. [ ] Add path normalization utilities
+   ```rust
+   // src-tauri/src/utils/fs.rs
+   
+   /// Constants for Windows path handling
+   #[cfg(windows)]
+   const MAX_PATH: usize = 260;
+   #[cfg(windows)]
+   const UNC_PREFIX: &str = "\\\\?\\";
+
+   /// Normalize paths to handle Windows MAX_PATH limitation
+   pub fn normalize_long_path(path: &Path) -> PathBuf {
+       if !cfg!(windows) {
+           return path.to_path_buf();
+       }
+       
+       let absolute = if path.is_absolute() {
+           path.to_path_buf()
+       } else {
+           std::env::current_dir()
+               .unwrap_or_default()
+               .join(path)
+       };
+       
+       // Only prefix with \\?\ if path doesn't already have it and is longer than MAX_PATH
+       let path_str = absolute.to_string_lossy();
+       if path_str.len() > MAX_PATH && !path_str.starts_with(UNC_PREFIX) {
+           PathBuf::from(format!("{}{}", UNC_PREFIX, absolute.display()))
+       } else {
+           absolute
+       }
+   }
+
+   // Update existing functions to use normalize_long_path
+   pub async fn get_file_size(path: impl AsRef<Path>) -> OptimizerResult<u64> {
+       let path = normalize_long_path(path.as_ref());
+       fs::metadata(&path)
+           .await
+           .map(|m| m.len())
+           .map_err(|e| OptimizerError::io(format!("Failed to get file size: {}", e)))
+   }
+
+   pub async fn file_exists(path: impl AsRef<Path>) -> bool {
+       normalize_long_path(path.as_ref()).exists()
+   }
+
+   pub async fn dir_exists(path: impl AsRef<Path>) -> bool {
+       let path = normalize_long_path(path.as_ref());
+       path.exists() && path.is_dir()
+   }
+
+   pub fn get_extension(path: impl AsRef<Path>) -> OptimizerResult<String> {
+       let path = normalize_long_path(path.as_ref());
+       path.extension()
+           .and_then(|e| e.to_str())
+           .map(|e| e.to_lowercase())
+           .ok_or_else(|| OptimizerError::validation(
+               format!("File has no extension: {}", path.display())
+           ))
+   }
+   ```
+
+   [ ] Cleanup tasks:
+    - Test with paths > 260 characters
+    - Verify path normalization in all components
+    - Add debug logging for path transformations
+    - Test on non-Windows platforms to ensure compatibility
 
 ### 3. Parallel Chunk Processing
 
@@ -170,7 +279,7 @@ Legend:
 ## Completed Tasks
 
 ### Example of completed task (✅)
-- List of what has been completed
+- Dynamic process pool sizing
 
 ## Findings
 

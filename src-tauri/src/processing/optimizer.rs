@@ -17,6 +17,7 @@ use sysinfo::System;
 use serde::Deserialize;
 use futures::future::try_join_all;
 use std::time::Instant;
+use num_cpus;
 
 /// Manages a pool of Sharp sidecar processes
 #[derive(Clone)]
@@ -29,7 +30,19 @@ pub struct ProcessPool {
 }
 
 impl ProcessPool {
-    pub fn new(app: tauri::AppHandle, size: usize) -> Self {
+    fn calculate_optimal_processes() -> usize {
+        let cpu_count = num_cpus::get();
+        // Use half of CPU cores, with min 2 and max 8
+        (cpu_count / 2).max(2).min(16)
+    }
+
+    pub fn new(app: tauri::AppHandle) -> Self {
+        let size = Self::calculate_optimal_processes();
+        debug!("Creating process pool with {} processes (based on {} CPU cores)", size, num_cpus::get());
+        Self::new_with_size(app, size)
+    }
+
+    pub fn new_with_size(app: tauri::AppHandle, size: usize) -> Self {
         Self {
             semaphore: Arc::new(Semaphore::new(size)),
             app,
@@ -105,17 +118,19 @@ struct SharpResult {
 struct BatchSizeConfig {
     min_size: usize,
     max_size: usize,
-    target_memory_usage: usize, // in bytes
+    target_memory_usage: usize,    // in bytes
     target_memory_percentage: f32, // percentage of available memory to use
+    tasks_per_process: usize,      // target number of tasks per process
 }
 
 impl Default for BatchSizeConfig {
     fn default() -> Self {
         Self {
-            min_size: 5,
-            max_size: 75,
-            target_memory_usage: 1024 * 1024 * 2048, // Keep 2GB limit as safety net
-            target_memory_percentage: 0.5,     // Increased from 0.3 to 0.5 (50% of available memory)
+            min_size: 10,
+            max_size: 100,
+            target_memory_usage: 1024 * 1024 * 4096, // Increased to 4GB limit
+            target_memory_percentage: 0.7,     // Increased from 0.5 to 0.7 (70% of available memory)
+            tasks_per_process: 20,            // Target 20 tasks per process for better utilization
         }
     }
 }
@@ -174,7 +189,7 @@ impl ImageOptimizer {
     pub fn new(app: tauri::AppHandle) -> Self {
         Self {
             active_tasks: Arc::new(Mutex::new(HashSet::new())),
-            process_pool: ProcessPool::new(app, 4), // Start with 4 processes, can be made configurable
+            process_pool: ProcessPool::new(app),
         }
     }
 
@@ -460,36 +475,54 @@ impl ImageOptimizer {
 
     fn calculate_batch_size(&self, tasks: &[ImageTask]) -> usize {
         let config = BatchSizeConfig::default();
+        let process_count = self.process_pool.get_max_size();
         
         // Calculate total and average task size
         let total_size: u64 = tasks.iter()
             .filter_map(|t| std::fs::metadata(&t.input_path).ok())
             .map(|m| m.len())
             .sum();
-        let avg_size = total_size / tasks.len() as u64;
+        
+        let avg_size = if tasks.is_empty() {
+            0
+        } else {
+            total_size / tasks.len() as u64
+        };
         
         // Get available system memory and calculate target
         let available_mem = self.get_available_memory();
         let memory_target = ((available_mem as f32 * config.target_memory_percentage) as usize)
             .min(config.target_memory_usage);
         
-        // Calculate batch size based on average task size and memory target
-        let memory_based_size = memory_target / avg_size as usize;
+        // Calculate batch sizes based on different criteria
+        let memory_based_size = if avg_size == 0 {
+            config.max_size
+        } else {
+            memory_target / avg_size as usize
+        };
         
-        // Also consider total tasks - don't make batches larger than needed
+        // Calculate process-based size
+        let process_based_size = config.tasks_per_process * process_count;
+        
+        // Consider total tasks - don't make batches larger than needed
         let task_based_size = tasks.len();
         
-        // Take the minimum of memory-based and task-based sizes
-        let calculated_size = memory_based_size.min(task_based_size);
+        // Take the minimum of all calculated sizes
+        let calculated_size = memory_based_size
+            .min(process_based_size)
+            .min(task_based_size);
         
         // Clamp between min and max sizes
         let batch_size = calculated_size.clamp(config.min_size, config.max_size);
         
         debug!(
-            "Batch size calculation: avg_size={}MB, memory_target={}MB, memory_based={}, task_based={}, final={}",
+            "Batch size calculation: avg_size={}MB, memory_target={}MB, process_count={}, tasks_per_process={}, memory_based={}, process_based={}, task_based={}, final={}",
             avg_size / (1024 * 1024),
             memory_target / (1024 * 1024),
+            process_count,
+            config.tasks_per_process,
             memory_based_size,
+            process_based_size,
             task_based_size,
             batch_size
         );
