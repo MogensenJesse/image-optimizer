@@ -23,10 +23,9 @@ impl AppState {
     pub async fn get_or_init_worker_pool(&self, app: tauri::AppHandle) -> Result<Arc<WorkerPool>, OptimizerError> {
         let mut pool = self.worker_pool.lock().await;
         if pool.is_none() {
-            match WorkerPool::new(app, None) {
-                Ok(new_pool) => *pool = Some(new_pool),
-                Err(e) => return Err(OptimizerError::worker(e.to_string())),
-            }
+            let new_pool = WorkerPool::new(app, None).await
+                .map_err(|e| OptimizerError::worker(e.to_string()))?;
+            *pool = Some(new_pool);
         }
         Ok(Arc::new(pool.as_ref().unwrap().clone()))
     }

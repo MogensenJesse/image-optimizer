@@ -1,12 +1,11 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use sysinfo::System;
 use tracing::debug;
 use crate::core::OptimizationResult;
 use crate::worker::ImageTask;
-use crate::utils::{OptimizerError, OptimizerResult, validation::validate_task};
-use super::{config::BatchSizeConfig, metrics::BatchMemoryMetrics};
+use crate::utils::{OptimizerResult, validation::validate_task};
+use super::config::BatchSizeConfig;
 use crate::processing::{pool::ProcessPool, sharp::SharpExecutor};
 
 pub struct BatchProcessor<'a> {
@@ -25,7 +24,7 @@ impl<'a> BatchProcessor<'a> {
     }
 
     pub async fn process(&self, tasks: Vec<ImageTask>) 
-        -> OptimizerResult<(Vec<OptimizationResult>, BatchMemoryMetrics)> {
+        -> OptimizerResult<Vec<OptimizationResult>> {
         let batch_size = self.calculate_batch_size(&tasks);
         let pool_size = self.pool.get_max_size();
         
@@ -35,10 +34,6 @@ impl<'a> BatchProcessor<'a> {
             adjusted_batch_size, batch_size, pool_size);
         
         let mut results = Vec::with_capacity(tasks.len());
-        let available_mem = self.get_available_memory();
-        
-        // Initialize memory metrics
-        let mut memory_metrics = BatchMemoryMetrics::new(available_mem);
         
         // Get initial process metrics for benchmarking
         let process_metrics = self.pool.get_metrics().await;
@@ -55,9 +50,6 @@ impl<'a> BatchProcessor<'a> {
                 chunk.len()
             );
             
-            // Record pre-processing memory state
-            let pre_mem = self.get_available_memory();
-            
             let chunk_results = match self.process_chunk(chunk.to_vec()).await {
                 Ok(res) => {
                     debug!("Chunk {} processed successfully", chunk_index + 1);
@@ -69,11 +61,6 @@ impl<'a> BatchProcessor<'a> {
                 }
             };
             
-            // Record post-processing memory state and calculate metrics
-            let post_mem = self.get_available_memory();
-            let used_memory = pre_mem.saturating_sub(post_mem);
-            memory_metrics.record_usage(used_memory, pre_mem);
-            
             results.extend(chunk_results);
         }
         
@@ -84,7 +71,7 @@ impl<'a> BatchProcessor<'a> {
             final_metrics.total_spawns
         );
         
-        Ok((results, memory_metrics))
+        Ok(results)
     }
 
     async fn process_chunk(&self, tasks: Vec<ImageTask>) 
@@ -118,78 +105,27 @@ impl<'a> BatchProcessor<'a> {
     }
 
     async fn validate_tasks(&self, tasks: &[ImageTask]) -> OptimizerResult<()> {
-        debug!("Starting parallel validation of {} tasks", tasks.len());
+        const VALIDATION_CHUNK_SIZE: usize = 50;
         
-        let validation_tasks: Vec<_> = tasks.iter()
-            .map(|task| {
-                let task = task.clone();
-                tokio::spawn(async move {
-                    validate_task(&task).await
-                })
-            })
-            .collect();
-
-        // Wait for all validations to complete
-        let results = futures::future::try_join_all(validation_tasks).await
-            .map_err(|e| OptimizerError::processing(format!("Task validation failed: {}", e)))?;
-
-        // Check results and collect any errors
-        let errors: Vec<_> = results
-            .into_iter()
-            .filter_map(|r| r.err())
-            .collect();
-
-        if !errors.is_empty() {
-            debug!("Validation failed for {} tasks", errors.len());
-            return Err(OptimizerError::processing(format!(
-                "Validation failed for {} tasks: {:?}",
-                errors.len(),
-                errors
-            )));
+        for chunk in tasks.chunks(VALIDATION_CHUNK_SIZE) {
+            let futures: Vec<_> = chunk.iter()
+                .map(|task| validate_task(task))
+                .collect();
+            futures::future::try_join_all(futures).await?;
         }
-
+        
         debug!("All {} tasks validated successfully", tasks.len());
         Ok(())
     }
 
-    fn get_available_memory(&self) -> usize {
-        let mut system = System::new();
-        system.refresh_memory();
-        system.available_memory() as usize
-    }
-
-    fn calculate_batch_size(&self, tasks: &[ImageTask]) -> usize {
+    fn calculate_batch_size(&self, #[allow(unused_variables)] tasks: &[ImageTask]) -> usize {
         let process_count = self.pool.get_max_size();
         
-        // Calculate total and average task size
-        let total_size: u64 = tasks.iter()
-            .filter_map(|t| std::fs::metadata(&t.input_path).ok())
-            .map(|m| m.len())
-            .sum();
-        
-        let avg_size = if tasks.is_empty() {
-            0
-        } else {
-            total_size / tasks.len() as u64
-        };
-        
-        // Get available system memory and calculate target
-        let available_mem = self.get_available_memory();
-        let memory_target = ((available_mem as f32 * self.config.target_memory_percentage) as usize)
-            .min(self.config.target_memory_usage);
-        
-        // Calculate batch sizes based on different criteria
-        let memory_based_size = if avg_size == 0 {
-            self.config.max_size
-        } else {
-            memory_target / avg_size as usize
-        };
-        
+        // Calculate optimal batch size based on process count
         let process_based_size = self.config.tasks_per_process * process_count;
         
         // Use the most conservative size that meets our constraints
-        memory_based_size
-            .min(process_based_size)
+        process_based_size
             .min(self.config.max_size)
             .max(self.config.min_size)
     }

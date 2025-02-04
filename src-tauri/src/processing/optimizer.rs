@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use crate::core::OptimizationResult;
 use crate::worker::ImageTask;
 use crate::utils::OptimizerResult;
-use super::{pool::ProcessPool, batch::{BatchProcessor, BatchMemoryMetrics}};
+use super::{pool::ProcessPool, batch::BatchProcessor};
 
 #[derive(Clone)]
 pub struct ImageOptimizer {
@@ -13,15 +13,23 @@ pub struct ImageOptimizer {
 }
 
 impl ImageOptimizer {
-    pub fn new(app: tauri::AppHandle) -> Self {
-        Self {
+    pub async fn new(app: tauri::AppHandle) -> OptimizerResult<Self> {
+        let process_pool = ProcessPool::new(app.clone());
+        
+        // Create optimizer instance
+        let optimizer = Self {
             active_tasks: Arc::new(Mutex::new(HashSet::new())),
-            process_pool: ProcessPool::new(app),
-        }
+            process_pool,
+        };
+        
+        // Warm up the process pool
+        optimizer.process_pool.warmup().await?;
+        
+        Ok(optimizer)
     }
 
     pub async fn process_batch(&self, tasks: Vec<ImageTask>) 
-        -> OptimizerResult<(Vec<OptimizationResult>, BatchMemoryMetrics)> {
+        -> OptimizerResult<Vec<OptimizationResult>> {
         let processor = BatchProcessor::new(&self.process_pool, self.active_tasks.clone());
         processor.process(tasks).await
     }

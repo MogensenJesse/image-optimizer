@@ -6,6 +6,7 @@ pub struct BenchmarkReporter {
 }
 
 impl BenchmarkReporter {
+    #[allow(dead_code)]
     pub fn from_metrics(metrics: BenchmarkMetrics) -> Self {
         Self { metrics }
     }
@@ -87,23 +88,6 @@ impl fmt::Display for BenchmarkReporter {
                 self.metrics.batch_metrics.size_distribution[i]
             )?;
         }
-        writeln!(f)?;
-        
-        // Add memory metrics section
-        writeln!(f, "Memory Usage Metrics:")?;
-        writeln!(f, "- Initial Available Memory: {}MB", 
-            self.metrics.batch_metrics.memory_metrics.initial_memory / (1024 * 1024))?;
-        writeln!(f, "- Average Batch Memory Usage: {}MB", 
-            self.metrics.batch_metrics.memory_metrics.avg_batch_memory / (1024 * 1024))?;
-        writeln!(f, "- Maximum Batch Memory Usage: {}MB", 
-            self.metrics.batch_metrics.memory_metrics.max_batch_memory / (1024 * 1024))?;
-        writeln!(f, "- Peak Memory Pressure: {}MB", 
-            self.metrics.batch_metrics.memory_metrics.peak_pressure / (1024 * 1024))?;
-        
-        writeln!(f, "- Memory Usage Distribution:")?;
-        writeln!(f, "  └── 0-33%: {}", self.metrics.batch_metrics.memory_metrics.memory_distribution[0])?;
-        writeln!(f, "  └── 34-66%: {}", self.metrics.batch_metrics.memory_metrics.memory_distribution[1])?;
-        writeln!(f, "  └── 67-100%: {}", self.metrics.batch_metrics.memory_metrics.memory_distribution[2])?;
         writeln!(f)?;
         
         // Worker Pool Metrics

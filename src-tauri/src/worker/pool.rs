@@ -40,7 +40,7 @@ pub struct WorkerPool {
 }
 
 impl WorkerPool {
-    pub fn new(app: AppHandle, worker_count: Option<usize>) -> WorkerResult<Self> {
+    pub async fn new(app: AppHandle, worker_count: Option<usize>) -> WorkerResult<Self> {
         let worker_count = worker_count.unwrap_or_else(calculate_optimal_workers);
         debug!("Creating worker pool with {} workers", worker_count);
         let start_time = std::time::Instant::now();
@@ -50,8 +50,13 @@ impl WorkerPool {
             return Err(WorkerError::InitializationError("Worker count cannot be zero".to_string()));
         }
         
+        // Initialize the optimizer
+        let optimizer = ImageOptimizer::new(app.clone())
+            .await
+            .map_err(|e| WorkerError::InitializationError(format!("Failed to initialize optimizer: {}", e)))?;
+        
         let pool = Self {
-            optimizer: ImageOptimizer::new(app.clone()),
+            optimizer,
             app,
             active_workers: Arc::new(Mutex::new(0)),
             semaphore: Arc::new(Semaphore::new(worker_count)),
@@ -154,7 +159,7 @@ impl WorkerPool {
         let process_result = self.optimizer.process_batch(vec![task]).await;
         
         match process_result {
-            Ok((mut results, _memory_metrics)) => {  // Destructure tuple and ignore memory metrics
+            Ok(mut results) => {
                 let result = results.pop().ok_or_else(|| {
                     WorkerError::ProcessingError("No result returned from batch processing".to_string())
                 })?;
@@ -219,22 +224,15 @@ impl WorkerPool {
 
         // Process the batch
         info!("Processing batch with {} tasks using {} workers", total_tasks, self.worker_count);
-        let optimizer_result = self.optimizer.process_batch(tasks).await
+        let results = self.optimizer.process_batch(tasks).await
             .map_err(|e| WorkerError::ProcessingError(format!("Batch processing failed: {}", e)))?;
         
-        let (results, memory_metrics) = optimizer_result;
         let mut total_duration = Duration::zero();
         
         // Record metrics and generate report if benchmarking
         self.record_metric(|m, is_benchmark| {
             if is_benchmark {
                 debug!("Recording batch metrics");
-                
-                // Record memory metrics
-                m.batch_metrics.memory_metrics.initial_memory = memory_metrics.initial_memory;
-                m.batch_metrics.memory_metrics.avg_batch_memory = memory_metrics.avg_batch_memory;
-                m.batch_metrics.memory_metrics.peak_pressure = memory_metrics.peak_pressure;
-                m.batch_metrics.memory_metrics.memory_distribution = memory_metrics.memory_distribution;
                 
                 // Record each chunk's size as a separate batch
                 let batch_size = 50; // This is from optimizer's BatchSizeConfig::default().max_size
@@ -250,40 +248,40 @@ impl WorkerPool {
                 if remainder > 0 {
                     m.batch_metrics.record_batch_size(remainder);
                 }
-            }
-            
-            // Get the current total duration
-            total_duration = m.total_duration;
-            
-            // Calculate actual parallel execution metrics
-            let tasks_per_worker = (total_tasks + self.worker_count - 1) / self.worker_count;
-            
-            if is_benchmark {
-                debug!("Calculated parallel metrics: {} tasks per worker", tasks_per_worker);
-            }
-            
-            // Record worker distribution based on actual results
-            for i in 0..results.len() {
-                let worker_id = i % self.worker_count;
-                <dyn Benchmarkable>::record_worker_metrics(m, worker_id, Duration::zero(), Duration::zero());
-            }
-            
-            // Add compression ratios for all results
-            if is_benchmark {
-                debug!("Recording compression ratios for {} results", results.len());
-            }
-            for result in &results {
-                if result.success {
-                    m.record_compression(result.original_size, result.optimized_size);
+                
+                // Get the current total duration
+                total_duration = m.total_duration;
+                
+                // Calculate actual parallel execution metrics
+                let tasks_per_worker = (total_tasks + self.worker_count - 1) / self.worker_count;
+                
+                if is_benchmark {
+                    debug!("Calculated parallel metrics: {} tasks per worker", tasks_per_worker);
                 }
-            }
+                
+                // Record worker distribution based on actual results
+                for i in 0..results.len() {
+                    let worker_id = i % self.worker_count;
+                    <dyn Benchmarkable>::record_worker_metrics(m, worker_id, Duration::zero(), Duration::zero());
+                }
+                
+                // Add compression ratios for all results
+                if is_benchmark {
+                    debug!("Recording compression ratios for {} results", results.len());
+                }
+                for result in &results {
+                    if result.success {
+                        m.record_compression(result.original_size, result.optimized_size);
+                    }
+                }
 
-            // Only generate report in benchmark mode
-            if is_benchmark {
-                info!("Finalizing benchmark metrics");
-                let metrics = <dyn Benchmarkable>::finalize_benchmarking(m);
-                let reporter = BenchmarkReporter::from_metrics(metrics);
-                info!("\nBatch Processing Report:\n{}", reporter);
+                // Only generate report in benchmark mode
+                if is_benchmark {
+                    info!("Finalizing benchmark metrics");
+                    let metrics = <dyn Benchmarkable>::finalize_benchmarking(m);
+                    let reporter = BenchmarkReporter::from_metrics(metrics);
+                    info!("\nBatch Processing Report:\n{}", reporter);
+                }
             }
         }).await;
         

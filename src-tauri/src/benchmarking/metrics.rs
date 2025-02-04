@@ -182,59 +182,11 @@ impl Default for WorkerPoolMetrics {
     }
 }
 
-/// Metrics for tracking memory usage during batch processing
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MemoryMetrics {
-    pub avg_batch_memory: usize,          // Average memory per batch
-    pub max_batch_memory: usize,          // Maximum memory used by any batch
-    pub initial_memory: usize,            // Available memory at start
-    pub peak_pressure: usize,             // Maximum memory pressure observed
-    pub memory_distribution: [usize; 3],  // Distribution across usage ranges
-    batch_memory_usages: Vec<usize>,      // Memory used by each batch
-}
-
-impl Default for MemoryMetrics {
-    fn default() -> Self {
-        Self {
-            avg_batch_memory: 0,
-            max_batch_memory: 0,
-            initial_memory: 0,
-            peak_pressure: 0,
-            memory_distribution: [0; 3],
-            batch_memory_usages: Vec::with_capacity(100),
-        }
-    }
-}
-
-impl MemoryMetrics {
-    #[allow(dead_code)]
-    pub fn record_batch_memory(&mut self, used_memory: usize, available_memory: usize) {
-        self.batch_memory_usages.push(used_memory);
-        
-        // Update average
-        let total = self.batch_memory_usages.iter().sum::<usize>();
-        self.avg_batch_memory = total / self.batch_memory_usages.len();
-        
-        // Update maximum
-        self.max_batch_memory = self.max_batch_memory.max(used_memory);
-        
-        // Update peak pressure
-        let pressure = available_memory.saturating_sub(used_memory);
-        self.peak_pressure = self.peak_pressure.max(pressure);
-        
-        // Update distribution
-        let usage_pct = (used_memory as f64 / self.initial_memory as f64) * 100.0;
-        let index = (usage_pct / 33.33).min(2.0) as usize;
-        self.memory_distribution[index] += 1;
-    }
-}
-
 /// Metrics for tracking batch size performance and distribution.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BatchSizeMetrics {
     pub batch_sizes: Vec<usize>,
     pub size_distribution: [usize; 3],
-    pub memory_metrics: MemoryMetrics,    // Add memory metrics
     #[serde(skip)]
     config: BatchSizeConfig,
 }
@@ -244,7 +196,6 @@ impl BatchSizeMetrics {
         Self {
             batch_sizes: Vec::with_capacity(100),
             size_distribution: [0; 3],
-            memory_metrics: MemoryMetrics::default(),
             config,
         }
     }
@@ -284,7 +235,6 @@ impl BatchSizeMetrics {
         *self.batch_sizes.iter().max().unwrap_or(&0)
     }
 
-    // Add getter methods for config fields
     pub fn min_size(&self) -> usize {
         self.config.min_size
     }
@@ -429,6 +379,7 @@ impl BenchmarkMetrics {
         self.processing_times.push(time);
     }
 
+    #[allow(dead_code)]
     pub fn record_compression(&mut self, original_size: u64, optimized_size: u64) {
         self.total_original_size += original_size;
         self.total_optimized_size += optimized_size;

@@ -82,4 +82,38 @@ impl ProcessPool {
     pub async fn get_metrics(&self) -> ProcessPoolMetrics {
         self.metrics.lock().await.clone()
     }
+
+    pub async fn warmup(&self) -> OptimizerResult<()> {
+        debug!("Starting process pool warmup with {} processes", self.max_size);
+        let warmup_count = self.max_size;
+        let mut handles = Vec::with_capacity(warmup_count);
+        
+        // Spawn warmup processes
+        for i in 0..warmup_count {
+            let handle = tokio::spawn({
+                let pool = self.clone();
+                async move {
+                    debug!("Warming up process {}/{}", i + 1, warmup_count);
+                    let cmd = pool.acquire().await?;
+                    // Run a minimal operation to ensure process is ready
+                    cmd.output()
+                        .await
+                        .map_err(|e| OptimizerError::sidecar(format!("Process warmup command failed: {}", e)))?;
+                    pool.release().await;
+                    Ok::<_, OptimizerError>(())
+                }
+            });
+            handles.push(handle);
+        }
+        
+        // Wait for all warmup processes
+        futures::future::try_join_all(handles)
+            .await
+            .map_err(|e| OptimizerError::sidecar(format!("Process warmup failed: {}", e)))?
+            .into_iter()
+            .collect::<OptimizerResult<Vec<_>>>()?;
+
+        debug!("Process pool warmup completed successfully");
+        Ok(())
+    }
 } 
