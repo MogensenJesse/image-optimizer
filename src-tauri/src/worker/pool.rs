@@ -11,12 +11,13 @@ use tracing::{debug, info, warn};
 use std::sync::Mutex as StdMutex;
 use lazy_static;
 
-// More aggressive worker count calculation
+// More conservative worker count calculation based on benchmarks
 fn calculate_optimal_workers() -> usize {
     let cpu_count = num_cpus::get();
-    // Use 1.5x CPU cores, with a minimum of 4 and maximum of 12
-    let suggested_workers = (cpu_count * 3 / 2).max(4).min(12);
-    debug!("System has {} CPU cores, suggesting {} workers", cpu_count, suggested_workers);
+    // Use number of processes + small overhead for queuing
+    let process_count = ((cpu_count * 3) / 4).max(2).min(24);  // Same as process pool
+    let suggested_workers = (process_count + 2).max(4);
+    debug!("System has {} CPU cores, suggesting {} workers (based on process count)", cpu_count, suggested_workers);
     suggested_workers
 }
 

@@ -11,8 +11,8 @@ impl Default for BatchSizeConfig {
     fn default() -> Self {
         Self {
             min_size: 5,
-            max_size: 50,
-            tasks_per_process: 20,
+            max_size: 75,
+            tasks_per_process: 25,
         }
     }
 } 

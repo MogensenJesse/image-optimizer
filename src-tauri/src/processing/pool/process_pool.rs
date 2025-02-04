@@ -18,7 +18,8 @@ pub struct ProcessPool {
 impl ProcessPool {
     fn calculate_optimal_processes() -> usize {
         let cpu_count = num_cpus::get();
-        (cpu_count / 2).max(2).min(16)
+        // Use 75% of CPUs (max 24) to maintain ~1.33:1 worker-to-process ratio with 2x worker count
+        ((cpu_count * 3) / 4).max(2).min(24)
     }
 
     pub fn new(app: tauri::AppHandle) -> Self {
