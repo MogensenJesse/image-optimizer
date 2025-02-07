@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-pub use crate::worker::ImageTask;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageSettings {

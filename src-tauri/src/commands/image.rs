@@ -2,16 +2,23 @@ use serde::Deserialize;
 use tauri::State;
 use tracing::{info, debug};
 use crate::core::{AppState, ImageSettings, OptimizationResult};
-use crate::worker::ImageTask;
-use crate::utils::{OptimizerResult, OptimizerError, validate_task};
-use crate::worker::WorkerError;
-use std::sync::Arc;
+use crate::core::ImageTask;
+use crate::utils::{OptimizerResult, validate_task};
 
 #[derive(Debug, Deserialize)]
 pub struct BatchImageTask {
     pub input_path: String,
     pub output_path: String,
     pub settings: ImageSettings,
+}
+
+#[tauri::command]
+pub async fn get_active_tasks(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> OptimizerResult<Vec<String>> {
+    let pool = state.get_or_init_process_pool(app).await?;
+    Ok(pool.get_active_tasks().await)
 }
 
 #[tauri::command]
@@ -33,19 +40,16 @@ pub async fn optimize_image(
     // Validate task
     validate_task(&task).await?;
 
-    // Get or initialize worker pool
-    let pool = state.get_or_init_worker_pool(app).await?;
-    let pool = Arc::try_unwrap(pool).unwrap_or_else(|arc| (*arc).clone());
+    // Get or initialize process pool
+    let pool = state.get_or_init_process_pool(app).await?;
     
     // Process image
     info!("Starting image optimization");
-    let result = pool.process(task).await.map_err(|e| match e {
-        WorkerError::OptimizerError(e) => e,
-        e => OptimizerError::worker(e.to_string()),
-    })?;
+    let results = pool.process_batch(vec![task]).await?;
     debug!("Image optimization completed");
     
-    Ok(result)
+    // Return the single result
+    Ok(results.into_iter().next().unwrap())
 }
 
 #[tauri::command]
@@ -70,14 +74,7 @@ pub async fn optimize_images(
         image_tasks.push(image_task);
     }
 
-    // Get or initialize worker pool and process images
-    let pool = state.get_or_init_worker_pool(app).await?;
-    let pool = Arc::try_unwrap(pool).unwrap_or_else(|arc| (*arc).clone());
-    
-    let (results, _duration) = pool.process_batch(image_tasks).await
-        .map_err(|e| match e {
-            WorkerError::OptimizerError(e) => e,
-            e => OptimizerError::worker(e.to_string()),
-        })?;
-    Ok(results)
+    // Get or initialize process pool and process images
+    let pool = state.get_or_init_process_pool(app).await?;
+    pool.process_batch(image_tasks).await
 }

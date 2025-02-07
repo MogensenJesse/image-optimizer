@@ -67,86 +67,18 @@ impl fmt::Display for BenchmarkReporter {
         writeln!(f, "Time-based Metrics:")?;
         writeln!(f, "- Total Duration: {}", self.metrics.total_duration)?;
         writeln!(f, "- Average Processing Time: {}/image", self.calculate_average_processing_time())?;
-        writeln!(f, "- Processing Throughput: {:.2} MB/s", self.metrics.throughput_mbs)?;
-        writeln!(f)?;
-        
-        // Batch Size Metrics
-        writeln!(f, "Batch Size Metrics:")?;
-        writeln!(f, "- Average Batch Size: {:.1}", self.metrics.batch_metrics.average())?;
-        writeln!(f, "- Minimum Batch Size: {}", self.metrics.batch_metrics.min())?;
-        writeln!(f, "- Maximum Batch Size: {}", self.metrics.batch_metrics.max())?;
-        
-        let range = (self.metrics.batch_metrics.max_size() - 
-                    self.metrics.batch_metrics.min_size()) / 3;
-        
-        writeln!(f, "- Batch Size Distribution:")?;
-        for i in 0..3 {
-            let start = self.metrics.batch_metrics.min_size() + (i * range);
-            let end = start + range;
-            writeln!(f, "  └── {}-{}: {}", 
-                start, end, 
-                self.metrics.batch_metrics.size_distribution[i]
-            )?;
-        }
-        writeln!(f)?;
-        
-        // Worker Pool Metrics
-        writeln!(f, "Worker Pool Metrics:")?;
-        writeln!(f, "- Worker Distribution:")?;
-        for (worker_id, tasks) in self.metrics.worker_pool.tasks_per_worker.iter().enumerate() {
-            if *tasks > 0 {
-                writeln!(f, "  └── Worker {}: {} tasks", worker_id, tasks)?;
-            }
-        }
-        writeln!(f, "  └── Total Active Workers: {}", 
-            self.metrics.worker_pool.tasks_per_worker.iter().filter(|&&tasks| tasks > 0).count()
-        )?;
-        writeln!(f)?;
-        
-        writeln!(f, "- Contention Metrics:")?;
-        writeln!(f, "  └── Contention Events: {}", self.metrics.worker_pool.contention_count)?;
-        writeln!(f)?;
-        
-        writeln!(f, "- Task Statistics:")?;
-        writeln!(f, "  └── Failed Tasks: {}", self.metrics.worker_pool.failed_tasks)?;
         writeln!(f)?;
         
         // Optimization metrics
         writeln!(f, "Optimization Metrics:")?;
-        let avg_ratio = self.calculate_average_compression();
         writeln!(f, "- Compression Ratios:")?;
-        writeln!(f, "  └── Average: {} (original → optimized)", avg_ratio)?;
+        writeln!(f, "  └── Average: {} (original → optimized)", self.calculate_average_compression())?;
         
         writeln!(f, "- Size Reductions:")?;
         writeln!(f, "  └── Total: {} → {}", 
             Self::format_bytes(self.metrics.total_original_size),
             Self::format_bytes(self.metrics.total_optimized_size)
         )?;
-        
-        // Add Process Pool Metrics section
-        if let Some(process_pool) = &self.metrics.process_pool {
-            writeln!(f)?;
-            writeln!(f, "Process Pool Metrics:")?;
-            writeln!(f, "- Total Processes Spawned: {}", process_pool.total_spawns)?;
-            
-            // Average spawn time
-            if !process_pool.spawn_times.is_empty() {
-                let avg_spawn_time = process_pool.spawn_times.iter()
-                    .map(|d| d.as_secs_f64())
-                    .sum::<f64>() / process_pool.spawn_times.len() as f64;
-                writeln!(f, "- Average Spawn Time: {:.2}ms", avg_spawn_time * 1000.0)?;
-            }
-            
-            // Process utilization
-            if !process_pool.active_processes.is_empty() {
-                let avg_active = process_pool.active_processes.iter().sum::<usize>() as f64 
-                    / process_pool.active_processes.len() as f64;
-                let max_active = process_pool.active_processes.iter().max().unwrap_or(&0);
-                writeln!(f, "- Process Utilization:")?;
-                writeln!(f, "  └── Average Active: {:.1}", avg_active)?;
-                writeln!(f, "  └── Peak Active: {}", max_active)?;
-            }
-        }
         
         Ok(())
     }

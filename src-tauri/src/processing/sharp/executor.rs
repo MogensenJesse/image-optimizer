@@ -1,5 +1,5 @@
 use crate::processing::pool::ProcessPool;
-use crate::worker::ImageTask;
+use crate::core::ImageTask;
 use crate::utils::{OptimizerError, OptimizerResult};
 use crate::core::OptimizationResult;
 use super::types::SharpResult;

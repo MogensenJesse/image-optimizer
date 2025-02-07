@@ -29,9 +29,6 @@ pub enum OptimizerError {
     #[error("Processing error: {0}")]
     Processing(String),
 
-    #[error("Worker error: {0}")]
-    Worker(String),
-
     #[error("IO error: {0}")]
     IO(String),
 
@@ -54,10 +51,6 @@ impl OptimizerError {
 
     pub fn processing<T: Into<String>>(msg: T) -> Self {
         Self::Processing(msg.into())
-    }
-
-    pub fn worker<T: Into<String>>(msg: T) -> Self {
-        Self::Worker(msg.into())
     }
 
     pub fn format<T: Into<String>>(msg: T) -> Self {

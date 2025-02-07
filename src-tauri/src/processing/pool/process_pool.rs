@@ -1,10 +1,30 @@
 use std::sync::Arc;
+use std::collections::VecDeque;
 use tokio::sync::{Mutex, Semaphore};
 use tauri_plugin_shell::{ShellExt, process::Command};
 use crate::utils::{OptimizerError, OptimizerResult};
-use crate::benchmarking::metrics::{Duration, ProcessPoolMetrics};
-use tracing::debug;
+use crate::benchmarking::metrics::{Duration, BenchmarkMetrics, Benchmarkable};
+use crate::benchmarking::reporter::BenchmarkReporter;
+use crate::core::ImageTask;
+use crate::processing::sharp::SharpExecutor;
+use crate::core::OptimizationResult;
+use tracing::{debug, info};
 use num_cpus;
+use std::time::Instant;
+
+/// Task queue entry with timing information
+#[derive(Debug)]
+struct QueuedTask {
+    task: ImageTask,
+}
+
+impl QueuedTask {
+    fn new(task: ImageTask) -> Self {
+        Self {
+            task,
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct ProcessPool {
@@ -12,7 +32,8 @@ pub struct ProcessPool {
     app: tauri::AppHandle,
     max_size: usize,
     active_count: Arc<Mutex<usize>>,
-    metrics: Arc<Mutex<ProcessPoolMetrics>>,
+    task_queue: Arc<Mutex<VecDeque<QueuedTask>>>,
+    benchmark_mode: Arc<Mutex<bool>>,
 }
 
 impl ProcessPool {
@@ -34,54 +55,58 @@ impl ProcessPool {
             app,
             max_size: size,
             active_count: Arc::new(Mutex::new(0)),
-            metrics: Arc::new(Mutex::new(ProcessPoolMetrics::default())),
+            task_queue: Arc::new(Mutex::new(VecDeque::new())),
+            benchmark_mode: Arc::new(Mutex::new(false)),
         }
     }
     
+    /// Enqueues a task for processing
+    pub async fn enqueue_task(&self, task: ImageTask) {
+        let queued_task = QueuedTask::new(task);
+        let mut queue = self.task_queue.lock().await;
+        queue.push_back(queued_task);
+    }
+    
+    /// Gets the current queue length
+    pub async fn queue_length(&self) -> usize {
+        self.task_queue.lock().await.len()
+    }
+    
     pub async fn acquire(&self) -> OptimizerResult<Command> {
-        let start = std::time::Instant::now();
-        
         let _permit = self.semaphore.acquire().await.map_err(|e| 
             OptimizerError::sidecar(format!("Pool acquisition failed: {}", e))
         )?;
         
-        // Update active count and metrics
+        // Update active count
         {
             let mut count = self.active_count.lock().await;
             *count += 1;
-            
-            let mut metrics = self.metrics.lock().await;
-            metrics.update_active_count(*count);
         }
         
         // Create the sidecar command
-        let result = self.app.shell()
+        self.app.shell()
             .sidecar("sharp-sidecar")
-            .map_err(|e| OptimizerError::sidecar(format!("Sidecar spawn failed: {}", e)));
-            
-        // Record spawn metrics
-        {
-            let mut metrics = self.metrics.lock().await;
-            metrics.record_spawn(Duration::new_unchecked(start.elapsed().as_secs_f64()));
-        }
-        
-        result
+            .map_err(|e| OptimizerError::sidecar(format!("Sidecar spawn failed: {}", e)))
     }
     
     pub async fn release(&self) {
         let mut count = self.active_count.lock().await;
         *count = count.saturating_sub(1);
-        
-        let mut metrics = self.metrics.lock().await;
-        metrics.update_active_count(*count);
     }
     
     pub fn get_max_size(&self) -> usize {
         self.max_size
     }
     
-    pub async fn get_metrics(&self) -> ProcessPoolMetrics {
-        self.metrics.lock().await.clone()
+    /// Enable or disable benchmark mode
+    pub async fn set_benchmark_mode(&self, enabled: bool) {
+        let mut mode = self.benchmark_mode.lock().await;
+        *mode = enabled;
+    }
+
+    /// Check if benchmark mode is enabled
+    pub async fn is_benchmark_mode(&self) -> bool {
+        *self.benchmark_mode.lock().await
     }
 
     pub async fn warmup(&self) -> OptimizerResult<()> {
@@ -96,10 +121,12 @@ impl ProcessPool {
                 async move {
                     debug!("Warming up process {}/{}", i + 1, warmup_count);
                     let cmd = pool.acquire().await?;
+                    
                     // Run a minimal operation to ensure process is ready
                     cmd.output()
                         .await
                         .map_err(|e| OptimizerError::sidecar(format!("Process warmup command failed: {}", e)))?;
+                    
                     pool.release().await;
                     Ok::<_, OptimizerError>(())
                 }
@@ -116,5 +143,105 @@ impl ProcessPool {
 
         debug!("Process pool warmup completed successfully");
         Ok(())
+    }
+    
+    /// Processes a batch of tasks using the available processes
+    pub async fn process_batch(&self, tasks: Vec<ImageTask>) -> OptimizerResult<Vec<OptimizationResult>> {
+        let mut benchmark_metrics = if self.is_benchmark_mode().await {
+            let mut metrics = BenchmarkMetrics::new(tasks.len());
+            metrics.reset(); // Reset metrics before starting new batch
+            metrics.start_benchmarking();
+            Some(metrics)
+        } else {
+            None
+        };
+
+        // Enqueue all tasks
+        for task in tasks {
+            self.enqueue_task(task).await;
+        }
+        
+        let queue_length = self.queue_length().await;
+        debug!("Processing batch of {} tasks", queue_length);
+        
+        let mut results = Vec::new();
+        let executor = SharpExecutor::new(self);
+        
+        // Process tasks in chunks to maximize throughput
+        while let Some(chunk) = self.dequeue_chunk().await {
+            let start_time = Instant::now();
+            
+            // Execute the chunk using Sharp
+            let chunk_results = match executor.execute_batch(&chunk).await {
+                Ok(results) => results,
+                Err(e) => return Err(e)
+            };
+
+            // Record metrics for each result
+            if let Some(metrics) = &mut benchmark_metrics {
+                for result in &chunk_results {
+                    metrics.record_compression(result.original_size, result.optimized_size);
+                }
+            }
+
+            results.extend(chunk_results);
+            
+            // Record metrics if in benchmark mode
+            if self.is_benchmark_mode().await {
+                let duration = Duration::new_unchecked(start_time.elapsed().as_secs_f64());
+                if let Some(metrics) = &mut benchmark_metrics {
+                    metrics.add_processing_time(duration);
+                    
+                    // Record pool metrics
+                    let active_count = *self.active_count.lock().await;
+                    metrics.record_pool_metrics(active_count, queue_length);
+                }
+            }
+        }
+
+        // Finalize benchmarking if enabled
+        if let Some(mut metrics) = benchmark_metrics {
+            let final_metrics = metrics.finalize_benchmarking();
+            
+            // Display benchmark report
+            let report = BenchmarkReporter::from_metrics(final_metrics);
+            info!("\n=== Batch Processing Report ===\n{}", report);
+        }
+        
+        Ok(results)
+    }
+    
+    /// Gets a chunk of tasks from the queue for batch processing
+    async fn dequeue_chunk(&self) -> Option<Vec<ImageTask>> {
+        let mut queue = self.task_queue.lock().await;
+        if queue.is_empty() {
+            return None;
+        }
+
+        let chunk_size = self.max_size;
+        let mut chunk = Vec::with_capacity(chunk_size);
+        
+        for _ in 0..chunk_size {
+            if let Some(queued_task) = queue.pop_front() {
+                chunk.push(queued_task.task);
+            } else {
+                break;
+            }
+        }
+        
+        if chunk.is_empty() {
+            None
+        } else {
+            Some(chunk)
+        }
+    }
+
+    pub async fn get_active_tasks(&self) -> Vec<String> {
+        let mut active_tasks = Vec::new();
+        let queue = self.task_queue.lock().await;
+        for task in queue.iter() {
+            active_tasks.push(task.task.input_path.clone());
+        }
+        active_tasks
     }
 } 

@@ -1,6 +1,7 @@
 mod state;
-pub mod types;
+mod types;
+mod task;
 
 pub use state::AppState;
-#[allow(unused_imports)]
-pub use types::{ImageSettings, OptimizationResult, ImageTask}; 
+pub use types::{ImageSettings, OptimizationResult};
+pub use task::ImageTask; 

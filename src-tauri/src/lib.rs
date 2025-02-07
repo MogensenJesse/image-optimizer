@@ -1,15 +1,12 @@
 // Module declarations in dependency order
-pub mod utils;      // Base utilities, no internal dependencies
-pub mod core;       // Core types and state
-pub mod processing; // Processing logic, depends on core and utils
-pub mod worker;     // Worker implementation, depends on processing and core
-pub mod benchmarking; // Benchmarking functionality
-mod commands;       // Command handlers, depends on all other modules
+pub mod benchmarking;
+pub mod commands;
+pub mod core;
+pub mod processing;
+pub mod utils;
 
 // Public exports
-pub use core::{AppState, ImageSettings, OptimizationResult};
-pub use worker::{WorkerPool, ImageTask};
-pub use processing::ImageOptimizer;
+pub use core::{AppState, ImageTask};
 pub use utils::{OptimizerError, OptimizerResult};
 pub use benchmarking::metrics::BenchmarkMetrics;
 pub use benchmarking::reporter::BenchmarkReporter;

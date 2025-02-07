@@ -1,5 +1,5 @@
 use std::path::Path;
-use crate::worker::ImageTask;
+use crate::core::ImageTask;
 use crate::utils::{OptimizerResult, format_from_extension};
 use crate::utils::error::ValidationError;
 use tokio::fs;

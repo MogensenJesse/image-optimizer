@@ -6,4 +6,4 @@ pub struct ImageTask {
     pub input_path: String,
     pub output_path: String,
     pub settings: ImageSettings,
-}
+} 

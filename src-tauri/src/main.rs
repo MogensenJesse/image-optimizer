@@ -4,7 +4,6 @@
 mod utils;
 mod core;
 mod processing;
-mod worker;
 mod benchmarking;
 mod commands;
 
@@ -59,19 +58,19 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
-    // Initialize worker pool with benchmarking if enabled
+    // Initialize process pool with benchmarking if enabled
     if benchmark_mode {
-        info!("Initializing worker pool with benchmarking...");
+        info!("Initializing process pool with benchmarking...");
         let app_handle = app.app_handle().clone();
         let state = app.state::<AppState>();
         tokio::runtime::Runtime::new().unwrap().block_on(async {
-            let pool = state.get_or_init_worker_pool(app_handle).await
-                .expect("Failed to initialize worker pool");
+            let pool = state.get_or_init_process_pool(app_handle).await
+                .expect("Failed to initialize process pool");
             
             // Enable benchmarking on the pool
-            pool.enable_benchmarking().await;
-            info!("✓ Worker pool initialized with benchmarking enabled");
-            debug!("Worker pool configuration: {} workers", pool.get_worker_count());
+            pool.set_benchmark_mode(true).await;
+            info!("✓ Process pool initialized with benchmarking enabled");
+            debug!("Process pool configuration: {} processes", pool.get_max_size());
         });
     }
 

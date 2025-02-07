@@ -4,12 +4,9 @@ use crate::utils::OptimizerResult;
 
 #[tauri::command]
 pub async fn get_active_tasks(
+    app: tauri::AppHandle,
     state: State<'_, AppState>
 ) -> OptimizerResult<usize> {
-    let pool = state.worker_pool.lock().await;
-    if let Some(pool) = pool.as_ref() {
-        Ok(pool.get_active_workers().await)
-    } else {
-        Ok(0)
-    }
+    let pool = state.get_or_init_process_pool(app).await?;
+    Ok(pool.queue_length().await)
 } 
