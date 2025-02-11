@@ -166,12 +166,132 @@ Planning phase - Implementing parallel processing architecture with static batch
    Files to modify: src-tauri/src/processing/pool/process_pool.rs
    Code to add: Error handling for batch processing failures
 
+### 5. Build Process Integration
+
+[ ] Update pkg configuration
+   Short description: Ensure worker threads are properly bundled
+   Prerequisites: Worker thread implementation
+   Files to modify: sharp-sidecar/package.json
+   Code to add:
+   ```json
+   {
+     "pkg": {
+       "assets": [
+         "node_modules/sharp/**/*",
+         "node_modules/@img/sharp-win32-x64/**/*",
+         "optimizationDefaults.js",
+         "worker.js"
+       ],
+       "targets": ["node20-win-x64"],
+       "scripts": ["worker.js"]
+     }
+   }
+   ```
+
+[ ] Add worker script bundling
+   Short description: Create separate worker script for pkg bundling
+   Prerequisites: pkg configuration update
+   Files to modify: 
+   - sharp-sidecar/worker.js
+   - sharp-sidecar/index.js
+   Code to add:
+   ```javascript
+   // worker.js
+   const { parentPort } = require('worker_threads');
+   const sharp = require('sharp');
+   const { optimizeImage } = require('./optimize');
+
+   parentPort.on('message', async (task) => {
+     try {
+       const result = await optimizeImage(task);
+       parentPort.postMessage({ type: 'success', result });
+     } catch (error) {
+       parentPort.postMessage({ type: 'error', error: error.message });
+     }
+   });
+   ```
+
+### 6. IPC Optimization
+
+[ ] Implement batched progress updates
+   Short description: Optimize IPC communication for parallel processing
+   Prerequisites: Parallel metrics implementation
+   Files to modify: src-tauri/src/processing/pool/process_pool.rs
+   Code to add:
+   ```rust
+   pub struct BatchedProgress {
+       updates: Vec<ProgressUpdate>,
+       last_emit: Instant,
+       batch_interval: Duration,
+   }
+
+   impl BatchedProgress {
+       pub fn new() -> Self {
+           Self {
+               updates: Vec::new(),
+               last_emit: Instant::now(),
+               batch_interval: Duration::from_millis(100),
+           }
+       }
+
+       pub fn add_update(&mut self, update: ProgressUpdate) {
+           self.updates.push(update);
+           self.try_emit();
+       }
+
+       fn try_emit(&mut self) {
+           if self.last_emit.elapsed() >= self.batch_interval {
+               // Emit batched updates
+               self.emit_updates();
+           }
+       }
+   }
+   ```
+
+[ ] Add progress debouncing
+   Short description: Prevent IPC channel flooding with progress updates
+   Prerequisites: Batched progress implementation
+   Files to modify: src-tauri/src/processing/pool/process_pool.rs
+   Code to add:
+   ```rust
+   impl ParallelProcessPool {
+       async fn emit_progress(&self, progress: ProgressUpdate) {
+           let mut batched = self.batched_progress.lock().await;
+           batched.add_update(progress);
+       }
+   }
+   ```
+
+[ ] Optimize metrics collection
+   Short description: Implement efficient metrics aggregation
+   Prerequisites: Progress debouncing
+   Files to modify: src-tauri/src/benchmarking/metrics.rs
+   Code to add:
+   ```rust
+   impl ParallelProcessingMetrics {
+       pub fn aggregate_batch_metrics(&mut self, updates: Vec<ProgressUpdate>) {
+           let mut total_processed = 0;
+           let mut total_time = Duration::ZERO;
+
+           for update in updates {
+               total_processed += update.processed_files;
+               total_time += update.processing_time;
+           }
+
+           self.update_averages(total_processed, total_time);
+       }
+   }
+   ```
+
 ## Implementation Notes
 - Keep batch size static at 75 images
 - Focus on parallel processing implementation first
 - Keep metrics simple and focused on essential measurements
 - Maintain existing API contracts
 - Test thoroughly with varying batch sizes
+- Ensure worker threads are properly bundled in production builds
+- Optimize IPC communication to prevent channel flooding
+- Monitor memory usage with parallel processing
 
 ## Completed Tasks
 

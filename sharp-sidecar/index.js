@@ -1,289 +1,118 @@
-const sharp = require('sharp');
-const fs = require('fs');
-const optimizationDefaults = require('./optimizationDefaults');
+const { isMainThread, parentPort, workerData } = require('worker_threads');
+const { optimizeImage } = require('./src/processing/optimizer');
+const { optimizeBatch } = require('./src/processing/batch');
+const { error, debug, progress, createResultObject } = require('./src/utils');
 
-const command = process.argv[2];
-const inputPath = process.argv[3];
-const outputPath = process.argv[4];
-const settingsArg = process.argv[5];
-
-// Debug logging
-console.error('Command arguments:');
-console.error('Command:', command);
-console.error('Input:', inputPath);
-console.error('Output:', outputPath);
-console.error('Raw settings:', settingsArg);
-
-let settings;
-try {
-  settings = settingsArg ? JSON.parse(settingsArg) : {
-    quality: { global: 90 },
-    resize: { mode: 'none', maintainAspect: true },
-    outputFormat: 'original'
-  };
-  console.error('Parsed settings:', JSON.stringify(settings, null, 2));
-} catch (err) {
-  console.error('Error parsing settings:', err);
-  console.error('Raw settings string:', settingsArg);
-  process.exit(1);
-}
-
-const getLosslessSettings = (format) => {
-  switch (format) {
-    case 'jpeg':
-      // JPEG doesn't support true lossless, so we use highest quality
-      return {
-        quality: 100,
-        mozjpeg: true,
-        chromaSubsampling: '4:4:4',
-        optimiseCoding: true
-      };
-    
-    case 'png':
-      return {
-        compressionLevel: 9,    // Maximum compression
-        palette: false,         // Disable palette mode for true color
-        quality: 100,
-        effort: 10,            // Maximum effort
-        adaptiveFiltering: true,
-      };
-    
-    case 'webp':
-      return {
-        lossless: true,        // Enable true lossless mode
-        quality: 100,
-        effort: 6,             // Maximum compression effort
-        nearLossless: false    // Disable near-lossless mode
-      };
-    
-    case 'avif':
-      return {
-        lossless: true,        // Enable true lossless mode
-        quality: 100,
-        effort: 9,             // Maximum compression effort
-        chromaSubsampling: '4:4:4'
-      };
-    
-    case 'tiff':
-      return {
-        quality: 100,
-        compression: 'deflate',
-        predictor: 'horizontal',
-        pyramid: false,
-        tile: true,
-        tileWidth: 256,
-        tileHeight: 256,
-        squash: false,
-        preserveIccProfile: true
-      };
-    
-    default:
-      return optimizationDefaults[format];
-  }
-};
-
-async function optimizeImage(input, output, settings) {
-  try {
-    console.error('Starting optimization with settings:', JSON.stringify(settings, null, 2));
-    const inputStats = fs.statSync(input);
-    const inputSize = inputStats.size;
-
-    let image = sharp(input);
-    const metadata = await image.metadata();
-    const inputFormat = metadata.format;
-    console.error('Input format:', inputFormat, 'dimensions:', metadata.width, 'x', metadata.height);
-
-    if (!optimizationDefaults[inputFormat]) {
-      throw new Error(`Unsupported input format: ${inputFormat}`);
-    }
-
-    // Determine output format
-    const outputFormat = settings?.outputFormat === 'original' ? inputFormat : settings.outputFormat;
-    console.error('Converting to format:', outputFormat);
-
-    if (!optimizationDefaults[outputFormat]) {
-      throw new Error(`Unsupported output format: ${outputFormat}`);
-    }
-
-    // Apply resize if needed
-    if (settings?.resize?.mode !== 'none' && settings?.resize?.size) {
-      const size = parseInt(settings.resize.size);
-      console.error('Applying resize:', settings.resize.mode, 'to size:', size);
-
-      switch (settings.resize.mode) {
-        case 'width':
-          image = image.resize(size, null, { 
-            withoutEnlargement: true,
-            fit: 'inside'
-          });
-          break;
-        
-        case 'height':
-          image = image.resize(null, size, { 
-            withoutEnlargement: true,
-            fit: 'inside'
-          });
-          break;
-        
-        case 'longest':
-          if (metadata.width >= metadata.height) {
-            image = image.resize(size, null, { 
-              withoutEnlargement: true,
-              fit: 'inside'
-            });
-          } else {
-            image = image.resize(null, size, { 
-              withoutEnlargement: true,
-              fit: 'inside'
-            });
-          }
-          break;
-        
-        case 'shortest':
-          if (metadata.width <= metadata.height) {
-            image = image.resize(size, null, { 
-              withoutEnlargement: true,
-              fit: 'inside'
-            });
-          } else {
-            image = image.resize(null, size, { 
-              withoutEnlargement: true,
-              fit: 'inside'
-            });
-          }
-          break;
-      }
-
-      const resizedMetadata = await image.metadata();
-      console.error('New dimensions after resize:', resizedMetadata.width, 'x', resizedMetadata.height);
-    }
-
-    // Get format options
-    let formatOptions;
-    if (settings?.quality?.global === 100) {
-      formatOptions = getLosslessSettings(outputFormat);
-      console.error('Using lossless settings for', outputFormat);
-    } else {
-      formatOptions = { ...optimizationDefaults[outputFormat] };
-      
-      // Override quality settings
-      if (settings?.quality) {
-        if (settings.quality[outputFormat] !== null) {
-          formatOptions.quality = settings.quality[outputFormat];
-        } else if (settings.quality.global !== null) {
-          formatOptions.quality = settings.quality.global;
-        }
-      }
-    }
-
-    console.error('Using format options:', formatOptions);
-
-    // Ensure output path has correct extension
-    let outputPath = output;
-    if (outputFormat !== inputFormat) {
-      const ext = `.${outputFormat}`;
-      if (!outputPath.toLowerCase().endsWith(ext)) {
-        outputPath = outputPath.replace(/\.[^/.]+$/, ext);
-      }
-    }
-    console.error('Writing to:', outputPath);
-
-    // Convert and save
-    await image.toFormat(outputFormat, formatOptions).toFile(outputPath);
-    
-    const outputStats = fs.statSync(outputPath);
-    const outputSize = outputStats.size;
-    const savedBytes = inputSize - outputSize;
-    const compressionRatio = ((savedBytes / inputSize) * 100).toFixed(2);
-
-    const result = {
-      path: outputPath,
-      optimized_size: outputSize,
-      original_size: inputSize,
-      saved_bytes: savedBytes,
-      compression_ratio: compressionRatio,
-      format: outputFormat,
-      success: true,
-      error: null
-    };
-    
-    return result;
-  } catch (err) {
-    console.error('Error in optimizeImage:', err);
-    throw err;
-  }
-}
-
-async function optimizeBatch(batchJson) {
-  try {
-    const batch = JSON.parse(batchJson);
-    console.error('Processing batch of', batch.length, 'images');
-    
-    const results = [];
-    for (const task of batch) {
+// Worker thread code
+if (!isMainThread && workerData?.isWorker) {
+  debug('Worker thread started');
+  parentPort.on('message', async ({ type, tasks }) => {
+    if (type === 'process') {
       try {
-        const result = await optimizeImage(task.input, task.output, task.settings);
-        results.push(result);
+        progress('Worker', `Received ${tasks.length} tasks`);
+        const results = [];
+        for (const task of tasks) {
+          try {
+            debug(`Processing task: ${task.input}`);
+            const result = await optimizeImage(task.input, task.output, task.settings);
+            results.push(result);
+            progress('Task', `Completed: ${task.input}`);
+          } catch (error) {
+            error(`Task failed: ${task.input}`, error);
+            results.push(createResultObject(
+              task.output,
+              { original_size: 0, optimized_size: 0, saved_bytes: 0, compression_ratio: "0.00" },
+              null,
+              false,
+              error.message
+            ));
+          }
+        }
+        progress('Worker', `Completed ${results.length} tasks`);
+        parentPort.postMessage(results);
       } catch (err) {
-        console.error('Error processing task:', task.input, err);
-        results.push({
-          path: task.output,
-          optimized_size: 0,
-          original_size: 0,
-          saved_bytes: 0,
-          compression_ratio: "0.00",
-          format: null,
-          success: false,
-          error: err.message
-        });
+        error('Worker error:', err);
+        parentPort.postMessage([]);
       }
     }
-    
-    console.log(JSON.stringify(results));
-    return results;
+  });
+}
+
+// Main thread code
+async function main() {
+  const command = process.argv[2];
+  const inputPath = process.argv[3];
+  const outputPath = process.argv[4];
+  const settingsArg = process.argv[5];
+
+  // Only run this in main thread
+  if (isMainThread) {
+    debug('Command arguments:', {
+      command,
+      input: inputPath,
+      output: outputPath,
+      settings: settingsArg
+    });
+  }
+
+  let settings;
+  try {
+    settings = settingsArg ? JSON.parse(settingsArg) : {
+      quality: { global: 90 },
+      resize: { mode: 'none', maintainAspect: true },
+      outputFormat: 'original'
+    };
+    debug('Parsed settings:', settings);
   } catch (err) {
-    console.error('Error in batch processing:', err);
-    throw err;
+    error('Error parsing settings:', err);
+    error('Raw settings string:', settingsArg);
+    process.exit(1);
+  }
+
+  try {
+    switch (command) {
+      case 'optimize':
+        if (!inputPath || !outputPath) {
+          error('Input and output paths are required');
+          process.exit(1);
+        }
+        try {
+          const result = await optimizeImage(inputPath, outputPath, settings);
+          // Ensure result is written to stdout
+          process.stdout.write(JSON.stringify(result));
+        } catch (err) {
+          error(err);
+          process.exit(1);
+        }
+        break;
+
+      case 'optimize-batch':
+        if (!inputPath) {
+          error('Batch JSON is required');
+          process.exit(1);
+        }
+        try {
+          await optimizeBatch(inputPath);
+        } catch (err) {
+          error(err);
+          process.exit(1);
+        }
+        break;
+
+      default:
+        error(`unknown command ${command}`);
+        process.exit(1);
+    }
+  } catch (err) {
+    error('Command execution failed:', err);
+    process.exit(1);
   }
 }
 
-switch (command) {
-  case 'optimize':
-    if (!inputPath || !outputPath) {
-      console.error('Input and output paths are required');
-      process.exit(1);
-    }
-    try {
-      const settings = settingsArg ? JSON.parse(settingsArg) : {
-        quality: { global: 90 },
-        resize: { mode: 'none', maintainAspect: true },
-        outputFormat: 'original'
-      };
-      optimizeImage(inputPath, outputPath, settings)
-        .then(result => console.log(JSON.stringify(result)))
-        .catch(err => {
-          console.error(err);
-          process.exit(1);
-        });
-    } catch (err) {
-      console.error('Error parsing settings:', err);
-      process.exit(1);
-    }
-    break;
-
-  case 'optimize-batch':
-    if (!inputPath) {
-      console.error('Batch JSON is required');
-      process.exit(1);
-    }
-    optimizeBatch(inputPath)
-      .catch(err => {
-        console.error(err);
-        process.exit(1);
-      });
-    break;
-
-  default:
-    console.error(`unknown command ${command}`);
+// Only run main in the main thread
+if (isMainThread) {
+  main().catch(err => {
+    error('Fatal error:', err);
     process.exit(1);
+  });
 }

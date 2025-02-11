@@ -31,6 +31,7 @@ pub struct ProcessPool {
     semaphore: Arc<Semaphore>,
     app: tauri::AppHandle,
     max_size: usize,
+    batch_size: Arc<Mutex<usize>>,
     active_count: Arc<Mutex<usize>>,
     task_queue: Arc<Mutex<VecDeque<QueuedTask>>>,
     benchmark_mode: Arc<Mutex<bool>>,
@@ -54,10 +55,19 @@ impl ProcessPool {
             semaphore: Arc::new(Semaphore::new(size)),
             app,
             max_size: size,
+            batch_size: Arc::new(Mutex::new(75)), // Default batch size
             active_count: Arc::new(Mutex::new(0)),
             task_queue: Arc::new(Mutex::new(VecDeque::new())),
             benchmark_mode: Arc::new(Mutex::new(false)),
         }
+    }
+
+    /// Sets the batch size for task processing
+    #[allow(dead_code)]  // False positive - used in BatchProcessor initialization
+    pub async fn set_batch_size(&self, size: usize) {
+        debug!("Setting batch size to {}", size);
+        let mut batch_size = self.batch_size.lock().await;
+        *batch_size = size;
     }
     
     /// Enqueues a task for processing
@@ -218,10 +228,10 @@ impl ProcessPool {
             return None;
         }
 
-        let chunk_size = self.max_size;
-        let mut chunk = Vec::with_capacity(chunk_size);
+        let batch_size = *self.batch_size.lock().await;
+        let mut chunk = Vec::with_capacity(batch_size);
         
-        for _ in 0..chunk_size {
+        for _ in 0..batch_size {
             if let Some(queued_task) = queue.pop_front() {
                 chunk.push(queued_task.task);
             } else {
