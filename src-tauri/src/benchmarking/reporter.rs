@@ -69,6 +69,14 @@ impl fmt::Display for BenchmarkReporter {
         writeln!(f, "- Average Processing Time: {}/image", self.calculate_average_processing_time())?;
         writeln!(f)?;
         
+        // Batch metrics
+        writeln!(f, "Batch Metrics:")?;
+        writeln!(f, "- Total Batches: {}", self.metrics.total_batches)?;
+        if self.metrics.mode_batch_size > 0 {
+            writeln!(f, "- Mode Batch Size: {} images", self.metrics.mode_batch_size)?;
+        }
+        writeln!(f)?;
+        
         // Optimization metrics
         writeln!(f, "Optimization Metrics:")?;
         writeln!(f, "- Compression Ratios:")?;

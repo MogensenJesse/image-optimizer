@@ -40,8 +40,8 @@ pub struct ProcessPool {
 impl ProcessPool {
     fn calculate_optimal_processes() -> usize {
         let cpu_count = num_cpus::get();
-        // Use 75% of CPUs (max 24) to maintain ~1.33:1 worker-to-process ratio with 2x worker count
-        ((cpu_count * 3) / 4).max(2).min(24)
+        // Use 90% of CPUs with no upper limit, minimum of 2 processes
+        ((cpu_count * 9) / 10).max(2)
     }
 
     pub fn new(app: tauri::AppHandle) -> Self {
@@ -181,6 +181,11 @@ impl ProcessPool {
         while let Some(chunk) = self.dequeue_chunk().await {
             let start_time = Instant::now();
             
+            // Record batch metrics if enabled
+            if let Some(metrics) = &mut benchmark_metrics {
+                metrics.record_batch(chunk.len());
+            }
+            
             // Execute the chunk using Sharp
             let chunk_results = match executor.execute_batch(&chunk).await {
                 Ok(results) => results,
@@ -192,21 +197,17 @@ impl ProcessPool {
                 for result in &chunk_results {
                     metrics.record_compression(result.original_size, result.optimized_size);
                 }
+                
+                // Record processing time
+                let duration = Duration::new_unchecked(start_time.elapsed().as_secs_f64());
+                metrics.add_processing_time(duration);
+                
+                // Record pool metrics
+                let active_count = *self.active_count.lock().await;
+                metrics.record_pool_metrics(active_count, queue_length);
             }
 
             results.extend(chunk_results);
-            
-            // Record metrics if in benchmark mode
-            if self.is_benchmark_mode().await {
-                let duration = Duration::new_unchecked(start_time.elapsed().as_secs_f64());
-                if let Some(metrics) = &mut benchmark_metrics {
-                    metrics.add_processing_time(duration);
-                    
-                    // Record pool metrics
-                    let active_count = *self.active_count.lock().await;
-                    metrics.record_pool_metrics(active_count, queue_length);
-                }
-            }
         }
 
         // Finalize benchmarking if enabled

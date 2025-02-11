@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Instant;
 use tracing::warn;
 use std::fmt;
+use std::collections::HashMap;
 
 /// Trait for types that can be benchmarked with detailed metrics
 pub trait Benchmarkable {
@@ -139,6 +140,11 @@ pub struct BenchmarkMetrics {
     pub total_original_size: u64,
     pub total_optimized_size: u64,
     
+    // Batch metrics
+    pub total_batches: usize,
+    pub batch_sizes: Vec<usize>,
+    pub mode_batch_size: usize,
+    
     // Internal tracking
     #[serde(skip)]
     start_time: Option<Instant>,
@@ -153,6 +159,9 @@ impl Default for BenchmarkMetrics {
             compression_ratios: Vec::new(),
             total_original_size: 0,
             total_optimized_size: 0,
+            total_batches: 0,
+            batch_sizes: Vec::new(),
+            mode_batch_size: 0,
             start_time: None,
         }
     }
@@ -174,6 +183,9 @@ impl BenchmarkMetrics {
         self.compression_ratios.clear();
         self.total_original_size = 0;
         self.total_optimized_size = 0;
+        self.total_batches = 0;
+        self.batch_sizes.clear();
+        self.mode_batch_size = 0;
         self.start_time = None;
     }
 
@@ -197,6 +209,28 @@ impl BenchmarkMetrics {
         self.compression_ratios.push(Percentage::new_unchecked(ratio));
     }
 
+    pub fn record_batch(&mut self, batch_size: usize) {
+        self.total_batches += 1;
+        self.batch_sizes.push(batch_size);
+    }
+
+    fn calculate_mode_batch_size(&self) -> usize {
+        if self.batch_sizes.is_empty() {
+            return 0;
+        }
+
+        let mut size_counts: HashMap<usize, usize> = HashMap::new();
+        for &size in &self.batch_sizes {
+            *size_counts.entry(size).or_insert(0) += 1;
+        }
+
+        size_counts
+            .into_iter()
+            .max_by_key(|&(_, count)| count)
+            .map(|(size, _)| size)
+            .unwrap_or(0)
+    }
+
     fn finalize_metrics(&mut self) -> Self {
         if let Some(start_time) = self.start_time {
             let total_duration = start_time.elapsed().as_secs_f64();
@@ -209,6 +243,9 @@ impl BenchmarkMetrics {
                     .sum::<f64>() / self.processing_times.len() as f64;
                 self.avg_processing_time = Duration::new_unchecked(avg_time);
             }
+
+            // Calculate mode batch size
+            self.mode_batch_size = self.calculate_mode_batch_size();
         }
 
         self.clone()
