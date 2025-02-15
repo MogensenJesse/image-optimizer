@@ -1,98 +1,93 @@
 # Image Optimizer
 
-A cross-platform desktop application built with Tauri v2 that optimizes images while maintaining quality. The app features a modern React frontend and leverages Sharp for efficient image processing.
+A high-performance desktop application for optimizing images while maintaining quality. Built with Tauri, React, and Sharp, it provides an efficient and user-friendly solution for image optimization tasks.
 
-## Features
+## ✨ Features
 
-- 🖼️ Drag and drop interface for image optimization
-- 📁 Batch processing support
-- 🚀 High-performance image processing using Sharp
-- 💾 Automatic creation of optimized output directories
+- 🖼️ Modern drag-and-drop interface
+- 📁 Efficient batch processing
+- 🚀 Multi-threaded image optimization
+- 💾 Smart output directory management
 - 📊 Real-time optimization statistics
-- 🎨 Native OS integration with window effects
-- 🔒 Secure architecture using Tauri's security model
+- 🎨 Native OS integration
+- 🔒 Secure processing architecture
 
-## Tech Stack
+## 🛠️ Technology Stack
 
-- **Frontend**: React 18
-- **Backend**: Rust + Tauri v2
-- **Image Processing**: Sharp (via Node.js sidecar)
-- **Build Tools**: Vite, pkg
+- **Frontend**: React 18 with modern JavaScript
+- **Backend**: Rust with Tauri v2
+- **Image Processing**: Sharp via Node.js sidecar
+- **Build System**: Vite
 
-## Project Structure
+## 🏗️ Architecture
+
+The application uses a three-tier architecture:
+- React frontend for user interface
+- Rust/Tauri backend for system operations
+- Node.js sidecar with Sharp for image processing
+
+```mermaid
+graph TD
+    A[React Frontend] -->|Image Tasks| B[Rust Backend]
+    B -->|Processing| C[Sharp Sidecar]
+    C -->|Results| B
+    B -->|Updates| A
+```
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Node.js v20 or later
+- Rust (latest stable)
+- [Tauri Prerequisites](https://v2.tauri.app/start/prerequisites/)
+
+### Installation
+
+1. Install dependencies:
+```bash
+# Frontend dependencies
+npm install
+
+# Sharp sidecar dependencies
+cd sharp-sidecar
+npm install
+```
+
+2. Development mode:
+```bash
+npm run tauri dev
+```
+
+3. Build for production:
+```bash
+npm run tauri build
+```
+
+4. Benchmark mode:
+```bash
+npm run tauri:benchmark
+```
+This mode enables performance metrics collection and detailed logging for optimization analysis.
+
+## 📁 Project Structure
 
 ```
 image-optimizer/
 ├── src/               # React frontend
 ├── src-tauri/         # Rust backend
-├── sharp-sidecar/     # Node.js image processing service
-└── dist/              # Built frontend files
+├── sharp-sidecar/     # Image processing service
+└── dist/              # Build output
 ```
 
-## Prerequisites
+## ⚡ Performance
 
-- [Node.js](https://nodejs.org/) (v20 or later)
-- [Rust](https://www.rust-lang.org/tools/install)
-- [Tauri Prerequisites](https://v2.tauri.app/start/prerequisites/)
+- **Multi-threaded image processing**: Leverages all available CPU cores to process multiple images simultaneously, significantly reducing total processing time.
 
-## Development Setup
+- **Efficient memory usage with stream processing**: Handles large images and batches without loading entire files into memory, preventing out-of-memory issues even with high-resolution images.
 
-1. Install dependencies:
-    ```bash
-    # Install frontend dependencies
-    npm install
+- **Optimized for large batch operations**: Smart batching system that automatically adjusts processing parameters based on file sizes and system resources.
 
-    # Install sharp-sidecar dependencies
-    cd sharp-sidecar
-    npm install
-    ```
+- **Real-time progress tracking**: Provides detailed insights into optimization progress, including compression ratios, time estimates, and resource usage.
 
-2. Run the development server:
-    ```bash
-    npm run tauri dev
-    ```
-
-## Building
-
-1. Build the application:
-    ```bash
-    npm run tauri build
-    ```
-
-This will:
-- Build the Sharp sidecar executable
-- Compile the React frontend
-- Package everything into a native executable
-
-## Architecture
-
-### Frontend (React)
-- Handles drag and drop functionality
-- Manages optimization state and progress
-- Provides real-time feedback on optimization process
-
-### Backend (Rust/Tauri)
-- Manages file system operations
-- Handles IPC between frontend and sidecar
-- Implements security boundaries
-- Controls process lifecycle
-
-### Sidecar (Node.js/Sharp)
-- Performs image optimization
-- Handles various image formats
-- Implements optimization algorithms
-
-## Plugins Used
-
-- `tauri-plugin-process`: Process management
-- `tauri-plugin-dialog`: Native dialogs
-- `tauri-plugin-fs`: File system operations
-- `tauri-plugin-shell`: Shell command execution
-- `tauri-plugin-opener`: File opening capabilities
-
-## Security
-
-- Implements Tauri's security model
-- Controlled file system access
-- Sandboxed image processing
-- Type-safe IPC communication
+- **Automatic resource management**: Dynamically adjusts worker threads and memory allocation based on system load and available resources.
