@@ -4,6 +4,32 @@ use tracing::warn;
 use std::fmt;
 use std::collections::HashMap;
 
+/// Metrics collected from the worker pool during processing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkerPoolMetrics {
+    pub worker_count: usize,
+    pub tasks_per_worker: Vec<usize>,
+    pub active_workers: usize,
+    pub queue_length: usize,
+    pub completed_tasks: usize,
+    pub total_tasks: usize,
+    pub duration_seconds: f64,
+}
+
+impl Default for WorkerPoolMetrics {
+    fn default() -> Self {
+        Self {
+            worker_count: 0,
+            tasks_per_worker: Vec::new(),
+            active_workers: 0,
+            queue_length: 0,
+            completed_tasks: 0,
+            total_tasks: 0,
+            duration_seconds: 0.0,
+        }
+    }
+}
+
 /// Trait for types that can be benchmarked with detailed metrics
 pub trait Benchmarkable {
     /// Record the processing time for a task
@@ -145,6 +171,9 @@ pub struct BenchmarkMetrics {
     pub batch_sizes: Vec<usize>,
     pub mode_batch_size: usize,
     
+    // Worker pool metrics
+    pub worker_pool: Option<WorkerPoolMetrics>,
+    
     // Internal tracking
     #[serde(skip)]
     start_time: Option<Instant>,
@@ -162,6 +191,7 @@ impl Default for BenchmarkMetrics {
             total_batches: 0,
             batch_sizes: Vec::new(),
             mode_batch_size: 0,
+            worker_pool: None,
             start_time: None,
         }
     }

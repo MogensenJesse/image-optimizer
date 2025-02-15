@@ -3,9 +3,17 @@ use crate::core::ImageTask;
 use crate::utils::{OptimizerError, OptimizerResult};
 use crate::core::OptimizationResult;
 use super::types::SharpResult;
+use crate::benchmarking::metrics::WorkerPoolMetrics;
 use tauri_plugin_shell::process::Output;
 use tracing::debug;
 use serde_json;
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+struct BatchOutput {
+    results: Vec<SharpResult>,
+    metrics: Option<WorkerPoolMetrics>,
+}
 
 pub struct SharpExecutor<'a> {
     pool: &'a ProcessPool,
@@ -17,16 +25,16 @@ impl<'a> SharpExecutor<'a> {
     }
 
     pub async fn execute_batch(&self, tasks: &[ImageTask]) 
-        -> OptimizerResult<Vec<OptimizationResult>> {
+        -> OptimizerResult<(Vec<OptimizationResult>, Option<WorkerPoolMetrics>)> {
         debug!("Processing batch with Sharp sidecar - {} tasks", tasks.len());
         let (sharp_result, output) = self.run_sharp_process(&tasks).await?;
 
         match sharp_result {
             Ok(_) => {
                 debug!("Collecting results for {} tasks", tasks.len());
-                // Parse Sharp output to get results
+                // Parse Sharp output to get results and metrics
                 let stdout = String::from_utf8_lossy(&output.stdout);
-                let sharp_results: Vec<SharpResult> = serde_json::from_str(&stdout)
+                let batch_output: BatchOutput = serde_json::from_str(&stdout)
                     .map_err(|e| OptimizerError::processing(format!(
                         "Failed to parse Sharp output: {}", e
                     )))?;
@@ -36,7 +44,7 @@ impl<'a> SharpExecutor<'a> {
                 let mut total_original = 0;
                 let mut total_optimized = 0;
                 
-                for (task, result) in tasks.iter().zip(sharp_results) {
+                for (task, result) in tasks.iter().zip(batch_output.results) {
                     total_original += result.original_size;
                     total_optimized += result.optimized_size;
 
@@ -60,7 +68,16 @@ impl<'a> SharpExecutor<'a> {
                     total_optimized,
                     total_saved_percentage
                 );
-                Ok(results)
+
+                if let Some(metrics) = &batch_output.metrics {
+                    debug!("Worker pool metrics received - Workers: {}, Active: {}, Queue: {}",
+                        metrics.worker_count,
+                        metrics.active_workers,
+                        metrics.queue_length
+                    );
+                }
+
+                Ok((results, batch_output.metrics))
             }
             Err(e) => Err(e),
         }
@@ -102,22 +119,19 @@ impl<'a> SharpExecutor<'a> {
             
             if !stdout.is_empty() {
                 // Parse Sharp output JSON
-                let sharp_results: Vec<serde_json::Value> = serde_json::from_str(&stdout)
+                let batch_output: BatchOutput = serde_json::from_str(&stdout)
                     .map_err(|e| OptimizerError::processing(format!(
                         "Failed to parse Sharp output: {}", e
                     )))?;
                 
-                debug!("Sharp sidecar processed {} results", sharp_results.len());
+                debug!("Sharp sidecar processed {} results", batch_output.results.len());
                 
                 // Verify each result matches a task and the file exists
-                for (task, result) in tasks.iter().zip(sharp_results.iter()) {
-                    let output_path = result["path"].as_str().ok_or_else(|| 
-                        OptimizerError::processing("Missing path in Sharp output".to_string())
-                    )?;
+                for (task, result) in tasks.iter().zip(batch_output.results.iter()) {
+                    let output_path = &result.path;
                     
-                    let success = result["success"].as_bool().unwrap_or(false);
-                    if !success {
-                        let error = result["error"].as_str().unwrap_or("Unknown error");
+                    if !result.success {
+                        let error = result.error.as_deref().unwrap_or("Unknown error");
                         let error_message = format!(
                             "Sharp processing failed for {}: {}", 
                             task.input_path, error

@@ -19,12 +19,42 @@ class SharpWorkerPool {
     );
     this.taskQueue = [];
     this.activeWorkers = 0;
+
+    // Initialize metrics
+    this.metrics = {
+      totalWorkers: maxWorkers,
+      tasksPerWorker: [],
+      activeWorkers: 0,
+      queueLength: 0,
+      startTime: null,
+      completedTasks: 0,
+      totalTasks: 0
+    };
+  }
+
+  /**
+   * Get current worker pool metrics
+   * @returns {Object} Current metrics state
+   */
+  getMetrics() {
+    const endTime = Date.now();
+    const duration = this.metrics.startTime ? (endTime - this.metrics.startTime) / 1000 : 0;
+
+    return {
+      worker_count: this.metrics.totalWorkers,
+      tasks_per_worker: this.metrics.tasksPerWorker,
+      active_workers: this.metrics.activeWorkers,
+      queue_length: this.metrics.queueLength,
+      completed_tasks: this.metrics.completedTasks,
+      total_tasks: this.metrics.totalTasks,
+      duration_seconds: duration
+    };
   }
 
   /**
    * Process a batch of image optimization tasks
    * @param {Array} batchData - Array of image processing tasks
-   * @returns {Promise<Array>} Array of processed results
+   * @returns {Promise<Object>} Object containing results and metrics
    */
   async processBatch(batchData) {
     return new Promise((resolve, reject) => {
@@ -32,12 +62,21 @@ class SharpWorkerPool {
       const batchSize = batchData.length;
       const chunkSize = Math.ceil(batchSize / this.maxWorkers);
       const results = new Array(batchSize);
-      let completedTasks = 0;
+      
+      // Initialize metrics for this batch
+      this.metrics.startTime = Date.now();
+      this.metrics.completedTasks = 0;
+      this.metrics.totalTasks = batchSize;
+      this.metrics.queueLength = batchSize;
 
       const chunks = [];
       for (let i = 0; i < batchData.length; i += chunkSize) {
         chunks.push(batchData.slice(i, i + chunkSize));
       }
+
+      // Update tasks per worker metrics
+      this.metrics.tasksPerWorker = chunks.map(chunk => chunk.length);
+      this.metrics.activeWorkers = chunks.length;
 
       console.error(`Split batch into ${chunks.length} chunks of size ${chunkSize}`);
 
@@ -61,14 +100,22 @@ class SharpWorkerPool {
             }
           });
 
-          completedTasks += workerResults.length;
-          console.error(`Completed ${completedTasks}/${batchSize} tasks`);
+          // Update metrics
+          this.metrics.completedTasks += workerResults.length;
+          this.metrics.queueLength = batchSize - this.metrics.completedTasks;
           
-          if (completedTasks >= batchSize) {
+          console.error(`Completed ${this.metrics.completedTasks}/${batchSize} tasks`);
+          
+          if (this.metrics.completedTasks >= batchSize) {
             // Filter out any undefined results
             const finalResults = results.filter(r => r !== undefined);
             console.error(`Batch processing complete. Final results: ${finalResults.length} items`);
-            resolve(finalResults);
+            
+            // Return both results and metrics
+            resolve({
+              results: finalResults,
+              metrics: this.getMetrics()
+            });
           }
         });
 

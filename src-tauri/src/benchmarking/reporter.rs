@@ -56,6 +56,21 @@ impl BenchmarkReporter {
             Duration::new_unchecked(avg_time)
         }
     }
+
+    fn format_tasks_per_worker(tasks_per_worker: &[usize]) -> String {
+        if tasks_per_worker.is_empty() {
+            return "N/A".to_string();
+        }
+
+        let min = tasks_per_worker.iter().min().unwrap_or(&0);
+        let max = tasks_per_worker.iter().max().unwrap_or(&0);
+        let avg = Self::safe_div(
+            tasks_per_worker.iter().sum::<usize>() as f64,
+            tasks_per_worker.len() as f64
+        );
+
+        format!("min: {}, max: {}, avg: {:.1}", min, max, avg)
+    }
 }
 
 impl fmt::Display for BenchmarkReporter {
@@ -68,6 +83,18 @@ impl fmt::Display for BenchmarkReporter {
         writeln!(f, "- Total Duration: {}", self.metrics.total_duration)?;
         writeln!(f, "- Average Processing Time: {}/image", self.calculate_average_processing_time())?;
         writeln!(f)?;
+        
+        // Worker pool metrics
+        if let Some(worker_metrics) = &self.metrics.worker_pool {
+            writeln!(f, "Worker Pool Metrics:")?;
+            writeln!(f, "- Total Workers: {}", worker_metrics.worker_count)?;
+            writeln!(f, "- Active Workers: {}", worker_metrics.active_workers)?;
+            writeln!(f, "- Tasks Distribution: {}", Self::format_tasks_per_worker(&worker_metrics.tasks_per_worker))?;
+            writeln!(f, "- Queue Length: {}", worker_metrics.queue_length)?;
+            writeln!(f, "- Completed Tasks: {}/{}", worker_metrics.completed_tasks, worker_metrics.total_tasks)?;
+            writeln!(f, "- Processing Duration: {:.2}s", worker_metrics.duration_seconds)?;
+            writeln!(f)?;
+        }
         
         // Batch metrics
         writeln!(f, "Batch Metrics:")?;

@@ -187,8 +187,8 @@ impl ProcessPool {
             }
             
             // Execute the chunk using Sharp
-            let chunk_results = match executor.execute_batch(&chunk).await {
-                Ok(results) => results,
+            let (chunk_results, worker_metrics) = match executor.execute_batch(&chunk).await {
+                Ok((results, metrics)) => (results, metrics),
                 Err(e) => return Err(e)
             };
 
@@ -205,6 +205,17 @@ impl ProcessPool {
                 // Record pool metrics
                 let active_count = *self.active_count.lock().await;
                 metrics.record_pool_metrics(active_count, queue_length);
+
+                // Record worker pool metrics if available
+                if let Some(worker_metrics) = worker_metrics {
+                    metrics.worker_pool = Some(worker_metrics.clone());
+                    debug!(
+                        "Worker metrics - Workers: {}, Active: {}, Tasks per worker: {:?}",
+                        worker_metrics.worker_count,
+                        worker_metrics.active_workers,
+                        worker_metrics.tasks_per_worker
+                    );
+                }
             }
 
             results.extend(chunk_results);

@@ -10,7 +10,7 @@ const { error, debug, progress } = require('../utils');
 /**
  * Process a batch of images
  * @param {string} batchJson - JSON string containing batch processing tasks
- * @returns {Promise<Array>} Array of processing results
+ * @returns {Promise<Object>} Object containing results array and metrics
  */
 async function optimizeBatch(batchJson) {
   if (!isMainThread) return;
@@ -22,15 +22,23 @@ async function optimizeBatch(batchJson) {
     
     const pool = new SharpWorkerPool();
     try {
-      const results = await pool.processBatch(batch);
+      const { results, metrics } = await pool.processBatch(batch);
+      
       if (!results || results.length === 0) {
         error('No results returned from worker pool');
         process.exit(1);
       }
+
       progress('Complete', `Successfully processed ${results.length} images`);
-      // Ensure results are written to stdout
-      process.stdout.write(JSON.stringify(results));
-      return results;
+      debug('Worker pool metrics:', metrics);
+
+      // Output both results and metrics
+      const output = {
+        results,
+        metrics
+      };
+      process.stdout.write(JSON.stringify(output));
+      return output;
     } finally {
       await pool.terminate();
     }
