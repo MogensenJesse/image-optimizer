@@ -1,6 +1,15 @@
 # Image Optimizer
 
-A high-performance desktop application for optimizing images while maintaining quality. Built with Tauri, React, and Sharp, it provides an efficient and user-friendly solution for image optimization tasks.
+A high-performance desktop application for batch optimizing images while maintaining quality. Built with Tauri, React, and Sharp, it provides an efficient and user-friendly solution for image optimization tasks.
+
+This application is aimed at:
+- 📸 Photographers optimizing large photo collections
+- 🎨 Designers preparing images for web and mobile apps
+- 🌐 Web developers reducing website load times
+- 🖥️ Content creators managing media assets
+- 📱 App developers optimizing application resources
+
+The application automatically balances compression and quality, ensuring images stay perceptually lossless while significantly reducing file sizes.
 
 ## ✨ Features
 
@@ -80,7 +89,7 @@ image-optimizer/
 └── dist/              # Build output
 ```
 
-## ⚡ Performance
+## ⚡ Performance optimizations
 
 - **Multi-threaded image processing**: Leverages all available CPU cores to process multiple images simultaneously, significantly reducing total processing time.
 
