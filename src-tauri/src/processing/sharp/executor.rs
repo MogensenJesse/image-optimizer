@@ -73,7 +73,7 @@ impl<'a> SharpExecutor<'a> {
                     debug!("Worker pool metrics received - Workers: {}, Active: {}, Queue: {}",
                         metrics.worker_count,
                         metrics.active_workers,
-                        metrics.queue_length
+                        metrics.total_tasks
                     );
                 }
 
