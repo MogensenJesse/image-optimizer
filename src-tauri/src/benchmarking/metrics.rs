@@ -10,7 +10,10 @@ pub struct WorkerPoolMetrics {
     pub worker_count: usize,
     pub tasks_per_worker: Vec<usize>,
     pub active_workers: usize,
+    pub queue_length: usize,
+    pub completed_tasks: usize,
     pub total_tasks: usize,
+    pub duration_seconds: f64,
 }
 
 impl Default for WorkerPoolMetrics {
@@ -19,7 +22,10 @@ impl Default for WorkerPoolMetrics {
             worker_count: 0,
             tasks_per_worker: Vec::new(),
             active_workers: 0,
+            queue_length: 0,
+            completed_tasks: 0,
             total_tasks: 0,
+            duration_seconds: 0.0,
         }
     }
 }
@@ -281,11 +287,8 @@ impl Benchmarkable for BenchmarkMetrics {
         self.record_processing_time(duration);
     }
 
-    fn record_pool_metrics(&mut self, active_processes: usize, queue_length: usize) {
-        // Create or update worker pool metrics
-        let worker_metrics = self.worker_pool.get_or_insert_with(WorkerPoolMetrics::default);
-        worker_metrics.active_workers = active_processes;
-        worker_metrics.total_tasks = active_processes + queue_length;
+    fn record_pool_metrics(&mut self, _active_processes: usize, _queue_length: usize) {
+        // Process pool metrics removed
     }
 
     fn finalize_benchmarking(&mut self) -> BenchmarkMetrics {

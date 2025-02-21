@@ -3,14 +3,14 @@ use std::collections::VecDeque;
 use tokio::sync::{Mutex, Semaphore};
 use tauri_plugin_shell::{ShellExt, process::Command};
 use crate::utils::{OptimizerError, OptimizerResult};
-use crate::benchmarking::metrics::Benchmarkable;
+use crate::benchmarking::metrics::{Duration, BenchmarkMetrics, Benchmarkable};
 use crate::benchmarking::reporter::BenchmarkReporter;
 use crate::core::ImageTask;
+use crate::processing::sharp::SharpExecutor;
 use crate::core::OptimizationResult;
 use tracing::{debug, info};
 use num_cpus;
-use tauri::AppHandle;
-use crate::processing::BatchProcessor;
+use std::time::Instant;
 
 /// Task queue entry with timing information
 #[derive(Debug)]
@@ -29,7 +29,7 @@ impl QueuedTask {
 #[derive(Clone)]
 pub struct ProcessPool {
     semaphore: Arc<Semaphore>,
-    app_handle: AppHandle,
+    app: tauri::AppHandle,
     max_size: usize,
     batch_size: Arc<Mutex<usize>>,
     active_count: Arc<Mutex<usize>>,
@@ -44,16 +44,16 @@ impl ProcessPool {
         ((cpu_count * 9) / 10).max(2)
     }
 
-    pub fn new(app_handle: AppHandle) -> Self {
+    pub fn new(app: tauri::AppHandle) -> Self {
         let size = Self::calculate_optimal_processes();
         debug!("Creating process pool with {} processes (based on {} CPU cores)", size, num_cpus::get());
-        Self::new_with_size(app_handle, size)
+        Self::new_with_size(app, size)
     }
 
-    pub fn new_with_size(app_handle: AppHandle, size: usize) -> Self {
+    pub fn new_with_size(app: tauri::AppHandle, size: usize) -> Self {
         Self {
             semaphore: Arc::new(Semaphore::new(size)),
-            app_handle,
+            app,
             max_size: size,
             batch_size: Arc::new(Mutex::new(75)), // Default batch size
             active_count: Arc::new(Mutex::new(0)),
@@ -94,7 +94,7 @@ impl ProcessPool {
         }
         
         // Create the sidecar command
-        self.app_handle.shell()
+        self.app.shell()
             .sidecar("sharp-sidecar")
             .map_err(|e| OptimizerError::sidecar(format!("Sidecar spawn failed: {}", e)))
     }
@@ -157,26 +157,84 @@ impl ProcessPool {
     
     /// Processes a batch of tasks using the available processes
     pub async fn process_batch(&self, tasks: Vec<ImageTask>) -> OptimizerResult<Vec<OptimizationResult>> {
-        // Create batch processor with progress tracking
-        let mut processor = BatchProcessor::new(self.clone(), self.app_handle.clone()).await;
-        let results = processor.process_batch(tasks).await?;
+        let mut benchmark_metrics = if self.is_benchmark_mode().await {
+            let mut metrics = BenchmarkMetrics::new(tasks.len());
+            metrics.reset(); // Reset metrics before starting new batch
+            metrics.start_benchmarking();
+            Some(metrics)
+        } else {
+            None
+        };
 
-        // Handle benchmarking if enabled
-        if self.is_benchmark_mode().await {
-            if let Some(mut metrics) = processor.take_metrics() {
-                let final_metrics = metrics.finalize_benchmarking();
-                
-                // Display benchmark report
-                let report = BenchmarkReporter::from_metrics(final_metrics);
-                info!("\n=== Batch Processing Report ===\n{}", report);
+        // Enqueue all tasks
+        for task in tasks {
+            self.enqueue_task(task).await;
+        }
+        
+        let queue_length = self.queue_length().await;
+        debug!("Processing batch of {} tasks", queue_length);
+        
+        let mut results = Vec::new();
+        let executor = SharpExecutor::new(self);
+        
+        // Process tasks in chunks to maximize throughput
+        while let Some(chunk) = self.dequeue_chunk().await {
+            let start_time = Instant::now();
+            
+            // Record batch metrics if enabled
+            if let Some(metrics) = &mut benchmark_metrics {
+                metrics.record_batch(chunk.len());
             }
+            
+            // Execute the chunk using Sharp
+            let (chunk_results, worker_metrics) = match executor.execute_batch(&chunk).await {
+                Ok((results, metrics)) => (results, metrics),
+                Err(e) => return Err(e)
+            };
+
+            // Record metrics for each result
+            if let Some(metrics) = &mut benchmark_metrics {
+                for result in &chunk_results {
+                    metrics.record_compression(result.original_size, result.optimized_size);
+                }
+                
+                // Record processing time
+                let duration = Duration::new_unchecked(start_time.elapsed().as_secs_f64());
+                metrics.add_processing_time(duration);
+                
+                // Record pool metrics
+                let active_count = *self.active_count.lock().await;
+                metrics.record_pool_metrics(active_count, queue_length);
+
+                // Record worker pool metrics if available
+                if let Some(worker_metrics) = worker_metrics {
+                    metrics.worker_pool = Some(worker_metrics.clone());
+                    debug!(
+                        "Worker metrics - Workers: {}, Active: {}, Tasks per worker: {:?}",
+                        worker_metrics.worker_count,
+                        worker_metrics.active_workers,
+                        worker_metrics.tasks_per_worker
+                    );
+                }
+            }
+
+            results.extend(chunk_results);
         }
 
+        // Finalize benchmarking if enabled
+        if let Some(mut metrics) = benchmark_metrics {
+            let final_metrics = metrics.finalize_benchmarking();
+            
+            // Display benchmark report
+            let report = BenchmarkReporter::from_metrics(final_metrics);
+            info!("\n=== Batch Processing Report ===\n{}", report);
+        }
+        
         Ok(results)
     }
     
     /// Gets a chunk of tasks from the queue for batch processing
-    pub async fn dequeue_chunk(&self) -> Option<Vec<ImageTask>> {
+    async fn dequeue_chunk(&self) -> Option<Vec<ImageTask>> {
         let mut queue = self.task_queue.lock().await;
         if queue.is_empty() {
             return None;
@@ -207,19 +265,5 @@ impl ProcessPool {
             active_tasks.push(task.task.input_path.clone());
         }
         active_tasks
-    }
-
-    /// Collects current worker pool metrics
-    pub async fn collect_worker_metrics(&self) -> crate::benchmarking::metrics::WorkerPoolMetrics {
-        let active_count = *self.active_count.lock().await;
-        let queue_len = self.queue_length().await;
-        let total_tasks = queue_len + active_count;
-
-        crate::benchmarking::metrics::WorkerPoolMetrics {
-            worker_count: self.max_size,
-            tasks_per_worker: vec![total_tasks / self.max_size; self.max_size], // Approximate distribution
-            active_workers: active_count,
-            total_tasks,
-        }
     }
 } 

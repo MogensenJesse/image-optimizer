@@ -4,7 +4,6 @@ import { listen } from '@tauri-apps/api/event';
 import { dirname, join } from '@tauri-apps/api/path';
 import { mkdir } from "@tauri-apps/plugin-fs";
 import FloatingMenu from "./components/FloatingMenu";
-import ProgressBar from "./components/ProgressBar";
 
 function formatSize(bytes) {
   const absBytes = Math.abs(bytes);
@@ -19,7 +18,6 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [optimizationResults, setOptimizationResults] = useState([]);
-  const [progress, setProgress] = useState(null);
   const processingRef = useRef(false);
   const [settings, setSettings] = useState({
     quality: {
@@ -44,11 +42,6 @@ function App() {
   };
 
   useEffect(() => {
-    // Progress event listener
-    const unsubscribeProgress = listen("optimization_progress", (event) => {
-      setProgress(event.payload);
-    });
-
     const unsubscribeDrop = listen("tauri://drag-drop", async (event) => {
       if (processingRef.current) return;
       processingRef.current = true;
@@ -100,7 +93,6 @@ function App() {
     });
 
     return () => {
-      unsubscribeProgress.then(fn => fn());
       unsubscribeDrop.then(fn => fn());
       unsubscribeEnter.then(fn => fn());
       unsubscribeLeave.then(fn => fn());
@@ -117,7 +109,6 @@ function App() {
           {isProcessing ? (
             <div className="processing-info">
               <h2 className="processing-info__title">Processing...</h2>
-              <ProgressBar progress={progress} />
             </div>
           ) : (
             <div className="dropzone__message">

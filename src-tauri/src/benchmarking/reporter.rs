@@ -90,6 +90,9 @@ impl fmt::Display for BenchmarkReporter {
             writeln!(f, "- Total Workers: {}", worker_metrics.worker_count)?;
             writeln!(f, "- Active Workers: {}", worker_metrics.active_workers)?;
             writeln!(f, "- Tasks Distribution: {}", Self::format_tasks_per_worker(&worker_metrics.tasks_per_worker))?;
+            writeln!(f, "- Queue Length: {}", worker_metrics.queue_length)?;
+            writeln!(f, "- Completed Tasks: {}/{}", worker_metrics.completed_tasks, worker_metrics.total_tasks)?;
+            writeln!(f, "- Processing Duration: {:.2}s", worker_metrics.duration_seconds)?;
             writeln!(f)?;
         }
         
