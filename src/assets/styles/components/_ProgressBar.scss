@@ -1,0 +1,25 @@
+// ProgressBar Component Styles
+.progress-info {
+  &__text {
+    margin-bottom: 0.5rem;
+  }
+
+  &__percentage {
+    font-weight: bold;
+    margin-top: 0.5rem;
+  }
+}
+
+.progress-bar {
+  height: 16px;
+  background: rgba(50, 50, 50, 0.3);
+  border-radius: 8px;
+  margin: 15px 0;
+  overflow: hidden;
+
+  &__fill {
+    height: 100%;
+    background: #4caf50;
+    transition: width 0.5s ease-in-out;
+  }
+} 
