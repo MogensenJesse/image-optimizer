@@ -1,6 +1,9 @@
 const { Worker } = require('worker_threads');
 const os = require('os');
 const path = require('path');
+const debug = require('debug')('sharp-sidecar:worker-pool');
+const error = require('debug')('sharp-sidecar:worker-pool:error');
+const { createProgressUpdate } = require('../utils/progress');
 
 /**
  * Manages a pool of Sharp worker threads for parallel image processing
@@ -12,24 +15,34 @@ class SharpWorkerPool {
    */
   constructor(maxWorkers = os.cpus().length) {
     this.maxWorkers = maxWorkers;
-    this.workers = new Array(this.maxWorkers).fill(null).map(() => 
+    this.workers = [];
+    this.metrics = {
+      startTime: 0,
+      completedTasks: 0,
+      totalTasks: 0,
+      queueLength: 0,
+      worker_count: maxWorkers,
+      active_workers: 0,
+      tasks_per_worker: []
+    };
+    this.lastProgressPercentage = 0;
+    this.lastProgressTime = Date.now();
+    this.progressThrottleMs = 500; // Minimum 500ms between updates
+    this.initializeWorkers();
+  }
+
+  /**
+   * Initialize workers
+   */
+  initializeWorkers() {
+    this.workers = new Array(this.maxWorkers).fill(null).map((_, index) => 
       new Worker(path.join(__dirname, '../../index.js'), { 
-        workerData: { isWorker: true }
+        workerData: { 
+          isWorker: true,
+          workerId: index 
+        }
       })
     );
-    this.taskQueue = [];
-    this.activeWorkers = 0;
-
-    // Initialize metrics
-    this.metrics = {
-      totalWorkers: maxWorkers,
-      tasksPerWorker: [],
-      activeWorkers: 0,
-      queueLength: 0,
-      startTime: null,
-      completedTasks: 0,
-      totalTasks: 0
-    };
   }
 
   /**
@@ -41,14 +54,51 @@ class SharpWorkerPool {
     const duration = this.metrics.startTime ? (endTime - this.metrics.startTime) / 1000 : 0;
 
     return {
-      worker_count: this.metrics.totalWorkers,
-      tasks_per_worker: this.metrics.tasksPerWorker,
-      active_workers: this.metrics.activeWorkers,
+      worker_count: this.metrics.worker_count,
+      tasks_per_worker: this.metrics.tasks_per_worker,
+      active_workers: this.metrics.active_workers,
       queue_length: this.metrics.queueLength,
       completed_tasks: this.metrics.completedTasks,
       total_tasks: this.metrics.totalTasks,
       duration_seconds: duration
     };
+  }
+
+  /**
+   * Send a throttled progress update
+   * Only sends updates when the percentage changes significantly or after time threshold
+   */
+  sendProgressUpdate() {
+    const currentTime = Date.now();
+    const currentPercentage = Math.floor((this.metrics.completedTasks / this.metrics.totalTasks) * 100);
+    const timeSinceLastUpdate = currentTime - this.lastProgressTime;
+    
+    // Send update if:
+    // 1. Percentage has increased, AND
+    // 2. Either:
+    //    a. It's been at least progressThrottleMs since last update, OR
+    //    b. It's a milestone percentage (0%, 25%, 50%, 75%, 100%)
+    const isMilestone = currentPercentage % 25 === 0 || currentPercentage === 100;
+    
+    if (currentPercentage > this.lastProgressPercentage && 
+        (timeSinceLastUpdate >= this.progressThrottleMs || isMilestone)) {
+      
+      this.lastProgressPercentage = currentPercentage;
+      this.lastProgressTime = currentTime;
+      
+      // Use the new unified format
+      const progressUpdate = createProgressUpdate(
+        this.metrics.completedTasks,
+        this.metrics.totalTasks,
+        'processing',
+        {
+          queueLength: this.metrics.queueLength,
+          activeWorkers: this.metrics.active_workers
+        }
+      );
+      
+      console.log(JSON.stringify(progressUpdate));
+    }
   }
 
   /**
@@ -58,7 +108,7 @@ class SharpWorkerPool {
    */
   async processBatch(batchData) {
     return new Promise((resolve, reject) => {
-      console.error(`Starting batch processing with ${this.maxWorkers} workers`);
+      debug(`Starting batch processing with ${this.maxWorkers} workers`);
       const batchSize = batchData.length;
       const chunkSize = Math.ceil(batchSize / this.maxWorkers);
       const results = new Array(batchSize);
@@ -75,58 +125,126 @@ class SharpWorkerPool {
       }
 
       // Update tasks per worker metrics
-      this.metrics.tasksPerWorker = chunks.map(chunk => chunk.length);
-      this.metrics.activeWorkers = chunks.length;
+      this.metrics.tasks_per_worker = chunks.map(chunk => chunk.length);
+      this.metrics.active_workers = chunks.length;
 
-      console.error(`Split batch into ${chunks.length} chunks of size ${chunkSize}`);
+      debug(`Split batch into ${chunks.length} chunks of size ${chunkSize}`);
 
       chunks.forEach((chunk, workerIndex) => {
         const worker = this.workers[workerIndex];
-        console.error(`Assigning ${chunk.length} tasks to worker ${workerIndex}`);
+        debug(`Assigning ${chunk.length} tasks to worker ${workerIndex}`);
         
         worker.postMessage({
           type: 'process',
           tasks: chunk
         });
 
-        worker.on('message', (workerResults) => {
-          console.error(`Received results from worker ${workerIndex}: ${workerResults.length} items`);
-          
-          // Store results in correct order
-          workerResults.forEach((result, index) => {
-            const globalIndex = workerIndex * chunkSize + index;
-            if (globalIndex < batchSize) {
-              results[globalIndex] = result;
-            }
-          });
-
-          // Update metrics
-          this.metrics.completedTasks += workerResults.length;
-          this.metrics.queueLength = batchSize - this.metrics.completedTasks;
-          
-          console.error(`Completed ${this.metrics.completedTasks}/${batchSize} tasks`);
-          
-          if (this.metrics.completedTasks >= batchSize) {
-            // Filter out any undefined results
-            const finalResults = results.filter(r => r !== undefined);
-            console.error(`Batch processing complete. Final results: ${finalResults.length} items`);
+        worker.on('message', (message) => {
+          if (message.type === 'progress') {
+            // Forward progress messages to stdout for Rust to parse
+            console.log(JSON.stringify({
+              type: 'progress',
+              progressType: message.progressType,
+              taskId: message.taskId,
+              workerId: workerIndex,
+              result: message.result,
+              error: message.error,
+              metrics: {
+                completedTasks: this.metrics.completedTasks,
+                totalTasks: this.metrics.totalTasks,
+                queueLength: this.metrics.queueLength
+              }
+            }));
             
-            // Return both results and metrics
-            resolve({
-              results: finalResults,
-              metrics: this.getMetrics()
+            // If this is a completion message, update metrics and send a throttled update
+            if (message.progressType === 'complete') {
+              this.metrics.completedTasks += 1;
+              this.metrics.queueLength = this.metrics.totalTasks - this.metrics.completedTasks;
+              this.sendProgressUpdate();
+            }
+          } else if (message.type === 'results') {
+            debug(`Received results from worker ${workerIndex}: ${message.results.length} items`);
+            
+            // Store results in correct order
+            message.results.forEach((result, index) => {
+              const globalIndex = workerIndex * chunkSize + index;
+              if (globalIndex < batchSize) {
+                results[globalIndex] = result;
+              }
             });
+
+            // Update metrics
+            this.metrics.completedTasks += message.results.length;
+            this.metrics.queueLength = batchSize - this.metrics.completedTasks;
+            
+            debug(`Completed ${this.metrics.completedTasks}/${batchSize} tasks`);
+            
+            if (this.metrics.completedTasks >= batchSize) {
+              // Filter out any undefined results
+              const finalResults = results.filter(r => r !== undefined);
+              debug(`Batch processing complete. Final results: ${finalResults.length} items`);
+              
+              // Send final progress update with 100%
+              const finalProgressUpdate = createProgressUpdate(
+                this.metrics.totalTasks,
+                this.metrics.totalTasks,
+                'complete',
+                {
+                  queueLength: 0,
+                  activeWorkers: this.metrics.active_workers
+                }
+              );
+              
+              console.log(JSON.stringify(finalProgressUpdate));
+              
+              // Return both results and metrics
+              resolve({
+                results: finalResults,
+                metrics: this.getMetrics()
+              });
+            }
+          } else if (message.type === 'error') {
+            error(`Worker ${workerIndex} error:`, message.error);
+            
+            // Send error progress update
+            const errorProgressUpdate = createProgressUpdate(
+              this.metrics.completedTasks,
+              this.metrics.totalTasks,
+              'error',
+              {
+                queueLength: this.metrics.queueLength,
+                activeWorkers: this.metrics.active_workers,
+                error: message.error
+              }
+            );
+            
+            console.log(JSON.stringify(errorProgressUpdate));
           }
         });
 
-        worker.on('error', (error) => {
-          console.error(`Worker ${workerIndex} error:`, error);
-          reject(error);
+        worker.on('error', (err) => {
+          error(`Worker ${workerIndex} error:`, err);
+          
+          // Send error progress update
+          const workerErrorUpdate = createProgressUpdate(
+            this.metrics.completedTasks,
+            this.metrics.totalTasks,
+            'error',
+            {
+              queueLength: this.metrics.queueLength,
+              activeWorkers: this.metrics.active_workers,
+              error: err.message || 'Worker error'
+            }
+          );
+          
+          console.log(JSON.stringify(workerErrorUpdate));
+          
+          reject(err);
         });
 
         worker.on('exit', (code) => {
           if (code !== 0) {
-            console.error(`Worker ${workerIndex} exited with code ${code}`);
+            error(`Worker ${workerIndex} exited with code ${code}`);
           }
         });
       });

@@ -2,12 +2,14 @@ use crate::processing::pool::ProcessPool;
 use crate::core::ImageTask;
 use crate::utils::{OptimizerError, OptimizerResult};
 use crate::core::OptimizationResult;
-use super::types::SharpResult;
+use super::types::{SharpResult, ProgressMessage, ProgressType, ProgressUpdate};
 use crate::benchmarking::metrics::WorkerPoolMetrics;
-use tauri_plugin_shell::process::Output;
-use tracing::debug;
+use tauri_plugin_shell::process::{CommandEvent, TerminatedPayload};
+use tracing::{debug, info, warn};
 use serde_json;
 use serde::Deserialize;
+use std::str::from_utf8;
+use tauri::Emitter;
 
 #[derive(Debug, Deserialize)]
 struct BatchOutput {
@@ -24,67 +26,97 @@ impl<'a> SharpExecutor<'a> {
         Self { pool }
     }
 
-    pub async fn execute_batch(&self, tasks: &[ImageTask]) 
-        -> OptimizerResult<(Vec<OptimizationResult>, Option<WorkerPoolMetrics>)> {
-        debug!("Processing batch with Sharp sidecar - {} tasks", tasks.len());
-        let (sharp_result, output) = self.run_sharp_process(&tasks).await?;
+    /// Extract filename from a path
+    fn extract_filename<'b>(&self, path: &'b str) -> &'b str {
+        std::path::Path::new(path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(path)
+    }
 
-        match sharp_result {
-            Ok(_) => {
-                debug!("Collecting results for {} tasks", tasks.len());
-                // Parse Sharp output to get results and metrics
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let batch_output: BatchOutput = serde_json::from_str(&stdout)
-                    .map_err(|e| OptimizerError::processing(format!(
-                        "Failed to parse Sharp output: {}", e
-                    )))?;
-
-                // Collect results for each task
-                let mut results = Vec::with_capacity(tasks.len());
-                let mut total_original = 0;
-                let mut total_optimized = 0;
-                
-                for (task, result) in tasks.iter().zip(batch_output.results) {
-                    total_original += result.original_size;
-                    total_optimized += result.optimized_size;
-
-                    results.push(OptimizationResult {
-                        original_path: task.input_path.clone(),
-                        optimized_path: result.path,
-                        original_size: result.original_size,
-                        optimized_size: result.optimized_size,
-                        success: result.success,
-                        error: result.error,
-                        saved_bytes: result.saved_bytes,
-                        compression_ratio: result.compression_ratio.parse().unwrap_or(0.0),
-                    });
-                }
-                
-                let total_saved_percentage = ((total_original - total_optimized) as f64 / total_original as f64 * 100.0).round();
+    /// Handles a progress message from the sidecar
+    fn handle_progress(&self, message: ProgressMessage) {
+        let filename = self.extract_filename(&message.task_id);
+        
+        match message.progress_type {
+            ProgressType::Start => {
                 debug!(
-                    "Batch completed - Tasks: {}, Total Original: {}, Total Optimized: {}, Average Savings: {}%",
-                    results.len(),
-                    total_original,
-                    total_optimized,
-                    total_saved_percentage
+                    "🔄 Worker {} started processing {}",
+                    message.worker_id,
+                    filename
                 );
-
-                if let Some(metrics) = &batch_output.metrics {
-                    debug!("Worker pool metrics received - Workers: {}, Active: {}, Queue: {}",
-                        metrics.worker_count,
-                        metrics.active_workers,
-                        metrics.total_tasks
+            }
+            ProgressType::Complete => {
+                if let Some(result) = message.result {
+                    debug!(
+                        "✅ Worker {} completed {} - Saved {} bytes ({}% reduction)",
+                        message.worker_id,
+                        filename,
+                        result.saved_bytes,
+                        result.compression_ratio
                     );
                 }
-
-                Ok((results, batch_output.metrics))
             }
-            Err(e) => Err(e),
+            ProgressType::Error => {
+                // Keep errors at warn level for visibility
+                warn!(
+                    "❌ Worker {} failed processing {} - {}",
+                    message.worker_id,
+                    filename,
+                    message.error.unwrap_or_else(|| "Unknown error".to_string())
+                );
+            }
+            _ => {}
+        }
+
+        // Only log metrics at debug level
+        if let Some(metrics) = message.metrics {
+            debug!(
+                "📊 Progress: {}/{} tasks completed ({} in queue)",
+                metrics.completed_tasks,
+                metrics.total_tasks,
+                metrics.queue_length
+            );
         }
     }
 
-    async fn run_sharp_process(&self, tasks: &[ImageTask]) 
-        -> OptimizerResult<(OptimizerResult<()>, Output)> {
+    /// Handles a simplified progress update from the sidecar
+    fn handle_progress_update(&self, update: ProgressUpdate) {
+        // Always log at debug level
+        debug!(
+            "Progress: {}% ({}/{} tasks)",
+            update.progress_percentage,
+            update.completed_tasks,
+            update.total_tasks
+        );
+        
+        // Only log at info level for milestone percentages in benchmark mode
+        if update.progress_percentage % 25 == 0 || update.progress_percentage == 100 {
+            // Check if we're in benchmark mode
+            #[cfg(feature = "benchmark")]
+            info!(
+                "📊 Progress: {}% ({}/{} tasks)",
+                update.progress_percentage,
+                update.completed_tasks,
+                update.total_tasks
+            );
+        }
+        
+        // Emit event for frontend progress bar
+        if let Some(app) = self.pool.get_app() {
+            // Clone the update to avoid borrowing issues
+            let update_clone = update.clone();
+            
+            // Emit the progress event to the frontend
+            let _ = app.emit("image_optimization_progress", update_clone);
+        }
+    }
+
+    pub async fn execute_batch(&self, tasks: &[ImageTask]) 
+        -> OptimizerResult<(Vec<OptimizationResult>, Option<WorkerPoolMetrics>)> {
+        debug!("Starting batch processing");
+        info!("Processing batch of {} tasks", tasks.len());
+        
         // Acquire a process from the pool
         let cmd = self.pool.acquire().await?;
         
@@ -97,73 +129,89 @@ impl<'a> SharpExecutor<'a> {
             })
         }).collect::<Vec<_>>();
 
-        debug!("Prepared {} tasks for Sharp processing", tasks.len());
-
         let batch_json = serde_json::to_string(&batch_data)
             .map_err(|e| OptimizerError::processing(format!("Failed to serialize batch settings: {}", e)))?;
         
-        // Run the command
-        let output = cmd
+        // Run the command and capture output stream
+        let (mut rx, _child) = cmd
             .args(&["optimize-batch", &batch_json])
-            .output()
-            .await
-            .map_err(|e| OptimizerError::sidecar(format!("Failed to run Sharp: {}", e)))?;
-        
-        // Release the process back to the pool
-        self.pool.release().await;
-        
-        // Check for success and validate output
-        if output.status.success() {
-            debug!("Sharp sidecar command completed successfully");
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            
-            if !stdout.is_empty() {
-                // Parse Sharp output JSON
-                let batch_output: BatchOutput = serde_json::from_str(&stdout)
-                    .map_err(|e| OptimizerError::processing(format!(
-                        "Failed to parse Sharp output: {}", e
-                    )))?;
-                
-                debug!("Sharp sidecar processed {} results", batch_output.results.len());
-                
-                // Verify each result matches a task and the file exists
-                for (task, result) in tasks.iter().zip(batch_output.results.iter()) {
-                    let output_path = &result.path;
-                    
-                    if !result.success {
-                        let error = result.error.as_deref().unwrap_or("Unknown error");
-                        let error_message = format!(
-                            "Sharp processing failed for {}: {}", 
-                            task.input_path, error
-                        );
-                        debug!("{}", error_message);
-                        return Ok((Err(OptimizerError::processing(error_message)), output));
-                    }
-                    
-                    // Verify the output file exists
-                    match tokio::fs::metadata(output_path).await {
-                        Ok(_) => {},
-                        Err(e) => {
-                            let error_message = format!(
-                                "Output file missing: {} (Error: {})", output_path, e
-                            );
-                            debug!("{}", error_message);
-                            return Ok((Err(OptimizerError::processing(error_message)), output));
+            .spawn()
+            .map_err(|e| OptimizerError::sidecar(format!("Failed to spawn Sharp process: {}", e)))?;
+
+        let mut results = Vec::new();
+        let mut final_metrics = None;
+
+        // Helper function to process output lines
+        fn process_line(line: &[u8]) -> Option<String> {
+            from_utf8(line).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+        }
+
+        // Process output events in real-time
+        while let Some(event) = rx.recv().await {
+            match event {
+                CommandEvent::Stdout(line) | CommandEvent::Stderr(line) => {
+                    if let Some(line_str) = process_line(&line) {
+                        // Try to parse as progress update first (new simplified format)
+                        if let Ok(progress_update) = serde_json::from_str::<ProgressUpdate>(&line_str) {
+                            debug!("Successfully parsed progress update: {}%", progress_update.progress_percentage);
+                            self.handle_progress_update(progress_update);
+                        } else {
+                            // Try to parse as progress message (detailed format)
+                            match serde_json::from_str::<ProgressMessage>(&line_str) {
+                                Ok(progress) => {
+                                    debug!("Successfully parsed progress message: {:?}", progress.progress_type);
+                                    self.handle_progress(progress);
+                                }
+                                Err(_) => {
+                                    // Try to parse as batch output
+                                    if let Ok(batch_output) = serde_json::from_str::<BatchOutput>(&line_str) {
+                                        debug!("Successfully parsed batch output");
+                                        // Process final batch output
+                                        for (task, result) in tasks.iter().zip(batch_output.results) {
+                                            results.push(OptimizationResult {
+                                                original_path: task.input_path.clone(),
+                                                optimized_path: result.path,
+                                                original_size: result.original_size,
+                                                optimized_size: result.optimized_size,
+                                                success: result.success,
+                                                error: result.error,
+                                                saved_bytes: result.saved_bytes,
+                                                compression_ratio: result.compression_ratio.parse().unwrap_or(0.0),
+                                            });
+                                        }
+                                        final_metrics = batch_output.metrics;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
-                
-                Ok((Ok(()), output))
-            } else {
-                let error_message = "Empty output from Sharp sidecar".to_string();
-                debug!("{}", error_message);
-                Ok((Err(OptimizerError::processing(error_message)), output))
+                CommandEvent::Error(err) => {
+                    return Err(OptimizerError::sidecar(format!("Sharp process error: {}", err)));
+                }
+                CommandEvent::Terminated(TerminatedPayload { code, .. }) => {
+                    if code.unwrap_or(-1) != 0 {
+                        return Err(OptimizerError::sidecar(format!("Sharp process failed with status: {:?}", code)));
+                    }
+                    break;
+                }
+                _ => {} // Handle any future CommandEvent variants
             }
-        } else {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let error_message = format!("Sharp process failed: {}", stderr);
-            debug!("{}", error_message);
-            Ok((Err(OptimizerError::sidecar(error_message)), output))
         }
+        
+        // Release the process back to the pool
+        self.pool.release().await;
+
+        // Log final worker metrics
+        if let Some(metrics) = &final_metrics {
+            debug!(
+                "Worker metrics - Workers: {}, Active: {}, Tasks per worker: {:?}",
+                metrics.worker_count,
+                metrics.active_workers,
+                metrics.tasks_per_worker
+            );
+        }
+        
+        Ok((results, final_metrics))
     }
 } 

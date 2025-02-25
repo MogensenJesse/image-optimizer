@@ -1,38 +1,68 @@
 const { isMainThread, parentPort, workerData } = require('worker_threads');
 const { optimizeImage } = require('./src/processing/optimizer');
 const { optimizeBatch } = require('./src/processing/batch');
-const { error, debug, progress, createResultObject } = require('./src/utils');
+const { error, debug } = require('./src/utils');
+const { createStartMessage, createCompleteMessage, createErrorMessage, sendProgressMessage } = require('./src/utils/progress');
 
 // Worker thread code
 if (!isMainThread && workerData?.isWorker) {
-  debug('Worker thread started');
+  const workerId = workerData.workerId;
+  debug(`Worker thread ${workerId} started`);
+  
   parentPort.on('message', async ({ type, tasks }) => {
     if (type === 'process') {
       try {
-        progress('Worker', `Received ${tasks.length} tasks`);
+        debug(`Worker ${workerId} received ${tasks.length} tasks`);
         const results = [];
+        
         for (const task of tasks) {
           try {
-            debug(`Processing task: ${task.input}`);
+            // Send start progress (keep for detailed logging in benchmark mode)
+            sendProgressMessage(createStartMessage(task.input, {
+              workerId
+            }));
+            
+            debug(`Worker ${workerId} processing: ${task.input}`);
             const result = await optimizeImage(task.input, task.output, task.settings);
+            
+            // Send completion progress (keep for detailed logging in benchmark mode)
+            sendProgressMessage(createCompleteMessage(task.input, {
+              ...result,
+              workerId
+            }));
+            
             results.push(result);
-            progress('Task', `Completed: ${task.input}`);
-          } catch (error) {
-            error(`Task failed: ${task.input}`, error);
-            results.push(createResultObject(
-              task.output,
-              { original_size: 0, optimized_size: 0, saved_bytes: 0, compression_ratio: "0.00" },
-              null,
-              false,
-              error.message
-            ));
+          } catch (err) {
+            // Send error progress (keep for error reporting)
+            sendProgressMessage(createErrorMessage(task.input, err));
+            error(`Worker ${workerId} task failed: ${task.input}`, err);
+            
+            results.push({
+              path: task.output,
+              original_size: 0,
+              optimized_size: 0,
+              saved_bytes: 0,
+              compression_ratio: "0.00",
+              success: false,
+              error: err.message
+            });
           }
         }
-        progress('Worker', `Completed ${results.length} tasks`);
-        parentPort.postMessage(results);
+        
+        debug(`Worker ${workerId} completed ${results.length} tasks`);
+        // Send final results
+        parentPort.postMessage({
+          type: 'results',
+          workerId,
+          results
+        });
       } catch (err) {
-        error('Worker error:', err);
-        parentPort.postMessage([]);
+        error(`Worker ${workerId} error:`, err);
+        parentPort.postMessage({
+          type: 'error',
+          workerId,
+          error: err.message
+        });
       }
     }
   });

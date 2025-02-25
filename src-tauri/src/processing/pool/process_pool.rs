@@ -82,6 +82,11 @@ impl ProcessPool {
         self.task_queue.lock().await.len()
     }
     
+    /// Get the app handle
+    pub fn get_app(&self) -> Option<&tauri::AppHandle> {
+        Some(&self.app)
+    }
+    
     pub async fn acquire(&self) -> OptimizerResult<Command> {
         let _permit = self.semaphore.acquire().await.map_err(|e| 
             OptimizerError::sidecar(format!("Pool acquisition failed: {}", e))
