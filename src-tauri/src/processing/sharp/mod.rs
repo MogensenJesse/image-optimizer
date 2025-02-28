@@ -1,4 +1,4 @@
-mod types;
+pub mod types;
 mod executor;
 
 pub use executor::SharpExecutor; 

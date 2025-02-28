@@ -10,7 +10,9 @@
     "build:sharp": "cd sharp-sidecar && npm run build:rename",
     "tauri": "npm run build:sharp && tauri",
     "tauri:dev": "npm run build:sharp && tauri dev",
-    "tauri:benchmark": "npm run build:sharp && cross-env BENCHMARK=1 tauri dev"
+    "tauri:benchmark": "npm run build:sharp && tauri dev --features benchmarking",
+    "tauri:build": "npm run build:sharp && tauri build",
+    "tauri:build:benchmark": "npm run build:sharp && tauri build --features benchmarking"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

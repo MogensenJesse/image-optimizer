@@ -44,10 +44,7 @@ pub type OptimizerResult<T> = Result<T, OptimizerError>;
 
 // Helper methods for error creation
 impl OptimizerError {
-    // Maintain backward compatibility with string-based errors
-    pub fn validation<T: Into<String>>(msg: T) -> Self {
-        Self::Validation(ValidationError::Settings(msg.into()))
-    }
+    // Note: validation and io methods were removed as they were unused
 
     pub fn processing<T: Into<String>>(msg: T) -> Self {
         Self::Processing(msg.into())
@@ -55,10 +52,6 @@ impl OptimizerError {
 
     pub fn format<T: Into<String>>(msg: T) -> Self {
         Self::Format(msg.into())
-    }
-
-    pub fn io<T: Into<String>>(msg: T) -> Self {
-        Self::IO(msg.into())
     }
 
     pub fn sidecar<T: Into<String>>(msg: T) -> Self {

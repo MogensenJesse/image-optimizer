@@ -56,11 +56,6 @@ class SharpWorkerPool {
     return {
       worker_count: this.metrics.worker_count,
       tasks_per_worker: this.metrics.tasks_per_worker,
-      active_workers: this.metrics.active_workers,
-      queue_length: this.metrics.queueLength,
-      completed_tasks: this.metrics.completedTasks,
-      total_tasks: this.metrics.totalTasks,
-      duration_seconds: duration
     };
   }
 
@@ -90,11 +85,7 @@ class SharpWorkerPool {
       const progressUpdate = createProgressUpdate(
         this.metrics.completedTasks,
         this.metrics.totalTasks,
-        'processing',
-        {
-          queueLength: this.metrics.queueLength,
-          activeWorkers: this.metrics.active_workers
-        }
+        'processing'
       );
       
       console.log(JSON.stringify(progressUpdate));
@@ -188,19 +179,18 @@ class SharpWorkerPool {
               const finalProgressUpdate = createProgressUpdate(
                 this.metrics.totalTasks,
                 this.metrics.totalTasks,
-                'complete',
-                {
-                  queueLength: 0,
-                  activeWorkers: this.metrics.active_workers
-                }
+                'complete'
               );
               
               console.log(JSON.stringify(finalProgressUpdate));
               
               // Return both results and metrics
+              const finalMetrics = this.getMetrics();
+              debug(`Final metrics: ${JSON.stringify(finalMetrics)}`);
+              
               resolve({
                 results: finalResults,
-                metrics: this.getMetrics()
+                metrics: finalMetrics
               });
             }
           } else if (message.type === 'error') {
@@ -210,12 +200,7 @@ class SharpWorkerPool {
             const errorProgressUpdate = createProgressUpdate(
               this.metrics.completedTasks,
               this.metrics.totalTasks,
-              'error',
-              {
-                queueLength: this.metrics.queueLength,
-                activeWorkers: this.metrics.active_workers,
-                error: message.error
-              }
+              'error'
             );
             
             console.log(JSON.stringify(errorProgressUpdate));
@@ -229,12 +214,7 @@ class SharpWorkerPool {
           const workerErrorUpdate = createProgressUpdate(
             this.metrics.completedTasks,
             this.metrics.totalTasks,
-            'error',
-            {
-              queueLength: this.metrics.queueLength,
-              activeWorkers: this.metrics.active_workers,
-              error: err.message || 'Worker error'
-            }
+            'error'
           );
           
           console.log(JSON.stringify(workerErrorUpdate));

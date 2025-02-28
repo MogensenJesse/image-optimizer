@@ -2,7 +2,7 @@ use crate::core::{ImageTask, OptimizationResult};
 use crate::utils::OptimizerResult;
 use crate::processing::pool::ProcessPool;
 use crate::processing::sharp::SharpExecutor;
-use tracing::{debug, warn};
+use tracing::{debug, warn, info};
 
 /// Represents the progress of a batch processing operation
 #[derive(Debug, Clone)]
@@ -34,7 +34,6 @@ impl BatchProcessor {
 
     /// Creates chunks of tasks for batch processing
     fn create_chunks(&self, tasks: Vec<ImageTask>) -> Vec<Vec<ImageTask>> {
-        debug!("Creating chunks from {} tasks", tasks.len());
         tasks.chunks(self.chunk_size)
             .map(|chunk| chunk.to_vec())
             .collect()
@@ -42,7 +41,7 @@ impl BatchProcessor {
 
     /// Processes a single chunk of tasks
     async fn process_chunk(&self, chunk: Vec<ImageTask>) -> OptimizerResult<Vec<OptimizationResult>> {
-        debug!("Processing chunk of {} tasks", chunk.len());
+        // Let the executor log the details
         let executor = SharpExecutor::new(&self.pool);
         executor.execute_batch(&chunk).await
     }
@@ -54,7 +53,10 @@ impl BatchProcessor {
         progress_callback: impl Fn(BatchProgress) + Send + 'static,
     ) -> OptimizerResult<Vec<OptimizationResult>> {
         let total_tasks = tasks.len();
-        debug!("Starting batch processing of {} tasks", total_tasks);
+        info!("Processing batch of {} tasks in {} chunks", 
+            total_tasks, 
+            (total_tasks + self.chunk_size - 1) / self.chunk_size
+        );
         
         let chunks = self.create_chunks(tasks);
         let mut processed_count = 0;
@@ -62,7 +64,10 @@ impl BatchProcessor {
         let mut failed_tasks = Vec::new();
         
         for (chunk_index, chunk) in chunks.into_iter().enumerate() {
-            debug!("Processing chunk {}/{}", chunk_index + 1, (total_tasks + self.chunk_size - 1) / self.chunk_size);
+            // Only log at important milestones to reduce noise
+            if chunk_index == 0 || chunk_index == chunks.len() - 1 || chunk_index % 5 == 0 {
+                debug!("Processing chunk {}/{}", chunk_index + 1, chunks.len());
+            }
             
             match self.process_chunk(chunk.clone()).await {
                 Ok(results) => {
@@ -82,7 +87,7 @@ impl BatchProcessor {
                 total_files: total_tasks,
                 processed_files: processed_count,
                 current_chunk: chunk_index + 1,
-                total_chunks: (total_tasks + self.chunk_size - 1) / self.chunk_size,
+                total_chunks: chunks.len(),
                 failed_tasks: failed_tasks.clone(),
             });
         }
@@ -94,7 +99,7 @@ impl BatchProcessor {
                 total_tasks
             );
         } else {
-            debug!("Batch processing completed successfully. Processed {} files", processed_count);
+            info!("Batch processing completed successfully: {} files processed", processed_count);
         }
         
         Ok(all_results)

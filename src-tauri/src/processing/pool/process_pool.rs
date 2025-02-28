@@ -3,14 +3,15 @@ use std::collections::VecDeque;
 use tokio::sync::{Mutex, Semaphore};
 use tauri_plugin_shell::{ShellExt, process::Command};
 use crate::utils::{OptimizerError, OptimizerResult};
-use crate::benchmarking::metrics::{Duration, BenchmarkMetrics, Benchmarkable};
-use crate::benchmarking::reporter::BenchmarkReporter;
+#[cfg(feature = "benchmarking")]
+use crate::benchmarking::metrics::{validations, MetricsFactory};
 use crate::core::ImageTask;
 use crate::processing::sharp::SharpExecutor;
 use crate::core::OptimizationResult;
 use tracing::{debug, info};
-use num_cpus;
+#[cfg(feature = "benchmarking")]
 use std::time::Instant;
+use num_cpus;
 
 /// Task queue entry with timing information
 #[derive(Debug)]
@@ -34,6 +35,7 @@ pub struct ProcessPool {
     batch_size: Arc<Mutex<usize>>,
     active_count: Arc<Mutex<usize>>,
     task_queue: Arc<Mutex<VecDeque<QueuedTask>>>,
+    #[cfg(feature = "benchmarking")]
     benchmark_mode: Arc<Mutex<bool>>,
 }
 
@@ -58,12 +60,13 @@ impl ProcessPool {
             batch_size: Arc::new(Mutex::new(75)), // Default batch size
             active_count: Arc::new(Mutex::new(0)),
             task_queue: Arc::new(Mutex::new(VecDeque::new())),
+            #[cfg(feature = "benchmarking")]
             benchmark_mode: Arc::new(Mutex::new(false)),
         }
     }
 
     /// Sets the batch size for task processing
-    #[allow(dead_code)]  // False positive - used in BatchProcessor initialization
+    #[allow(dead_code)]
     pub async fn set_batch_size(&self, size: usize) {
         debug!("Setting batch size to {}", size);
         let mut batch_size = self.batch_size.lock().await;
@@ -109,19 +112,37 @@ impl ProcessPool {
         *count = count.saturating_sub(1);
     }
     
+    /// Returns the maximum size of the process pool
+    #[allow(dead_code)]
     pub fn get_max_size(&self) -> usize {
         self.max_size
     }
     
     /// Enable or disable benchmark mode
+    #[cfg(feature = "benchmarking")]
     pub async fn set_benchmark_mode(&self, enabled: bool) {
         let mut mode = self.benchmark_mode.lock().await;
         *mode = enabled;
     }
 
     /// Check if benchmark mode is enabled
+    #[cfg(feature = "benchmarking")]
     pub async fn is_benchmark_mode(&self) -> bool {
         *self.benchmark_mode.lock().await
+    }
+    
+    /// Stub implementation for non-benchmarking builds
+    #[cfg(not(feature = "benchmarking"))]
+    #[allow(dead_code)]
+    pub async fn set_benchmark_mode(&self, _enabled: bool) {
+        // No-op in non-benchmarking builds
+    }
+
+    /// Stub implementation for non-benchmarking builds - always returns false
+    #[cfg(not(feature = "benchmarking"))]
+    #[allow(dead_code)]
+    pub async fn is_benchmark_mode(&self) -> bool {
+        false
     }
 
     pub async fn warmup(&self) -> OptimizerResult<()> {
@@ -162,62 +183,68 @@ impl ProcessPool {
     
     /// Processes a batch of tasks using the available processes
     pub async fn process_batch(&self, tasks: Vec<ImageTask>) -> OptimizerResult<Vec<OptimizationResult>> {
-        let mut benchmark_metrics = if self.is_benchmark_mode().await {
-            let mut metrics = BenchmarkMetrics::new(tasks.len());
-            metrics.reset(); // Reset metrics before starting new batch
-            metrics.start_benchmarking();
-            Some(metrics)
-        } else {
-            None
-        };
-
+        #[cfg(feature = "benchmarking")]
+        let benchmark_enabled = self.is_benchmark_mode().await;
+        
+        #[cfg(feature = "benchmarking")]
+        // Create appropriate metrics collector based on benchmark mode
+        let mut metrics_collector = MetricsFactory::create_collector(benchmark_enabled);
+        
         // Enqueue all tasks
         for task in tasks {
             self.enqueue_task(task).await;
         }
         
         let queue_length = self.queue_length().await;
-        debug!("Processing batch of {} tasks", queue_length);
+        // Log once at INFO level - eliminates redundant debug logging
+        info!("Processing batch of {} tasks", queue_length);
         
         let mut results = Vec::new();
         let executor = SharpExecutor::new(self);
         
         // Process tasks in chunks to maximize throughput
         while let Some(chunk) = self.dequeue_chunk().await {
+            #[cfg(feature = "benchmarking")]
             let start_time = Instant::now();
             
             // Record batch metrics if enabled
-            if let Some(metrics) = &mut benchmark_metrics {
-                metrics.record_batch(chunk.len());
-            }
+            #[cfg(feature = "benchmarking")]
+            metrics_collector.record_batch_info(chunk.len());
             
             // Execute the chunk using Sharp
+            #[cfg(feature = "benchmarking")]
             let (chunk_results, worker_metrics) = match executor.execute_batch(&chunk).await {
                 Ok((results, metrics)) => (results, metrics),
                 Err(e) => return Err(e)
             };
 
+            #[cfg(not(feature = "benchmarking"))]
+            let chunk_results = match executor.execute_batch(&chunk).await {
+                Ok((results, _)) => results,
+                Err(e) => return Err(e)
+            };
+
             // Record metrics for each result
-            if let Some(metrics) = &mut benchmark_metrics {
+            #[cfg(feature = "benchmarking")]
+            {
                 for result in &chunk_results {
-                    metrics.record_compression(result.original_size, result.optimized_size);
+                    metrics_collector.record_size_change(result.original_size, result.optimized_size);
                 }
                 
                 // Record processing time
-                let duration = Duration::new_unchecked(start_time.elapsed().as_secs_f64());
-                metrics.add_processing_time(duration);
+                let duration = validations::validate_duration(start_time.elapsed().as_secs_f64());
+                metrics_collector.record_time(duration);
                 
-                // Record pool metrics
-                let active_count = *self.active_count.lock().await;
-                metrics.record_pool_metrics(active_count, queue_length);
-
                 // Record worker pool metrics if available
-                if let Some(worker_metrics) = worker_metrics {
-                    metrics.worker_pool = Some(worker_metrics.clone());
-                    debug!(
-                        "Worker metrics - Workers: {}, Active: {}, Tasks per worker: {:?}",
+                if let Some(worker_metrics) = worker_metrics.clone() {
+                    // Use single consistent log entry for worker metrics
+                    debug!("Worker pool: {} workers / avg {:.1} tasks per worker", 
                         worker_metrics.worker_count,
-                        worker_metrics.active_workers,
+                        worker_metrics.tasks_per_worker.iter().sum::<usize>() as f64 / worker_metrics.worker_count as f64
+                    );
+                    
+                    metrics_collector.record_worker_stats(
+                        worker_metrics.worker_count,
                         worker_metrics.tasks_per_worker
                     );
                 }
@@ -227,12 +254,13 @@ impl ProcessPool {
         }
 
         // Finalize benchmarking if enabled
-        if let Some(mut metrics) = benchmark_metrics {
-            let final_metrics = metrics.finalize_benchmarking();
-            
-            // Display benchmark report
-            let report = BenchmarkReporter::from_metrics(final_metrics);
-            info!("\n=== Batch Processing Report ===\n{}", report);
+        #[cfg(feature = "benchmarking")]
+        if benchmark_enabled {
+            // After processing, finalize metrics and create a report
+            if let Some(report) = MetricsFactory::extract_benchmark_metrics(benchmark_enabled, metrics_collector) {
+                // Print the report with a clear boundary to make it stand out in logs
+                info!("\n=== 📊 Batch Processing Report 📊 ===\n{}", report);
+            }
         }
         
         Ok(results)

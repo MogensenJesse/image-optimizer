@@ -4,18 +4,25 @@
 mod utils;
 mod core;
 mod processing;
+#[cfg(feature = "benchmarking")]
 mod benchmarking;
 mod commands;
 
-use std::env;
-use tracing::{info, debug};
+use tracing::info;
+#[cfg(feature = "benchmarking")]
+use tracing::debug;
+#[cfg(feature = "benchmarking")]
 use tauri::Manager;
 use crate::core::AppState;
 use crate::commands::{optimize_image, optimize_images, get_active_tasks};
 
 fn main() {
     // Initialize logging with more verbose output in benchmark mode
-    let benchmark_mode = env::var("BENCHMARK").is_ok();
+    #[cfg(feature = "benchmarking")]
+    let benchmark_mode = true;
+    
+    #[cfg(not(feature = "benchmarking"))]
+    let benchmark_mode = false;
     
     let subscriber = tracing_subscriber::fmt()
         .with_max_level(if benchmark_mode {
@@ -59,7 +66,8 @@ fn main() {
         .expect("error while building tauri application");
 
     // Initialize process pool with benchmarking if enabled
-    if benchmark_mode {
+    #[cfg(feature = "benchmarking")]
+    {
         info!("Initializing process pool with benchmarking...");
         let app_handle = app.app_handle().clone();
         let state = app.state::<AppState>();

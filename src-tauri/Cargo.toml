@@ -55,4 +55,8 @@ enum-map = { version = "2.7.3", features = [], optional = true }
 anyhow = "1.0.95"
 
 [features]
-benchmark = ["enum-map"]
+# Define the benchmarking feature for compile-time optimization
+# When enabled, this includes all code needed for performance benchmarking
+benchmarking = ["enum-map"]
+# Keep the old name as an alias for backward compatibility
+benchmark = ["benchmarking"]

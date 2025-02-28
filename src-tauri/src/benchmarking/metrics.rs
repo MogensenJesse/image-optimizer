@@ -1,19 +1,68 @@
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
-use tracing::warn;
-use std::fmt;
+#[allow(unused_imports)]
+use tracing::{warn, debug};
 use std::collections::HashMap;
+use crate::benchmarking::reporter::BenchmarkReporter;
+
+/// Module containing validation and formatting functions for metrics
+pub mod validations {
+    use tracing::warn;
+    
+    // Constants for validation
+    pub const MAX_DURATION_SECS: f64 = 3600.0 * 24.0;  // 24 hours - reasonable max duration
+
+    /// Validates a duration value, ensuring it's within acceptable bounds
+    pub fn validate_duration(seconds: f64) -> f64 {
+        if seconds < 0.0 {
+            warn!("Negative duration provided: {:.2}s, using 0.0s instead", seconds);
+            0.0
+        } else if seconds > MAX_DURATION_SECS {
+            warn!("Duration exceeds maximum allowed value: {:.2}s > {:.2}s, capping at maximum", 
+                seconds, MAX_DURATION_SECS);
+            MAX_DURATION_SECS
+        } else {
+            seconds
+        }
+    }
+
+    /// Validates a percentage value, ensuring it's between 0 and 100
+    pub fn validate_percentage(value: f64) -> f64 {
+        if value < 0.0 {
+            warn!("Negative percentage provided: {:.1}%, using 0.0% instead", value);
+            0.0
+        } else if value > 100.0 {
+            warn!("Percentage exceeds 100%: {:.1}%, capping at 100%", value);
+            100.0
+        } else {
+            value
+        }
+    }
+
+    /// Formats a duration value as a readable string
+    pub fn format_duration(seconds: f64) -> String {
+        if seconds >= 60.0 {
+            let minutes = (seconds / 60.0).floor();
+            let secs = seconds % 60.0;
+            format!("{:.0}m {:.2}s", minutes, secs)
+        } else if seconds >= 1.0 {
+            format!("{:.2}s", seconds)
+        } else {
+            format!("{:.0}ms", seconds * 1000.0)
+        }
+    }
+
+    /// Formats a percentage value as a readable string
+    pub fn format_percentage(value: f64) -> String {
+        format!("{:.1}%", value)
+    }
+}
 
 /// Metrics collected from the worker pool during processing
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkerPoolMetrics {
     pub worker_count: usize,
     pub tasks_per_worker: Vec<usize>,
-    pub active_workers: usize,
-    pub queue_length: usize,
-    pub completed_tasks: usize,
-    pub total_tasks: usize,
-    pub duration_seconds: f64,
 }
 
 impl Default for WorkerPoolMetrics {
@@ -21,135 +70,62 @@ impl Default for WorkerPoolMetrics {
         Self {
             worker_count: 0,
             tasks_per_worker: Vec::new(),
-            active_workers: 0,
-            queue_length: 0,
-            completed_tasks: 0,
-            total_tasks: 0,
-            duration_seconds: 0.0,
         }
     }
 }
 
-/// Trait for types that can be benchmarked with detailed metrics
-pub trait Benchmarkable {
+/// Core metrics collector trait that defines the basic metrics interface 
+/// without direct dependencies on the benchmarking system.
+/// 
+/// This trait can be implemented by any component that wants to track metrics
+/// without directly depending on the benchmarking system.
+pub trait MetricsCollector: Send + Sync {
     /// Record the processing time for a task
-    fn add_processing_time(&mut self, duration: Duration);
+    fn record_time(&mut self, duration_secs: f64);
     
-    /// Record process pool metrics
-    fn record_pool_metrics(&mut self, active_processes: usize, queue_length: usize);
+    /// Record compression metrics for an optimized image
+    fn record_size_change(&mut self, original_size: u64, optimized_size: u64);
     
-    /// Finalize benchmarking and return the metrics
-    fn finalize_benchmarking(&mut self) -> BenchmarkMetrics;
-}
-
-// Constants for validation
-const MAX_DURATION_SECS: f64 = 3600.0 * 24.0;  // 24 hours - reasonable max duration for a single operation
-
-/// A strongly-typed duration value that ensures non-negative time values
-/// and provides safe arithmetic operations.
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub struct Duration(f64);
-
-impl Duration {
-    /// Creates a new Duration without validation, but with safety guards.
-    /// Invalid values will be clamped to valid range with warning logs.
-    pub fn new_unchecked(seconds: f64) -> Self {
-        if seconds < 0.0 {
-            warn!("Negative duration provided: {:.2}s, using 0.0s instead", seconds);
-            Self(0.0)
-        } else if seconds > MAX_DURATION_SECS {
-            warn!("Duration exceeds maximum allowed value: {:.2}s > {:.2}s, capping at maximum", 
-                seconds, MAX_DURATION_SECS);
-            Self(MAX_DURATION_SECS)
-        } else {
-            Self(seconds)
-        }
-    }
-
-    /// Returns the duration in seconds as an f64.
-    pub fn as_secs_f64(&self) -> f64 {
-        self.0
-    }
-
-    /// Returns a Duration representing zero seconds.
-    pub fn zero() -> Self {
-        Self(0.0)
+    /// Record batch processing information
+    fn record_batch_info(&mut self, batch_size: usize);
+    
+    /// Record worker pool statistics
+    fn record_worker_stats(&mut self, worker_count: usize, tasks_per_worker: Vec<usize>);
+    
+    /// Finalize collection and return the metrics
+    fn finalize(&mut self) -> Option<BenchmarkMetrics> {
+        None
     }
 }
 
-impl Default for Duration {
-    fn default() -> Self {
-        Self::zero()
+/// Null implementation of MetricsCollector that doesn't record anything
+pub struct NullMetricsCollector;
+
+impl NullMetricsCollector {
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
-impl std::ops::Add for Duration {
-    type Output = Self;
-
-    fn add(self, other: Self) -> Self {
-        Self(self.0 + other.0)
+impl MetricsCollector for NullMetricsCollector {
+    fn record_time(&mut self, _duration_secs: f64) {
+        // Do nothing
     }
-}
-
-impl std::ops::AddAssign for Duration {
-    fn add_assign(&mut self, other: Self) {
-        self.0 += other.0;
+    
+    fn record_size_change(&mut self, _original_size: u64, _optimized_size: u64) {
+        // Do nothing
     }
-}
-
-impl fmt::Display for Duration {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.0 >= 60.0 {
-            let minutes = (self.0 / 60.0).floor();
-            let seconds = self.0 % 60.0;
-            write!(f, "{:.0}m {:.2}s", minutes, seconds)
-        } else if self.0 >= 1.0 {
-            write!(f, "{:.2}s", self.0)
-        } else {
-            write!(f, "{:.0}ms", self.0 * 1000.0)
-        }
+    
+    fn record_batch_info(&mut self, _batch_size: usize) {
+        // Do nothing
     }
-}
-
-/// A strongly-typed percentage value that ensures values are between 0% and 100%.
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub struct Percentage(f64);
-
-impl Percentage {
-    /// Creates a new Percentage without validation, but with safety guards.
-    /// Invalid values will be clamped to valid range with warning logs.
-    pub fn new_unchecked(value: f64) -> Self {
-        if value < 0.0 {
-            warn!("Negative percentage provided: {:.1}%, using 0.0% instead", value);
-            Self(0.0)
-        } else if value > 100.0 {
-            warn!("Percentage exceeds 100%: {:.1}%, capping at 100%", value);
-            Self(100.0)
-        } else {
-            Self(value)
-        }
+    
+    fn record_worker_stats(&mut self, _worker_count: usize, _tasks_per_worker: Vec<usize>) {
+        // Do nothing
     }
-
-    /// Returns the percentage value as an f64.
-    pub fn as_f64(&self) -> f64 {
-        self.0
-    }
-
-    /// Returns a Percentage representing 0%.
-    pub fn zero() -> Self {
-        Self(0.0)
-    }
-}
-
-impl Default for Percentage {
-    fn default() -> Self {
-        Self::zero()
-    }
-}
-
-impl fmt::Display for Percentage {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:.1}%", self.0)
+    
+    fn finalize(&mut self) -> Option<BenchmarkMetrics> {
+        None
     }
 }
 
@@ -157,74 +133,68 @@ impl fmt::Display for Percentage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchmarkMetrics {
     // Time-based metrics
-    pub total_duration: Duration,
-    pub processing_times: Vec<Duration>,  // Track individual processing times
-    pub avg_processing_time: Duration,    // Calculated in finalize()
+    pub total_duration: f64,
+    pub avg_processing_time: f64,    // Calculated in finalize()
     
-    // Optimization metrics
-    pub compression_ratios: Vec<Percentage>,
+    // Optimization metrics - Essential for image optimization benchmarking
+    pub avg_compression_ratio: f64,  // Replaced individual ratios with average
     pub total_original_size: u64,
     pub total_optimized_size: u64,
     
-    // Batch metrics
+    // Batch metrics - Simplified to only track essential counts
     pub total_batches: usize,
-    pub batch_sizes: Vec<usize>,
-    pub mode_batch_size: usize,
+    pub mode_batch_size: usize,      // Kept for insight into batch processing efficiency
     
     // Worker pool metrics
     pub worker_pool: Option<WorkerPoolMetrics>,
     
-    // Internal tracking
+    // Internal tracking fields - not visible in serialization
     #[serde(skip)]
     start_time: Option<Instant>,
+    
+    // These fields are used for calculations but not reported directly
+    #[serde(skip)]
+    processing_times_sum: f64,       // Sum instead of vector for reduced memory usage
+    #[serde(skip)]
+    processing_times_count: usize,   // Count of times instead of vector length
+    #[serde(skip)]
+    compression_ratios_sum: f64,     // Sum instead of vector
+    #[serde(skip)]
+    compression_ratios_count: usize, // Count of ratios
+    #[serde(skip)]
+    batch_size_counts: HashMap<usize, usize>,  // For mode calculation
 }
 
 impl Default for BenchmarkMetrics {
     fn default() -> Self {
         Self {
-            total_duration: Duration::zero(),
-            processing_times: Vec::new(),
-            avg_processing_time: Duration::zero(),
-            compression_ratios: Vec::new(),
+            total_duration: 0.0,
+            avg_processing_time: 0.0,
+            avg_compression_ratio: 0.0,
             total_original_size: 0,
             total_optimized_size: 0,
             total_batches: 0,
-            batch_sizes: Vec::new(),
             mode_batch_size: 0,
             worker_pool: None,
             start_time: None,
+            processing_times_sum: 0.0,
+            processing_times_count: 0,
+            compression_ratios_sum: 0.0,
+            compression_ratios_count: 0,
+            batch_size_counts: HashMap::new(),
         }
     }
 }
 
 impl BenchmarkMetrics {
-    pub fn new(task_capacity: usize) -> Self {
-        Self {
-            processing_times: Vec::with_capacity(task_capacity),
-            compression_ratios: Vec::with_capacity(task_capacity),
-            ..Default::default()
-        }
-    }
-
-    pub fn reset(&mut self) {
-        self.total_duration = Duration::zero();
-        self.processing_times.clear();
-        self.avg_processing_time = Duration::zero();
-        self.compression_ratios.clear();
-        self.total_original_size = 0;
-        self.total_optimized_size = 0;
-        self.total_batches = 0;
-        self.batch_sizes.clear();
-        self.mode_batch_size = 0;
-        self.start_time = None;
-    }
-
     pub fn start_benchmarking(&mut self) {
         self.start_time = Some(Instant::now());
     }
 
-    pub fn record_processing_time(&mut self, time: Duration) {
-        self.processing_times.push(time);
+    pub fn record_processing_time(&mut self, time: f64) {
+        let validated_time = validations::validate_duration(time);
+        self.processing_times_sum += validated_time;
+        self.processing_times_count += 1;
     }
 
     pub fn record_compression(&mut self, original_size: u64, optimized_size: u64) {
@@ -236,42 +206,43 @@ impl BenchmarkMetrics {
         } else {
             0.0
         };
-        self.compression_ratios.push(Percentage::new_unchecked(ratio));
+        let validated_ratio = validations::validate_percentage(ratio);
+        self.compression_ratios_sum += validated_ratio;
+        self.compression_ratios_count += 1;
     }
 
     pub fn record_batch(&mut self, batch_size: usize) {
         self.total_batches += 1;
-        self.batch_sizes.push(batch_size);
+        *self.batch_size_counts.entry(batch_size).or_insert(0) += 1;
     }
 
     fn calculate_mode_batch_size(&self) -> usize {
-        if self.batch_sizes.is_empty() {
+        if self.batch_size_counts.is_empty() {
             return 0;
         }
 
-        let mut size_counts: HashMap<usize, usize> = HashMap::new();
-        for &size in &self.batch_sizes {
-            *size_counts.entry(size).or_insert(0) += 1;
-        }
-
-        size_counts
-            .into_iter()
+        self.batch_size_counts
+            .iter()
             .max_by_key(|&(_, count)| count)
-            .map(|(size, _)| size)
+            .map(|(size, _)| *size)
             .unwrap_or(0)
     }
 
     fn finalize_metrics(&mut self) -> Self {
         if let Some(start_time) = self.start_time {
             let total_duration = start_time.elapsed().as_secs_f64();
-            self.total_duration = Duration::new_unchecked(total_duration);
+            self.total_duration = validations::validate_duration(total_duration);
 
             // Calculate average processing time
-            if !self.processing_times.is_empty() {
-                let avg_time = self.processing_times.iter()
-                    .map(|d| d.as_secs_f64())
-                    .sum::<f64>() / self.processing_times.len() as f64;
-                self.avg_processing_time = Duration::new_unchecked(avg_time);
+            if self.processing_times_count > 0 {
+                let avg_time = self.processing_times_sum / self.processing_times_count as f64;
+                self.avg_processing_time = validations::validate_duration(avg_time);
+            }
+
+            // Calculate average compression ratio
+            if self.compression_ratios_count > 0 {
+                let avg_ratio = self.compression_ratios_sum / self.compression_ratios_count as f64;
+                self.avg_compression_ratio = validations::validate_percentage(avg_ratio);
             }
 
             // Calculate mode batch size
@@ -280,18 +251,80 @@ impl BenchmarkMetrics {
 
         self.clone()
     }
+
+    /// Sets the worker pool metrics
+    /// 
+    /// This method merges the provided metrics with any existing worker pool metrics.
+    /// 
+    /// This is used to integrate metrics from the NodeJS sidecar with metrics
+    /// collected during processing.
+    pub fn set_worker_pool_metrics(&mut self, metrics: Option<WorkerPoolMetrics>) {
+        if let Some(new_metrics) = metrics {
+            // Get or create the existing metrics
+            let worker_pool = self.worker_pool.get_or_insert_with(WorkerPoolMetrics::default);
+            
+            // Update with the new metrics - no need for redundant logging
+            *worker_pool = new_metrics;
+        } else {
+            // If we're setting None but already have metrics, prefer to keep them
+            if self.worker_pool.is_none() {
+                self.worker_pool = None;
+            }
+        }
+    }
 }
 
-impl Benchmarkable for BenchmarkMetrics {
-    fn add_processing_time(&mut self, duration: Duration) {
-        self.record_processing_time(duration);
+// Implement core MetricsCollector trait for BenchmarkMetrics
+impl MetricsCollector for BenchmarkMetrics {
+    fn record_time(&mut self, duration_secs: f64) {
+        self.record_processing_time(duration_secs);
     }
-
-    fn record_pool_metrics(&mut self, _active_processes: usize, _queue_length: usize) {
-        // Process pool metrics removed
+    
+    fn record_size_change(&mut self, original_size: u64, optimized_size: u64) {
+        self.record_compression(original_size, optimized_size);
     }
+    
+    fn record_batch_info(&mut self, batch_size: usize) {
+        self.record_batch(batch_size);
+    }
+    
+    fn record_worker_stats(&mut self, worker_count: usize, tasks_per_worker: Vec<usize>) {
+        let metrics = WorkerPoolMetrics {
+            worker_count,
+            tasks_per_worker,
+        };
+        self.set_worker_pool_metrics(Some(metrics));
+    }
+    
+    fn finalize(&mut self) -> Option<BenchmarkMetrics> {
+        Some(self.finalize_metrics())
+    }
+}
 
-    fn finalize_benchmarking(&mut self) -> BenchmarkMetrics {
-        self.finalize_metrics()
+/// Factory for creating the appropriate metrics collector based on configuration
+pub struct MetricsFactory;
+
+impl MetricsFactory {
+    /// Create a metrics collector based on whether benchmarking is enabled
+    pub fn create_collector(enable_benchmarking: bool) -> Box<dyn MetricsCollector> {
+        if enable_benchmarking {
+            let mut metrics = BenchmarkMetrics::default();
+            metrics.start_benchmarking();
+            Box::new(metrics)
+        } else {
+            Box::new(NullMetricsCollector::new())
+        }
+    }
+    
+    /// Extract benchmark metrics from a collector and create a reporter, if benchmarking is enabled
+    pub fn extract_benchmark_metrics(
+        enable_benchmarking: bool, 
+        mut collector: Box<dyn MetricsCollector>
+    ) -> Option<BenchmarkReporter> {
+        if !enable_benchmarking {
+            return None;
+        }
+        
+        collector.finalize().map(BenchmarkReporter::from_metrics)
     }
 } 

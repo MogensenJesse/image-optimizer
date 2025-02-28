@@ -1,4 +1,4 @@
-use super::metrics::{BenchmarkMetrics, Percentage, Duration};
+use super::metrics::{BenchmarkMetrics, validations};
 use std::fmt;
 
 pub struct BenchmarkReporter {
@@ -6,7 +6,6 @@ pub struct BenchmarkReporter {
 }
 
 impl BenchmarkReporter {
-    #[allow(dead_code)]
     pub fn from_metrics(metrics: BenchmarkMetrics) -> Self {
         Self { metrics }
     }
@@ -35,28 +34,6 @@ impl BenchmarkReporter {
         }
     }
 
-    fn calculate_average_compression(&self) -> Percentage {
-        if self.metrics.compression_ratios.is_empty() {
-            Percentage::zero()
-        } else {
-            Percentage::new_unchecked(
-                Self::safe_div(
-                    self.metrics.compression_ratios.iter().map(|p| p.as_f64()).sum::<f64>(),
-                    self.metrics.compression_ratios.len() as f64
-                )
-            )
-        }
-    }
-
-    fn calculate_average_processing_time(&self) -> Duration {
-        if self.metrics.compression_ratios.is_empty() {
-            self.metrics.avg_processing_time
-        } else {
-            let avg_time = self.metrics.total_duration.as_secs_f64() / self.metrics.compression_ratios.len() as f64;
-            Duration::new_unchecked(avg_time)
-        }
-    }
-
     fn format_tasks_per_worker(tasks_per_worker: &[usize]) -> String {
         if tasks_per_worker.is_empty() {
             return "N/A".to_string();
@@ -80,19 +57,14 @@ impl fmt::Display for BenchmarkReporter {
         
         // Time-based metrics
         writeln!(f, "Time-based Metrics:")?;
-        writeln!(f, "- Total Duration: {}", self.metrics.total_duration)?;
-        writeln!(f, "- Average Processing Time: {}/image", self.calculate_average_processing_time())?;
+        writeln!(f, "- Total Duration: {}", validations::format_duration(self.metrics.total_duration))?;
         writeln!(f)?;
         
         // Worker pool metrics
         if let Some(worker_metrics) = &self.metrics.worker_pool {
             writeln!(f, "Worker Pool Metrics:")?;
             writeln!(f, "- Total Workers: {}", worker_metrics.worker_count)?;
-            writeln!(f, "- Active Workers: {}", worker_metrics.active_workers)?;
             writeln!(f, "- Tasks Distribution: {}", Self::format_tasks_per_worker(&worker_metrics.tasks_per_worker))?;
-            writeln!(f, "- Queue Length: {}", worker_metrics.queue_length)?;
-            writeln!(f, "- Completed Tasks: {}/{}", worker_metrics.completed_tasks, worker_metrics.total_tasks)?;
-            writeln!(f, "- Processing Duration: {:.2}s", worker_metrics.duration_seconds)?;
             writeln!(f)?;
         }
         
@@ -106,13 +78,25 @@ impl fmt::Display for BenchmarkReporter {
         
         // Optimization metrics
         writeln!(f, "Optimization Metrics:")?;
-        writeln!(f, "- Compression Ratios:")?;
-        writeln!(f, "  └── Average: {} (original → optimized)", self.calculate_average_compression())?;
+        writeln!(f, "- Compression Ratio: {} (original → optimized)", validations::format_percentage(self.metrics.avg_compression_ratio))?;
         
         writeln!(f, "- Size Reductions:")?;
         writeln!(f, "  └── Total: {} → {}", 
             Self::format_bytes(self.metrics.total_original_size),
             Self::format_bytes(self.metrics.total_optimized_size)
+        )?;
+        
+        // Calculate and display size savings as a percentage
+        let bytes_saved = self.metrics.total_original_size.saturating_sub(self.metrics.total_optimized_size);
+        let savings_percentage = if self.metrics.total_original_size > 0 {
+            (bytes_saved as f64 / self.metrics.total_original_size as f64) * 100.0
+        } else {
+            0.0
+        };
+        
+        writeln!(f, "  └── Saved: {} ({})", 
+            Self::format_bytes(bytes_saved),
+            validations::format_percentage(savings_percentage)
         )?;
         
         Ok(())

@@ -1,4 +1,5 @@
 // Module declarations in dependency order
+#[cfg(feature = "benchmarking")]
 pub mod benchmarking;
 pub mod commands;
 pub mod core;
@@ -8,7 +9,9 @@ pub mod utils;
 // Public exports
 pub use core::{AppState, ImageTask};
 pub use utils::{OptimizerError, OptimizerResult};
+#[cfg(feature = "benchmarking")]
 pub use benchmarking::metrics::BenchmarkMetrics;
+#[cfg(feature = "benchmarking")]
 pub use benchmarking::reporter::BenchmarkReporter;
 pub use commands::*;
 
