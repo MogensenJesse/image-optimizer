@@ -1,6 +1,6 @@
 // Base styles
-@forward 'base/variables';
 @use 'base/reset';
+@use 'base/variables';
 @use 'base/typography';
 
 // App styles
@@ -9,3 +9,4 @@
 // Component styles
 @use 'components/FloatingMenu';
 @use 'components/ProgressBar';
+@use 'components/TitleBar';

@@ -5,6 +5,9 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:default",
+    "core:window:allow-minimize",
+    "core:window:allow-close",
     {
       "identifier": "shell:allow-execute",
       "allow": [

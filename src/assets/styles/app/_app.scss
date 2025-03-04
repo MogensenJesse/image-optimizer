@@ -1,0 +1,206 @@
+// App Container and Layout
+@use '../base/variables' as v;
+
+body {
+  overflow: hidden;
+  background-color: rgba(v.$onyx, 0.6);
+}
+
+.container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.app-content {
+  width: 100vw;
+  height: calc(100vh - 80px);
+  padding: 0 20px 0 20px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Additional styles for making the app draggable via the titlebar */
+.title-bar-drag-region {
+  -webkit-app-region: drag;
+}
+
+.dropzone {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(v.$night, 0.4);
+  border-radius: 7px;
+  transition: 0.6s cubic-bezier(.16,.7,.35,1);
+
+  
+  &__content {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+
+  &__icon {
+    margin-bottom: 10px;
+    transition: transform 0.3s cubic-bezier(.16,.7,.35,1);
+    display: block;
+  }
+
+  &__message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    opacity: 1;
+    transition: opacity 0.8s ease;
+    
+    p {
+      opacity: 0.5;
+    }
+    
+    &.fade-in-delayed {
+      opacity: 0;
+      animation: fadeInDelayed 0.8s ease forwards;
+      animation-delay: 0.5s;
+    }
+  }
+
+  &--dragging {
+    background-color: rgba(v.$night, 0.8);
+    transition: 0.3s cubic-bezier(.16,.7,.35,1);
+    
+    .dropzone__icon {
+      transform: scale(1.3);
+    }
+  }
+  
+  &--fading {
+    .dropzone__message {
+      opacity: 0;
+      animation: fadeInDelayed 0.8s ease forwards;
+      animation-delay: 0.4s;
+    }
+  }
+  
+  &--fading-in {
+    .dropzone__message {
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+  }
+}
+
+// Progress container with fade animation
+.progress-container {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  transition: opacity 0.4s ease;
+  z-index: 5;
+  
+  &.fade-out {
+    opacity: 0;
+    transition: opacity 0.6s ease;
+    pointer-events: none;
+  }
+  
+  &.fade-in {
+    opacity: 0;
+    animation: fadeIn 0.5s ease forwards;
+  }
+}
+
+// Fade in animation for the dropzone message
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+// Add a separate fade-in-delayed animation with a delay
+@keyframes fadeInDelayed {
+  0% {
+    opacity: 0;
+    visibility: visible;
+  }
+  100% {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+// Processing and progress related styles have been moved to _ProgressBar.scss
+
+.completion-info {
+  text-align: center;
+
+  &__title {
+    font-size: 1.5rem;
+    margin-bottom: 16px;
+  }
+
+  p {
+    color: rgba(v.$light, 0.7);
+  }
+}
+
+.options-button {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 138px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1.5px solid v.$night;
+  border-radius: 100px;
+  padding: 0 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  gap: 8px;
+  
+  &:hover {
+    background-color: rgba(v.$night, 0.9);
+    // transform: translateX(-50%) scale(1.05);
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  img {
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+    opacity: 0.8;
+  }
+  
+  &::after {
+    content: 'OPTIONS';
+    font-size: 10px;
+    font-weight: 500;
+    color: v.$light;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+} 
+

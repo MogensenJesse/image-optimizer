@@ -1,25 +1,91 @@
 // ProgressBar Component Styles
-.progress-info {
-  &__text {
-    margin-bottom: 0.5rem;
-  }
+@use '../base/variables' as v;
 
+// Progress circle - the semi-circular progress visualization
+.progress-circle {
+  position: relative;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1.67 / 1; // Maintains the approximate 250/150 ratio
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: 500px;
+  
+  &__svg {
+    position: absolute;
+    top: -20px;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+  
+  &__background {
+    stroke: v.$night;
+    stroke-linecap: round;
+  }
+  
+  &__progress {
+    transition: stroke-dashoffset 0.5s ease-in-out;
+    stroke-linecap: round;
+  }
+  
   &__percentage {
-    font-weight: bold;
-    margin-top: 0.5rem;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -20%);
+    text-align: center;
+    width: 80%; // Add width to contain longer text
+    
+    &-value {
+      font-size: 18px;
+      font-weight: bold;
+      letter-spacing: 0.05em;
+      margin: 0 0 5px 0;
+      white-space: nowrap;
+      
+      // Style for the completion message
+      &.complete {
+        font-size: 16px;
+      }
+    }
+    
+    &-label {
+      opacity: 0.5;
+      margin: 0;
+    }
   }
 }
 
-.progress-bar {
-  height: 16px;
-  background: rgba(50, 50, 50, 0.3);
-  border-radius: 8px;
-  margin: 15px 0;
-  overflow: hidden;
-
-  &__fill {
-    height: 100%;
-    background: #4caf50;
-    transition: width 0.5s ease-in-out;
+// Progress options - button below the progress visualization
+.progress-options {
+  margin-top: 1rem;
+  
+  &__button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #333;
+    color: #fff;
+    border: none;
+    border-radius: 2rem;
+    padding: 0.6rem 1.5rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    
+    &:hover {
+      background-color: #444;
+    }
+  }
+  
+  &__icon {
+    margin-right: 0.5rem;
+    font-size: 1.2rem;
+    line-height: 1;
   }
 } 

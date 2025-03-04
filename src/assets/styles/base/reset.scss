@@ -43,6 +43,10 @@ button,
 textarea,
 select {
   font: inherit;
+  border: none;
+  background: none;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 /* Remove all animations, transitions and smooth scroll for people that prefer not to see them */
@@ -79,6 +83,7 @@ time, mark, audio, video {
   font-size: 100%;
   font: inherit;
   vertical-align: baseline;
+  border: none;
 }
 
 /* HTML5 display-role reset */

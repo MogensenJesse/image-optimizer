@@ -1,7 +1,71 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from "react";
+import closeIcon from "../assets/icons/close.svg";
 
-const ResizeControls = ({ settings, onSettingsChange }) => {
-  const [resizeMode, setResizeMode] = useState('none'); // none, width, height, longest, shortest
+function FloatingMenu({ settings, onSettingsChange, disabled, show, onClose }) {
+  const [resizeMode, setResizeMode] = useState(settings.resize.mode || "none"); // none, width, height, longest, shortest
+  const qualitySliderRef = useRef(null);
+
+  // Calculate the gradient color based on the percentage
+  const calculateGradientColor = (percentage) => {
+    // Start color: #d7bb21 (215, 187, 33)
+    const startR = 215,
+      startG = 187,
+      startB = 33;
+    // End color: #62cd20 (98, 205, 32)
+    const endR = 98,
+      endG = 205,
+      endB = 32;
+
+    // Calculate the color at the current percentage
+    const r = Math.round(startR + (endR - startR) * (percentage / 100));
+    const g = Math.round(startG + (endG - startG) * (percentage / 100));
+    const b = Math.round(startB + (endB - startB) * (percentage / 100));
+
+    return `rgb(${r}, ${g}, ${b})`;
+  };
+
+  // Update the CSS variables when the quality value changes
+  useEffect(() => {
+    if (qualitySliderRef.current) {
+      const percentage = settings.quality.global;
+      const currentColor = calculateGradientColor(percentage);
+
+      qualitySliderRef.current.style.setProperty(
+        "--slider-value",
+        `${percentage}%`
+      );
+      qualitySliderRef.current.style.setProperty(
+        "--slider-color",
+        currentColor
+      );
+    }
+  }, [settings.quality.global]);
+
+  const handleQualityChange = (value) => {
+    const qualityValue = parseInt(value);
+
+    // Update the CSS variables directly for immediate visual feedback
+    if (qualitySliderRef.current) {
+      const currentColor = calculateGradientColor(qualityValue);
+
+      qualitySliderRef.current.style.setProperty(
+        "--slider-value",
+        `${qualityValue}%`
+      );
+      qualitySliderRef.current.style.setProperty(
+        "--slider-color",
+        currentColor
+      );
+    }
+
+    onSettingsChange({
+      ...settings,
+      quality: {
+        ...settings.quality,
+        global: qualityValue,
+      },
+    });
+  };
 
   const handleResizeChange = (mode, value) => {
     const newResize = {
@@ -9,126 +73,114 @@ const ResizeControls = ({ settings, onSettingsChange }) => {
       height: null,
       maintainAspect: true,
       mode: mode,
-      size: value ? parseInt(value) : null
+      size: value ? parseInt(value) : null,
     };
 
     onSettingsChange({
       ...settings,
-      resize: newResize
+      resize: newResize,
     });
-  };
-
-  return (
-    <div className="resize-controls">
-      <select 
-        value={resizeMode}
-        onChange={(e) => {
-          setResizeMode(e.target.value);
-          handleResizeChange(e.target.value, settings.resize.size);
-        }}
-      >
-        <option value="none">No resize</option>
-        <option value="width">Width</option>
-        <option value="height">Height</option>
-        <option value="longest">Longest edge</option>
-        <option value="shortest">Shortest edge</option>
-      </select>
-      
-      {resizeMode !== 'none' && (
-        <input 
-          type="number"
-          min="1"
-          placeholder={`Target ${resizeMode}`}
-          value={settings.resize.size || ''}
-          onChange={(e) => handleResizeChange(resizeMode, e.target.value)}
-        />
-      )}
-    </div>
-  );
-};
-
-function FloatingMenu({ settings, onSettingsChange }) {
-  const [isOpen, setIsOpen] = useState(false);
-  
-  const handleQualityChange = (value) => {
-    onSettingsChange({
-      ...settings,
-      quality: {
-        ...settings.quality,
-        global: parseInt(value)
-      }
-    });
-  };
-  
-  const handleClose = () => {
-    setIsOpen(false);
   };
 
   return (
     <>
-      <div 
-        className={`menu-overlay ${isOpen ? 'menu-overlay--active' : ''}`}
-        onClick={() => setIsOpen(false)}
+      <div
+        className={`floating-menu__overlay ${
+          show ? "floating-menu__overlay--active" : ""
+        }`}
+        onClick={onClose}
       />
 
-      <div className={`floating-menu ${isOpen ? 'floating-menu--open' : ''}`}>
-        <button 
-          className="fab"
-          onClick={() => setIsOpen(!isOpen)}
-          aria-label="Settings"
-        >
-          <svg className="fab__icon" viewBox="0 0 24 24">
-            <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
-          </svg>
-        </button>
-
-        <div className="menu-items">
-          <div className="menu-item">
-            <button className="menu-item__button">
-              Quality ({settings.quality.global}%)
-              <input 
-                className="form-control--range"
-                type="range" 
-                min="0" 
-                max="100" 
+      <div className={`floating-menu ${show ? "floating-menu--open" : ""}`}>
+        <div className="floating-menu__panel">
+          <div className="floating-menu__item">
+            <div className="floating-menu__content floating-menu__content--column">
+              <div className="header-row">
+                <span>Quality</span>
+                <span className="value">{settings.quality.global}%</span>
+              </div>
+              <input
+                ref={qualitySliderRef}
+                className="menu-control--range"
+                type="range"
+                min="0"
+                max="100"
                 value={settings.quality.global}
                 onChange={(e) => handleQualityChange(e.target.value)}
               />
-            </button>
+            </div>
           </div>
 
-          <div className="menu-item">
-            <button className="menu-item__button">
-              Resize
-              <ResizeControls 
-                settings={settings} 
-                onSettingsChange={onSettingsChange} 
-              />
-            </button>
+          <div className="divider"></div>
+
+          <div className="floating-menu__item">
+            <div className="floating-menu__content">
+              <span>Resize</span>
+              <div className="control-group">
+                {resizeMode !== "none" && (
+                  <div className="input-with-unit">
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="Size"
+                      value={settings.resize.size || ""}
+                      onChange={(e) =>
+                        handleResizeChange(resizeMode, e.target.value)
+                      }
+                      className="menu-control--input"
+                    />
+                    <span className="unit">px</span>
+                  </div>
+                )}
+                <select
+                  value={resizeMode}
+                  onChange={(e) => {
+                    setResizeMode(e.target.value);
+                    handleResizeChange(e.target.value, settings.resize.size);
+                  }}
+                  className="menu-control--select"
+                >
+                  <option value="none">Don't resize</option>
+                  <option value="width">Width</option>
+                  <option value="height">Height</option>
+                  <option value="longest">Longest edge</option>
+                  <option value="shortest">Shortest edge</option>
+                </select>
+              </div>
+            </div>
           </div>
 
-          <div className="menu-item">
-            <button className="menu-item__button">
-              Format
-              <select 
+          <div className="divider"></div>
+
+          <div className="floating-menu__item">
+            <div className="floating-menu__content">
+              <span>Convert to</span>
+              <select
                 value={settings.outputFormat}
-                onChange={(e) => onSettingsChange({
-                  ...settings,
-                  outputFormat: e.target.value
-                })}
+                onChange={(e) =>
+                  onSettingsChange({
+                    ...settings,
+                    outputFormat: e.target.value,
+                  })
+                }
+                className="menu-control--select"
               >
                 <option value="original">Original</option>
                 <option value="jpeg">JPEG</option>
                 <option value="png">PNG</option>
-                <option value="webp">WebP</option>
+                <option value="webp">WEBP</option>
                 <option value="avif">AVIF</option>
               </select>
-            </button>
+            </div>
           </div>
+
+          <button onClick={onClose} aria-label="Close menu">
+            <img className="floating-menu__close" src={closeIcon} alt="Close" />
+          </button>
         </div>
       </div>
     </>
   );
 }
 
-export default FloatingMenu; 
+export default FloatingMenu;

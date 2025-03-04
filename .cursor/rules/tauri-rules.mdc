@@ -1,0 +1,14 @@
+---
+description: Overall Tauri architecture and functionalities
+globs: 
+alwaysApply: true
+---
+
+# Tauri rules
+
+- Always ask before changing or adding packages
+- Never use Tailwind
+- Never use Typescript
+- Use Powershell commands for terminal operations
+- The UI is rendered with Webview2 on Windows or Webkit on Macos, no need for other prefixes
+- This is a desktop app, the UI doesn't need to be responsive

@@ -14,7 +14,9 @@ function useProgressTracker(isProcessing) {
     totalTasks: 0,
     progressPercentage: 0,
     status: 'idle',
-    lastUpdated: Date.now()
+    lastUpdated: Date.now(),
+    savedSize: 0,          // Size saved in MB
+    savedPercentage: 0     // Percentage of size saved
   });
   
   // Ref to track cumulative progress across batches
@@ -25,7 +27,12 @@ function useProgressTracker(isProcessing) {
     lastCompletedInBatch: 0, // How many were completed in the current batch
     lastStatus: null,       // Status of the last update
     batchCount: 0,          // How many batches we've seen
-    knownTotalImages: null  // Initial count from the drag-drop event
+    knownTotalImages: null,  // Initial count from the drag-drop event
+    
+    // Statistics tracking (estimated based on current progress)
+    averageCompressionRatio: 0.65, // Assume 65% average compression
+    totalSavedSize: 0,      // Total saved size in MB (simulated)
+    savedPercentage: 0      // Percentage saved (simulated)
   });
   
   // Update processingRef when isProcessing changes
@@ -93,13 +100,23 @@ function useProgressTracker(isProcessing) {
           ? Math.floor((currentBatch.processedImages / totalForCalculation) * 100)
           : 0;
         
+        // Calculate estimated saved size and percentage based on progress
+        // Use a simple model: as progress increases, the saved statistics increase
+        // Start with low values and reach full estimated values at 100%
+        const progressRatio = overallPercentage / 100;
+        const estimatedTotalSizeMB = totalForCalculation * 2; // Assume average 2MB per image
+        const estimatedSavedSizeMB = estimatedTotalSizeMB * currentBatch.averageCompressionRatio * progressRatio;
+        const estimatedSavedPercentage = Math.round(currentBatch.averageCompressionRatio * 100 * progressRatio);
+        
         // Update the progress state with cumulative values
         setProgress({
           completedTasks: currentBatch.processedImages,
           totalTasks: totalForCalculation,
           progressPercentage: overallPercentage,
           status: status,
-          lastUpdated: Date.now()
+          lastUpdated: Date.now(),
+          savedSize: parseFloat(estimatedSavedSizeMB.toFixed(1)),
+          savedPercentage: estimatedSavedPercentage
         });
       }
     });
@@ -120,7 +137,9 @@ function useProgressTracker(isProcessing) {
       totalTasks: fileCount,
       progressPercentage: 0,
       status: 'idle',
-      lastUpdated: Date.now()
+      lastUpdated: Date.now(),
+      savedSize: 0,
+      savedPercentage: 0
     });
     
     // Reset batch progress ref with additional tracking properties
@@ -131,7 +150,12 @@ function useProgressTracker(isProcessing) {
       lastCompletedInBatch: 0,
       lastStatus: null,
       batchCount: 0,
-      knownTotalImages: fileCount
+      knownTotalImages: fileCount,
+      
+      // Initialize statistics tracking with reasonable defaults
+      averageCompressionRatio: 0.65, // Assume 65% average compression
+      totalSavedSize: 0,
+      savedPercentage: 0
     };
   };
   

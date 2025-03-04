@@ -1,0 +1,297 @@
+@use '../base/variables' as v;
+
+.floating-menu {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  z-index: 950;
+
+  // Overlay
+  &__overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 900;
+
+    &--active {
+      pointer-events: auto;
+    }
+  }
+
+  // Panel containing all menu items
+  &__panel {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+    bottom: 100%;
+    margin-bottom: 20px;
+    background-color: v.$night;
+    border-radius: 12px;
+    padding: 38px 45px 28px;
+    width: 400px;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+    transition: all 0.3s cubic-bezier(.16,.7,.35,1);
+  }
+
+  // Menu item container
+  &__item {
+    width: 100%;
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  // Menu item content
+  &__content {
+    width: 100%;
+    border: none;
+    background: none;
+    color: v.$light;
+
+    // Default layout for resize and convert options
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+
+    // Special layout for quality section
+    &--column {
+      flex-direction: column;
+      gap: 16px;
+    }
+    
+    .value {
+      opacity: 0.8;
+    }
+
+    // Header row for quality section
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+    }
+  }
+
+  // Divider
+  .divider {
+    width: 100%;
+    height: 1px;
+    background-color: rgba(v.$light, 0.1);
+  }
+
+  // Close button
+  &__close {
+    background: none;
+    height: 32px;
+    width: 32px;
+    padding: 10px;
+    cursor: pointer;
+    color: v.$light;
+    opacity: 0.7;
+    transition: all 0.3s cubic-bezier(.16,.7,.35,1);
+    
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  // Open state
+  &--open {
+    .floating-menu__panel {
+      pointer-events: auto;
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  }
+  
+  // Form controls - consolidated inside floating-menu
+  .menu-control {
+    // width: 100%;
+    color: v.$light;
+    
+    // Range slider
+    &--range {
+      --slider-value: 0%;
+      --slider-color: #d7bb21;
+      appearance: none;
+      -webkit-appearance: none; // Required for WebKit on macOS
+      width: 100%;
+      height: 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      position: relative;
+
+      
+      // Colored gradient fill - WebKit (macOS)
+      &::-webkit-slider-runnable-track {
+        background: linear-gradient(
+          to right,
+          #d7bb21 0%,
+          var(--slider-color) var(--slider-value),
+          rgba(v.$light, 0.2) var(--slider-value)
+        );
+        height: 3px;
+        border-radius: 10px;
+      }
+      
+      // Standard track for Chromium (Windows)
+      &::-ms-track {
+        background: linear-gradient(
+          to right,
+          #d7bb21 0%,
+          var(--slider-color) var(--slider-value),
+          #444 var(--slider-value)
+        );
+        height: 3px;
+        border-radius: 10px;
+      }
+
+      // Hide thumb by default - WebKit (macOS)
+      &::-webkit-slider-thumb {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: v.$light;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        margin-top: -3px;
+        opacity: 0;
+      }
+      
+      // Standard thumb for Chromium (Windows)
+      &::-ms-thumb {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: v.$light;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        opacity: 0;
+      }
+      
+      // Show thumb on hover
+      &:hover {
+        &::-webkit-slider-thumb {
+          opacity: 1;
+          transform: scale(1.2);
+        }
+        
+        &::-ms-thumb {
+          opacity: 1;
+          transform: scale(1.2);
+        }
+      }
+    }
+    
+    // Select and input fields - shared styles
+    &--select,
+    &--input {
+      color: v.$light;
+      border: none;
+      appearance: none;
+      -webkit-appearance: none; // Required for WebKit on macOS
+      text-align: right;
+      background: transparent;
+      padding: 4px 0;
+      padding-bottom: 1px; // Ensure consistent height with border
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+      
+      &:focus {
+        outline: none;
+      }
+      
+      &:hover {
+        opacity: 0.9;
+      }
+    }
+    
+    // Select specific styles
+    &--select {
+      // width: auto;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e0e0e0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right 0px center;
+      background-size: 12px;
+      padding-right: 20px;
+      border-bottom: 1px solid rgba(v.$light, 0);
+      padding-bottom: 3px;
+      
+      option {
+        background-color: v.$night;
+        color: v.$light;
+      }
+    }
+    
+    // Input specific styles
+    &--input {
+      color: rgba(v.$light, 0.9);
+      width: 60px;
+      text-align: center;
+      border-bottom: 1px solid rgba(v.$light, 0.2);
+      padding-bottom: 3px;
+      
+      &:hover,
+      &:focus {
+        border-bottom-color: rgba(v.$light, 0.4);
+      }
+      
+      // Remove spinner arrows for number inputs
+      &[type="number"] {        
+        // Chrome, Safari, Edge, Opera
+        &::-webkit-outer-spin-button,
+        &::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+      }
+      
+      &::placeholder {
+        color: rgba(v.$light, 0.5);
+      }
+    }
+  }
+  
+  // Control group (replaces resize-controls)
+  .control-group {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    
+    // When both select and input are present
+    .menu-control--select + .input-with-unit {
+      margin-left: 4px;
+    }
+    
+    // Input with unit wrapper
+    .input-with-unit {
+      display: flex;
+      align-items: center;
+      position: relative;
+      min-width: 80px;
+      
+      .unit {
+        margin-left: 4px;
+        color: rgba(v.$light, 0.7);
+      }
+      
+      // Hide input when resize mode is "none"
+      &:empty {
+        display: none;
+      }
+    }
+  }
+}
