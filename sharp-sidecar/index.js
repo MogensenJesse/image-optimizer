@@ -2,7 +2,8 @@ const { isMainThread, parentPort, workerData } = require('worker_threads');
 const { optimizeImage } = require('./src/processing/optimizer');
 const { optimizeBatch } = require('./src/processing/batch');
 const { error, debug } = require('./src/utils');
-const { createStartMessage, createCompleteMessage, createErrorMessage, sendProgressMessage } = require('./src/utils/progress');
+const { createStartMessage, createCompleteMessage, createErrorMessage, sendProgressMessage, formatBytes } = require('./src/utils/progress');
+const path = require('path');
 
 // Worker thread code
 if (!isMainThread && workerData?.isWorker) {
@@ -17,25 +18,36 @@ if (!isMainThread && workerData?.isWorker) {
         
         for (const task of tasks) {
           try {
+            const fileName = path.basename(task.input);
             // Send start progress (keep for detailed logging in benchmark mode)
             sendProgressMessage(createStartMessage(task.input, {
-              workerId
+              workerId,
+              fileName
             }));
             
-            debug(`Worker ${workerId} processing: ${task.input}`);
+            debug(`Worker ${workerId} processing: ${fileName}`);
             const result = await optimizeImage(task.input, task.output, task.settings);
             
-            // Send completion progress (keep for detailed logging in benchmark mode)
-            sendProgressMessage(createCompleteMessage(task.input, {
+            // Create a more detailed result with formatted values for display
+            const enhancedResult = {
               ...result,
-              workerId
-            }));
+              workerId,
+              fileName,
+              formattedOriginalSize: formatBytes(result.original_size),
+              formattedOptimizedSize: formatBytes(result.optimized_size),
+              formattedSavedBytes: formatBytes(result.saved_bytes),
+              optimizationMessage: `${fileName} optimized: ${formatBytes(result.original_size)} → ${formatBytes(result.optimized_size)} (${result.compression_ratio}% reduction)`
+            };
+            
+            // Send completion progress with enhanced result
+            sendProgressMessage(createCompleteMessage(task.input, enhancedResult));
             
             results.push(result);
           } catch (err) {
+            const fileName = path.basename(task.input);
             // Send error progress (keep for error reporting)
-            sendProgressMessage(createErrorMessage(task.input, err));
-            error(`Worker ${workerId} task failed: ${task.input}`, err);
+            sendProgressMessage(createErrorMessage(task.input, err, { fileName }));
+            error(`Worker ${workerId} task failed: ${fileName}`, err);
             
             results.push({
               path: task.output,
@@ -44,7 +56,8 @@ if (!isMainThread && workerData?.isWorker) {
               saved_bytes: 0,
               compression_ratio: "0.00",
               success: false,
-              error: err.message
+              error: err.message,
+              fileName
             });
           }
         }

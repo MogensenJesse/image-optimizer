@@ -221,6 +221,7 @@ function App() {
                   status={progress.status}
                   savedSize={progress.savedSize}
                   savedPercentage={progress.savedPercentage}
+                  lastOptimizedFile={progress.lastOptimizedFile}
                 />
               </div>
             )}

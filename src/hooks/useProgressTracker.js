@@ -16,7 +16,9 @@ function useProgressTracker(isProcessing) {
     status: 'idle',
     lastUpdated: Date.now(),
     savedSize: 0,          // Size saved in MB
-    savedPercentage: 0     // Percentage of size saved
+    savedPercentage: 0,    // Percentage of size saved
+    currentFile: null,     // Currently processing file
+    lastOptimizedFile: null // Last optimized file with metrics
   });
   
   // Ref to track cumulative progress across batches
@@ -29,10 +31,13 @@ function useProgressTracker(isProcessing) {
     batchCount: 0,          // How many batches we've seen
     knownTotalImages: null,  // Initial count from the drag-drop event
     
-    // Statistics tracking (estimated based on current progress)
-    averageCompressionRatio: 0.65, // Assume 65% average compression
-    totalSavedSize: 0,      // Total saved size in MB (simulated)
-    savedPercentage: 0      // Percentage saved (simulated)
+    // Statistics tracking (based on actual results)
+    totalSavedBytes: 0,     // Total bytes saved
+    totalOriginalSize: 0,   // Total original size in bytes
+    lastOptimizedFile: null, // Last optimized file with metrics
+    
+    // Keep track of the last 5 optimized files for UI display
+    recentOptimizations: []
   });
   
   // Update processingRef when isProcessing changes
@@ -43,81 +48,126 @@ function useProgressTracker(isProcessing) {
   useEffect(() => {
     // Listen for progress updates from backend
     const unsubscribeProgress = listen('image_optimization_progress', (event) => {
-      // Update cumulative progress
-      const { completedTasks, totalTasks, status } = event.payload;
+      // Check if this is a detailed update with file-specific metrics
+      const isDetailedUpdate = event.payload.metadata && event.payload.metadata.detailedUpdate;
       
       // Use processingRef instead of isProcessing to avoid state timing issues
       if (processingRef.current) {
         const currentBatch = batchProgressRef.current;
         
-        // Detect a new batch in any of these cases:
-        // 1. Previous status was 'complete' and now we're processing again
-        // 2. completedTasks suddenly dropped to a low number after being high
-        // 3. totalTasks changed from previous batch
-        const previouslyComplete = currentBatch.lastStatus === 'complete' && status === 'processing';
-        const taskCountReset = currentBatch.lastCompletedInBatch > completedTasks && completedTasks <= 20;
-        const taskSizeChanged = currentBatch.currentBatchId !== null && currentBatch.currentBatchId !== `${totalTasks}`;
-        
-        if (!currentBatch.currentBatchId || previouslyComplete || taskCountReset || taskSizeChanged) {
-          // This is a new batch - increment batch count and update the batch ID
-          currentBatch.batchCount++;
-          currentBatch.currentBatchId = `${totalTasks}`;
+        if (isDetailedUpdate) {
+          // This is a detailed update with file-specific metrics
+          const { fileName } = event.payload.metadata;
+          const result = event.payload.result;
           
-          // ONLY update totalImages if we didn't already know how many files were dropped
-          // This ensures we maintain the original total from the drop event
-          if (!currentBatch.knownTotalImages) {
-            // If this is the first batch, set the total
-            if (currentBatch.batchCount === 1) {
-              currentBatch.totalImages = totalTasks;
-            } else {
-              // For additional batches, add to the running total if we don't know the final count
-              currentBatch.totalImages += totalTasks;
+          if (result) {
+            // Update the statistics with actual data
+            currentBatch.totalSavedBytes += result.saved_bytes;
+            currentBatch.totalOriginalSize += result.original_size;
+            
+            // Create an optimization record
+            const optimizationRecord = {
+              fileName,
+              originalSize: result.original_size,
+              optimizedSize: result.optimized_size,
+              savedBytes: result.saved_bytes,
+              compressionRatio: parseFloat(result.compression_ratio),
+              timestamp: Date.now()
+            };
+            
+            // Update the last optimized file
+            currentBatch.lastOptimizedFile = optimizationRecord;
+            
+            // Add to recent optimizations (keep only the last 5)
+            currentBatch.recentOptimizations.unshift(optimizationRecord);
+            if (currentBatch.recentOptimizations.length > 5) {
+              currentBatch.recentOptimizations.pop();
             }
+            
+            // Calculate overall saved percentage
+            const savedPercentage = currentBatch.totalOriginalSize > 0 
+              ? Math.round((currentBatch.totalSavedBytes / currentBatch.totalOriginalSize) * 100)
+              : 0;
+            
+            // Calculate saved size in MB
+            const savedSizeMB = currentBatch.totalSavedBytes / (1024 * 1024);
+            
+            // Update the progress state with the latest metrics
+            setProgress(prevProgress => ({
+              ...prevProgress,
+              savedSize: parseFloat(savedSizeMB.toFixed(1)),
+              savedPercentage,
+              lastOptimizedFile: optimizationRecord
+            }));
+          }
+        } else {
+          // This is a regular progress update
+          const { completedTasks, totalTasks, status } = event.payload;
+          
+          // Detect a new batch in any of these cases:
+          // 1. Previous status was 'complete' and now we're processing again
+          // 2. completedTasks suddenly dropped to a low number after being high
+          // 3. totalTasks changed from previous batch
+          const previouslyComplete = currentBatch.lastStatus === 'complete' && status === 'processing';
+          const taskCountReset = currentBatch.lastCompletedInBatch > completedTasks && completedTasks <= 20;
+          const taskSizeChanged = currentBatch.currentBatchId !== null && currentBatch.currentBatchId !== `${totalTasks}`;
+          
+          if (!currentBatch.currentBatchId || previouslyComplete || taskCountReset || taskSizeChanged) {
+            // This is a new batch - increment batch count and update the batch ID
+            currentBatch.batchCount++;
+            currentBatch.currentBatchId = `${totalTasks}`;
+            
+            // ONLY update totalImages if we didn't already know how many files were dropped
+            // This ensures we maintain the original total from the drop event
+            if (!currentBatch.knownTotalImages) {
+              // If this is the first batch, set the total
+              if (currentBatch.batchCount === 1) {
+                currentBatch.totalImages = totalTasks;
+              } else {
+                // For additional batches, add to the running total if we don't know the final count
+                currentBatch.totalImages += totalTasks;
+              }
+            }
+            
+            currentBatch.lastCompletedInBatch = 0;
           }
           
-          currentBatch.lastCompletedInBatch = 0;
+          // Update the last status
+          currentBatch.lastStatus = status;
+          
+          // Calculate how many new tasks were completed in this update
+          const newlyCompleted = Math.max(0, completedTasks - currentBatch.lastCompletedInBatch);
+          currentBatch.lastCompletedInBatch = completedTasks;
+          
+          // Update processed count by adding new completions
+          currentBatch.processedImages += newlyCompleted;
+          
+          // The total to use for percentage calculation is either the known total from drop event
+          // or the running total we've calculated from batches
+          const totalForCalculation = currentBatch.knownTotalImages || currentBatch.totalImages;
+          
+          // Ensure we don't exceed the total
+          currentBatch.processedImages = Math.min(currentBatch.processedImages, totalForCalculation);
+          
+          // Calculate percentage based on overall progress - use the KNOWN total from drop event if available
+          const overallPercentage = totalForCalculation > 0 
+            ? Math.floor((currentBatch.processedImages / totalForCalculation) * 100)
+            : 0;
+          
+          // Update the progress state with cumulative values
+          setProgress(prevProgress => ({
+            ...prevProgress,
+            completedTasks: currentBatch.processedImages,
+            totalTasks: totalForCalculation,
+            progressPercentage: overallPercentage,
+            status: status,
+            lastUpdated: Date.now(),
+            // Keep the existing savedSize and savedPercentage values
+            savedSize: prevProgress.savedSize,
+            savedPercentage: prevProgress.savedPercentage,
+            lastOptimizedFile: currentBatch.lastOptimizedFile
+          }));
         }
-        
-        // Update the last status
-        currentBatch.lastStatus = status;
-        
-        // Calculate how many new tasks were completed in this update
-        const newlyCompleted = Math.max(0, completedTasks - currentBatch.lastCompletedInBatch);
-        currentBatch.lastCompletedInBatch = completedTasks;
-        
-        // Update processed count by adding new completions
-        currentBatch.processedImages += newlyCompleted;
-        
-        // The total to use for percentage calculation is either the known total from drop event
-        // or the running total we've calculated from batches
-        const totalForCalculation = currentBatch.knownTotalImages || currentBatch.totalImages;
-        
-        // Ensure we don't exceed the total
-        currentBatch.processedImages = Math.min(currentBatch.processedImages, totalForCalculation);
-        
-        // Calculate percentage based on overall progress - use the KNOWN total from drop event if available
-        const overallPercentage = totalForCalculation > 0 
-          ? Math.floor((currentBatch.processedImages / totalForCalculation) * 100)
-          : 0;
-        
-        // Calculate estimated saved size and percentage based on progress
-        // Use a simple model: as progress increases, the saved statistics increase
-        // Start with low values and reach full estimated values at 100%
-        const progressRatio = overallPercentage / 100;
-        const estimatedTotalSizeMB = totalForCalculation * 2; // Assume average 2MB per image
-        const estimatedSavedSizeMB = estimatedTotalSizeMB * currentBatch.averageCompressionRatio * progressRatio;
-        const estimatedSavedPercentage = Math.round(currentBatch.averageCompressionRatio * 100 * progressRatio);
-        
-        // Update the progress state with cumulative values
-        setProgress({
-          completedTasks: currentBatch.processedImages,
-          totalTasks: totalForCalculation,
-          progressPercentage: overallPercentage,
-          status: status,
-          lastUpdated: Date.now(),
-          savedSize: parseFloat(estimatedSavedSizeMB.toFixed(1)),
-          savedPercentage: estimatedSavedPercentage
-        });
       }
     });
 
@@ -139,7 +189,9 @@ function useProgressTracker(isProcessing) {
       status: 'idle',
       lastUpdated: Date.now(),
       savedSize: 0,
-      savedPercentage: 0
+      savedPercentage: 0,
+      currentFile: null,
+      lastOptimizedFile: null
     });
     
     // Reset batch progress ref with additional tracking properties
@@ -152,10 +204,11 @@ function useProgressTracker(isProcessing) {
       batchCount: 0,
       knownTotalImages: fileCount,
       
-      // Initialize statistics tracking with reasonable defaults
-      averageCompressionRatio: 0.65, // Assume 65% average compression
-      totalSavedSize: 0,
-      savedPercentage: 0
+      // Reset statistics tracking
+      totalSavedBytes: 0,
+      totalOriginalSize: 0,
+      lastOptimizedFile: null,
+      recentOptimizations: []
     };
   };
   

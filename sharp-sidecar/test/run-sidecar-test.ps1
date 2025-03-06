@@ -19,7 +19,7 @@ if (-not $?) {
 }
 
 # Function to run a node script and check exit code
-function Run-Script {
+function Invoke-Script {
     param (
         [string]$ScriptPath
     )
@@ -45,10 +45,10 @@ function Run-Script {
 }
 
 # Step 1: Run the data capture test
-Run-Script "$BASE_DIR\run-test.js"
+Invoke-Script "$BASE_DIR\run-test.js"
 
 # Step 2: Analyze the results
-Run-Script "$BASE_DIR\analyze-results.js"
+Invoke-Script "$BASE_DIR\analyze-results.js"
 
 # Step 3: Display the results
 Write-Host "==========================================" -ForegroundColor Cyan

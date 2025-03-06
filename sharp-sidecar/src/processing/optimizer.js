@@ -74,11 +74,12 @@ async function optimizeImage(input, output, settings) {
   try {
     debug('Starting optimization with settings:', settings);
     const inputSize = getFileSize(input);
+    const fileName = require('path').basename(input);
 
     let image = sharp(input);
     const metadata = await image.metadata();
     const inputFormat = metadata.format;
-    progress('Input', `Format: ${inputFormat}, dimensions: ${metadata.width}x${metadata.height}`);
+    progress('Input', `${fileName}: Format: ${inputFormat}, dimensions: ${metadata.width}x${metadata.height}`);
 
     if (!isFormatSupported(inputFormat)) {
       throw new Error(`Unsupported input format: ${inputFormat}`);
@@ -86,7 +87,7 @@ async function optimizeImage(input, output, settings) {
 
     // Determine output format
     const outputFormat = settings?.outputFormat === 'original' ? inputFormat : settings.outputFormat;
-    debug('Converting to format:', outputFormat);
+    debug(`Converting ${fileName} to format: ${outputFormat}`);
 
     if (!isFormatSupported(outputFormat)) {
       throw new Error(`Unsupported output format: ${outputFormat}`);
@@ -148,14 +149,24 @@ async function optimizeImage(input, output, settings) {
 
     // Ensure output path has correct extension
     const outputPath = ensureCorrectExtension(output, inputFormat, outputFormat);
-    debug('Writing to:', outputPath);
+    debug(`Writing ${fileName} to: ${outputPath}`);
 
     // Convert and save
     await image.toFormat(outputFormat, formatOptions).toFile(outputPath);
     
     const outputSize = getFileSize(outputPath);
     const stats = getCompressionStats(inputSize, outputSize);
-    progress('Complete', `Saved ${stats.saved_bytes} bytes (${stats.compression_ratio}% reduction)`);
+    
+    const formatBytes = (bytes, decimals = 2) => {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const dm = decimals < 0 ? 0 : decimals;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    };
+    
+    progress('Complete', `${fileName}: Saved ${formatBytes(stats.saved_bytes)} (${stats.compression_ratio}% reduction)`);
 
     return createResultObject(outputPath, stats, outputFormat);
   } catch (err) {

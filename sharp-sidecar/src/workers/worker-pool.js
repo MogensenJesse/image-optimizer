@@ -3,7 +3,7 @@ const os = require('os');
 const path = require('path');
 const debug = require('debug')('sharp-sidecar:worker-pool');
 const error = require('debug')('sharp-sidecar:worker-pool:error');
-const { createProgressUpdate } = require('../utils/progress');
+const { createProgressUpdate, createDetailedProgressUpdate, formatBytes } = require('../utils/progress');
 
 /**
  * Manages a pool of Sharp worker threads for parallel image processing
@@ -124,29 +124,65 @@ class SharpWorkerPool {
             const safeCompletedTasks = Math.min(this.metrics.completedTasks, this.metrics.totalTasks);
             const safeQueueLength = Math.max(0, this.metrics.totalTasks - safeCompletedTasks);
             
-            // Forward progress messages to stdout for Rust to parse
-            console.log(JSON.stringify({
-              type: 'progress',
-              progressType: message.progressType,
-              taskId: message.taskId,
-              workerId: workerIndex,
-              result: message.result,
-              error: message.error,
-              metrics: {
-                completedTasks: safeCompletedTasks,
-                totalTasks: this.metrics.totalTasks,
-                queueLength: safeQueueLength
-              }
-            }));
+            // Only forward progress messages to stdout if they are "start" messages
+            // We skip the "complete" messages since the backend doesn't need these individual messages
+            if (message.progressType === 'start') {
+              console.log(JSON.stringify({
+                type: 'progress',
+                progressType: message.progressType,
+                taskId: message.taskId,
+                workerId: workerIndex,
+                result: message.result,
+                error: message.error,
+                metrics: {
+                  completedTasks: safeCompletedTasks,
+                  totalTasks: this.metrics.totalTasks,
+                  queueLength: safeQueueLength
+                }
+              }));
+            }
             
             // If this is a completion message, update metrics and send a progress update
+            // but don't emit the individual completion message
             if (message.progressType === 'complete') {
+              // Store the result in memory for tallying final results
+              const result = message.result;
+              
+              // Update the counters
               this.metrics.completedTasks += 1;
               // Ensure queueLength doesn't go negative
               this.metrics.queueLength = Math.max(0, this.metrics.totalTasks - this.metrics.completedTasks);
               
+              // Extract the file name from the task ID
+              const fileName = path.basename(message.taskId);
+              
+              // Create detailed progress update with optimization metrics
+              if (result) {
+                const progressDetailedUpdate = createDetailedProgressUpdate(
+                  fileName,
+                  message.taskId,
+                  result,
+                  {
+                    completedTasks: this.metrics.completedTasks,
+                    totalTasks: this.metrics.totalTasks
+                  }
+                );
+                
+                // Log the formatted message for debugging
+                debug(`${progressDetailedUpdate.formattedMessage}`);
+                
+                // Send the detailed update as a normal console.log message
+                console.log(JSON.stringify(progressDetailedUpdate));
+                
+                // Log detailed optimization for debugging
+                debug(`Worker ${workerIndex} completed ${fileName}: ${formatBytes(result.original_size)} → ${formatBytes(result.optimized_size)} (${result.compression_ratio}% reduction)`);
+              }
+              
               // Always send a progress update for each completion without throttling
               this.sendProgressUpdate();
+              
+              // Log completion for debugging, but don't emit to stdout for the backend
+              debug(`Worker ${workerIndex} completed ${message.taskId} - ${result ? result.compression_ratio + '% reduction' : 'no result'}`);
             }
           } else if (message.type === 'results') {
             debug(`Received results from worker ${workerIndex}: ${message.results.length} items`);

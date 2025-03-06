@@ -201,7 +201,7 @@ impl BenchmarkMetrics {
         self.total_original_size += original_size;
         self.total_optimized_size += optimized_size;
 
-        let ratio = if original_size > 0 {
+        let ratio = if original_size > 0 && original_size >= optimized_size {
             ((original_size - optimized_size) as f64 / original_size as f64) * 100.0
         } else {
             0.0

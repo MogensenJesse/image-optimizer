@@ -10,26 +10,35 @@ import React from "react";
  * @param {string} props.status - Current processing status ('idle', 'processing', 'complete', etc.)
  * @param {number} props.savedSize - Size saved in MB (optional)
  * @param {number} props.savedPercentage - Percentage of size saved (optional)
+ * @param {Object} props.lastOptimizedFile - Information about the last optimized file
  */
 function ProgressBar({
   completedTasks,
   totalTasks,
   progressPercentage,
   status,
-  savedSize = 78.2, // Default values for demonstration
-  savedPercentage = 73,
+  savedSize = 0,
+  savedPercentage = 0,
+  lastOptimizedFile = null,
 }) {
   // Calculate saved percentage for display
   const displayPercentage = Math.round(progressPercentage);
   const isComplete = displayPercentage >= 100;
 
   // Calculate the stroke-dasharray and stroke-dashoffset for the semi-circle
-  const radius = 120;
+  const radius = 100;
   const circumference = radius * Math.PI;
   const dashOffset = circumference - (progressPercentage / 100) * circumference;
 
   // Gradient ID for the SVG
   const gradientId = "progressGradient";
+
+  // Format file size to human-readable format
+  const formatFileSize = (bytes) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   return (
     <div className="progress-circle">
@@ -73,6 +82,18 @@ function ProgressBar({
         <p className="progress-circle__percentage-label">
           {savedSize} MB / {savedPercentage}% saved
         </p>
+        
+        {/* Last optimized file information */}
+        {lastOptimizedFile && (
+          <div className="progress-circle__last-file">
+            <p className="progress-circle__last-file-name">
+              {lastOptimizedFile.fileName}
+            </p>
+            <p className="progress-circle__last-file-stats">
+              {formatFileSize(lastOptimizedFile.savedBytes)} saved ({lastOptimizedFile.compressionRatio}%)
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

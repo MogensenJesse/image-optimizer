@@ -3,7 +3,7 @@ use crate::core::ImageTask;
 use crate::utils::{OptimizerError, OptimizerResult};
 use crate::core::OptimizationResult;
 use crate::core::{Progress, ProgressType, ProgressReporter};
-use super::types::SharpResult;
+use super::types::{SharpResult, DetailedProgressUpdate};
 #[cfg(feature = "benchmarking")]
 use crate::benchmarking::metrics::WorkerPoolMetrics;
 use tauri_plugin_shell::process::{CommandEvent, TerminatedPayload};
@@ -55,6 +55,70 @@ impl<'a> SharpExecutor<'a> {
         self.report_progress(&progress);
     }
 
+    /// Handles a detailed progress update with file-specific optimization metrics
+    fn handle_detailed_progress_update(&self, update: DetailedProgressUpdate) {
+        // Create a progress object with the file-specific optimization data
+        let mut progress = Progress::new(
+            ProgressType::Progress,
+            update.batch_metrics.completed_tasks,
+            update.batch_metrics.total_tasks,
+            "processing"
+        );
+        
+        // Set the task ID (clone it to avoid borrowing issues)
+        let task_id = update.task_id.clone();
+        progress.task_id = Some(task_id.clone());
+        
+        // Convert optimization metrics to SharpResult
+        let result = SharpResult {
+            path: task_id, // Use the cloned task_id
+            original_size: update.optimization_metrics.original_size,
+            optimized_size: update.optimization_metrics.optimized_size,
+            saved_bytes: (update.optimization_metrics.original_size as i64) - (update.optimization_metrics.optimized_size as i64),
+            compression_ratio: update.optimization_metrics.compression_ratio.clone(),
+            format: update.optimization_metrics.format.clone(),
+            success: true,
+            error: None,
+        };
+        
+        // Copy the necessary values before moving result
+        let saved_bytes = result.saved_bytes;
+        let compression_ratio = result.compression_ratio.clone();
+        
+        // Set the result object in the progress
+        progress.result = Some(result);
+        
+        // Add the formatted message if available
+        if let Some(msg) = update.formatted_message {
+            let metadata = serde_json::json!({
+                "formattedMessage": msg,
+                "fileName": update.file_name
+            });
+            progress.metadata = Some(metadata);
+        } else {
+            // Create a default formatted message using the copied values
+            let saved_kb = saved_bytes as f64 / 1024.0;
+            let formatted_msg = format!(
+                "{} optimized ({:.2} KB saved / {}% compression) - Progress: {}% ({}/{})",
+                update.file_name,
+                saved_kb,
+                compression_ratio,
+                update.batch_metrics.progress_percentage,
+                update.batch_metrics.completed_tasks,
+                update.batch_metrics.total_tasks
+            );
+            
+            let metadata = serde_json::json!({
+                "formattedMessage": formatted_msg,
+                "fileName": update.file_name
+            });
+            progress.metadata = Some(metadata);
+        }
+        
+        // Report progress using the trait
+        self.report_progress(&progress);
+    }
+
     #[cfg(feature = "benchmarking")]
     pub async fn execute_batch(&self, tasks: &[ImageTask]) 
         -> OptimizerResult<(Vec<OptimizationResult>, Option<WorkerPoolMetrics>)> {
@@ -95,7 +159,8 @@ impl<'a> SharpExecutor<'a> {
             match event {
                 CommandEvent::Stdout(line) | CommandEvent::Stderr(line) => {
                     if let Some(line_str) = process_line(&line) {
-                        if line_str.contains("\"progressType\"") || line_str.contains("\"status\"") {
+                        if line_str.contains("\"progressType\"") || line_str.contains("\"status\"") || 
+                           line_str.contains("\"type\":\"progress_detail\"") || line_str.contains("\"type\":\"detailed_progress\"") {
                             // Try to parse as Progress type from core module first
                             if let Ok(progress) = serde_json::from_str::<crate::core::Progress>(&line_str) {
                                 self.report_progress(&progress);
@@ -104,9 +169,17 @@ impl<'a> SharpExecutor<'a> {
                             else if let Ok(update) = serde_json::from_str::<super::types::ProgressUpdate>(&line_str) {
                                 self.handle_progress_update(update);
                             } 
+                            // Try to parse as detailed progress update with file-specific metrics
+                            else if let Ok(detailed_update) = serde_json::from_str::<DetailedProgressUpdate>(&line_str) {
+                                self.handle_detailed_progress_update(detailed_update);
+                            }
                             // Try to parse as legacy progress message
                             else if let Ok(message) = serde_json::from_str::<super::types::ProgressMessage>(&line_str) {
                                 self.handle_progress(message);
+                            }
+                            // If none of the above parsers succeed, log the message but don't error
+                            else {
+                                debug!("Could not parse progress message: {}", line_str);
                             }
                         } else {
                             // Try to parse as batch output
@@ -197,7 +270,8 @@ impl<'a> SharpExecutor<'a> {
             match event {
                 CommandEvent::Stdout(line) | CommandEvent::Stderr(line) => {
                     if let Some(line_str) = process_line(&line) {
-                        if line_str.contains("\"progressType\"") || line_str.contains("\"status\"") {
+                        if line_str.contains("\"progressType\"") || line_str.contains("\"status\"") || 
+                           line_str.contains("\"type\":\"progress_detail\"") || line_str.contains("\"type\":\"detailed_progress\"") {
                             // Try to parse as Progress type from core module first
                             if let Ok(progress) = serde_json::from_str::<crate::core::Progress>(&line_str) {
                                 self.report_progress(&progress);
@@ -206,9 +280,17 @@ impl<'a> SharpExecutor<'a> {
                             else if let Ok(update) = serde_json::from_str::<super::types::ProgressUpdate>(&line_str) {
                                 self.handle_progress_update(update);
                             } 
+                            // Try to parse as detailed progress update with file-specific metrics
+                            else if let Ok(detailed_update) = serde_json::from_str::<DetailedProgressUpdate>(&line_str) {
+                                self.handle_detailed_progress_update(detailed_update);
+                            }
                             // Try to parse as legacy progress message
                             else if let Ok(message) = serde_json::from_str::<super::types::ProgressMessage>(&line_str) {
                                 self.handle_progress(message);
+                            }
+                            // If none of the above parsers succeed, log the message but don't error
+                            else {
+                                debug!("Could not parse progress message: {}", line_str);
                             }
                         } else {
                             // Try to parse as batch output
@@ -308,24 +390,50 @@ impl<'a> ProgressReporter for SharpExecutor<'a> {
                 }
             }
             ProgressType::Progress => {
-                // Log progress updates at regular intervals (every 10%)
-                if progress.progress_percentage % 10 == 0 || progress.progress_percentage == 25 || 
-                   progress.progress_percentage == 50 || progress.progress_percentage == 75 {
-                    // Use INFO level for progress to make it more visible
-                    info!(
-                        "📊 Progress: {}% ({}/{})",
-                        progress.progress_percentage,
-                        progress.completed_tasks,
-                        progress.total_tasks
-                    );
+                // Check if we have detailed optimization metrics in the metadata
+                let has_detailed_metrics = progress.metadata.as_ref()
+                    .and_then(|m| m.get("formattedMessage"))
+                    .is_some();
+                
+                if has_detailed_metrics {
+                    // Extract and log the formatted message with detailed metrics
+                    if let Some(formatted_msg) = progress.metadata.as_ref()
+                        .and_then(|m| m.get("formattedMessage"))
+                        .and_then(|m| m.as_str()) 
+                    {
+                        // Use INFO level for significant progress points
+                        if progress.progress_percentage % 10 == 0 || 
+                           progress.progress_percentage == 25 || 
+                           progress.progress_percentage == 50 || 
+                           progress.progress_percentage == 75 ||
+                           progress.progress_percentage >= 100 {
+                            info!("📊 {}", formatted_msg);
+                        } else {
+                            debug!("📊 {}", formatted_msg);
+                        }
+                    }
                 } else {
-                    // Other progress updates at debug level
-                    debug!(
-                        "📊 Progress: {}% ({}/{})",
-                        progress.progress_percentage,
-                        progress.completed_tasks,
-                        progress.total_tasks
-                    );
+                    // Log regular progress updates (original behavior)
+                    if progress.progress_percentage % 10 == 0 || 
+                       progress.progress_percentage == 25 || 
+                       progress.progress_percentage == 50 || 
+                       progress.progress_percentage == 75 {
+                        // Use INFO level for progress to make it more visible
+                        info!(
+                            "📊 Progress: {}% ({}/{})",
+                            progress.progress_percentage,
+                            progress.completed_tasks,
+                            progress.total_tasks
+                        );
+                    } else {
+                        // Other progress updates at debug level
+                        debug!(
+                            "📊 Progress: {}% ({}/{})",
+                            progress.progress_percentage,
+                            progress.completed_tasks,
+                            progress.total_tasks
+                        );
+                    }
                 }
             }
         }

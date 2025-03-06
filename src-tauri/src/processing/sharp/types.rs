@@ -57,7 +57,7 @@ pub struct ProgressMessage {
 /// These field names match the JavaScript camelCase naming convention
 /// and must be preserved for proper deserialization. See the sendProgressUpdate 
 /// and message handlers in the worker-pool.js file.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProgressMetrics {
     /// Number of completed tasks, set by the sidecar
@@ -76,6 +76,52 @@ pub struct ProgressUpdate {
     pub status: String,
     #[serde(default)]
     pub metadata: Option<serde_json::Value>,
+}
+
+/// Detailed progress update with file-specific optimization metrics
+#[derive(Debug, Deserialize, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DetailedProgressUpdate {
+    /// File name without path
+    pub file_name: String,
+    /// Full task identifier (usually the input file path)
+    pub task_id: String,
+    /// Detailed optimization metrics for this specific file
+    pub optimization_metrics: OptimizationMetrics,
+    /// Batch progress metrics
+    pub batch_metrics: BatchMetrics,
+    /// Optional formatted message for direct display
+    #[serde(default)]
+    pub formatted_message: Option<String>,
+}
+
+/// Detailed optimization metrics for a specific file
+#[derive(Debug, Deserialize, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OptimizationMetrics {
+    /// Original file size in bytes
+    pub original_size: u64,
+    /// Optimized file size in bytes
+    pub optimized_size: u64,
+    /// Bytes saved during optimization
+    pub saved_bytes: u64,
+    /// Compression ratio as a string percentage
+    pub compression_ratio: String,
+    /// The format of the output image (e.g., "jpeg", "png")
+    #[serde(default)]
+    pub format: Option<String>,
+}
+
+/// Batch progress metrics
+#[derive(Debug, Deserialize, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchMetrics {
+    /// Number of completed tasks 
+    pub completed_tasks: usize,
+    /// Total number of tasks
+    pub total_tasks: usize,
+    /// Progress percentage (0-100)
+    pub progress_percentage: usize,
 }
 
 // Define type aliases to help with the transition to the centralized system

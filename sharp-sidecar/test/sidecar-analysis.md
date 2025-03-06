@@ -1,19 +1,19 @@
 # Sidecar Communication Analysis Report
 
-*Generated on: 2025-03-06T15:16:13.511Z*
+*Generated on: 2025-03-06T16:33:49.210Z*
 
 ## Summary Statistics
 
 - **Total messages captured**: 43
 - **Message types**:
-  - `progress`: 20 messages (46.5%)
+  - `progress`: 10 messages (23.3%)
+  - `detailed_progress`: 10 messages (23.3%)
   - `progress_update`: 11 messages (25.6%)
 
 ## Progress Messages Analysis
 
 - **Progress message types**:
-  - `start`: 10 messages (50.0%)
-  - `complete`: 10 messages (50.0%)
+  - `start`: 10 messages (100.0%)
 
 ### Progress Message Samples
 
@@ -23,35 +23,8 @@
 {
   "type": "progress",
   "progressType": "start",
-  "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_07.jpg",
-  "workerId": 6,
-  "metrics": {
-    "completedTasks": 0,
-    "totalTasks": 10,
-    "queueLength": 10
-  }
-}
-```
-
-#### `complete` Sample:
-
-```json
-{
-  "type": "progress",
-  "progressType": "complete",
-  "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_03.jpg",
-  "workerId": 2,
-  "result": {
-    "path": "C:\\Users\\jesse\\AppData\\Local\\Temp\\sharp-sidecar-test-output\\test-image_03.jpg",
-    "original_size": 112004,
-    "optimized_size": 19479,
-    "saved_bytes": 92525,
-    "compression_ratio": "82.61",
-    "format": "jpeg",
-    "success": true,
-    "error": null,
-    "workerId": 2
-  },
+  "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_05.jpg",
+  "workerId": 4,
   "metrics": {
     "completedTasks": 0,
     "totalTasks": 10,
@@ -62,6 +35,31 @@
 
 
 ## Other Message Types
+
+### `detailed_progress` Messages (10)
+
+Sample:
+
+```json
+{
+  "type": "detailed_progress",
+  "fileName": "test-image_03.jpg",
+  "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_03.jpg",
+  "optimizationMetrics": {
+    "originalSize": 112004,
+    "optimizedSize": 19479,
+    "savedBytes": 92525,
+    "compressionRatio": "82.61",
+    "format": "jpeg"
+  },
+  "batchMetrics": {
+    "completedTasks": 1,
+    "totalTasks": 10,
+    "progressPercentage": 10
+  },
+  "formattedMessage": "test-image_03.jpg optimized (90.36 KB saved / 82.61% compression) - Progress: 10% (1/10)"
+}
+```
 
 ### `progress_update` Messages (11)
 
@@ -103,11 +101,11 @@ Sharp Sidecar                      Rust Backend
 
 ## Data Size Analysis
 
-- **Total data transferred**: 8.02 KB
-- **Average message size**: 191.09302325581396 bytes
+- **Total data transferred**: 8.01 KB
+- **Average message size**: 190.86046511627907 bytes
 
 ### Largest Messages
 
-1. **Type**: `progress/complete` - **Size**: 457 bytes
-2. **Type**: `progress/complete` - **Size**: 457 bytes
-3. **Type**: `progress/complete` - **Size**: 457 bytes
+1. **Type**: `detailed_progress` - **Size**: 459 bytes
+2. **Type**: `detailed_progress` - **Size**: 456 bytes
+3. **Type**: `detailed_progress` - **Size**: 456 bytes
