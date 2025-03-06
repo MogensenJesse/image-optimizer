@@ -25,9 +25,6 @@ class SharpWorkerPool {
       active_workers: 0,
       tasks_per_worker: []
     };
-    this.lastProgressPercentage = 0;
-    this.lastProgressTime = Date.now();
-    this.progressThrottleMs = 500; // Minimum 500ms between updates
     this.initializeWorkers();
   }
 
@@ -60,36 +57,23 @@ class SharpWorkerPool {
   }
 
   /**
-   * Send a throttled progress update
-   * Only sends updates when the percentage changes significantly or after time threshold
+   * Send a progress update
+   * Always sends updates without throttling
    */
   sendProgressUpdate() {
-    const currentTime = Date.now();
-    const currentPercentage = Math.floor((this.metrics.completedTasks / this.metrics.totalTasks) * 100);
-    const timeSinceLastUpdate = currentTime - this.lastProgressTime;
+    // Ensure completedTasks doesn't exceed totalTasks for progress reporting
+    const reportedCompletedTasks = Math.min(this.metrics.completedTasks, this.metrics.totalTasks);
+    const currentPercentage = Math.floor((reportedCompletedTasks / this.metrics.totalTasks) * 100);
     
-    // Send update if:
-    // 1. Percentage has increased, AND
-    // 2. Either:
-    //    a. It's been at least progressThrottleMs since last update, OR
-    //    b. It's a milestone percentage (0%, 25%, 50%, 75%, 100%)
-    const isMilestone = currentPercentage % 25 === 0 || currentPercentage === 100;
+    // Always send update without throttling
+    // Use the new unified format
+    const progressUpdate = createProgressUpdate(
+      reportedCompletedTasks, // Use the capped value
+      this.metrics.totalTasks,
+      'processing'
+    );
     
-    if (currentPercentage > this.lastProgressPercentage && 
-        (timeSinceLastUpdate >= this.progressThrottleMs || isMilestone)) {
-      
-      this.lastProgressPercentage = currentPercentage;
-      this.lastProgressTime = currentTime;
-      
-      // Use the new unified format
-      const progressUpdate = createProgressUpdate(
-        this.metrics.completedTasks,
-        this.metrics.totalTasks,
-        'processing'
-      );
-      
-      console.log(JSON.stringify(progressUpdate));
-    }
+    console.log(JSON.stringify(progressUpdate));
   }
 
   /**
@@ -121,6 +105,10 @@ class SharpWorkerPool {
 
       debug(`Split batch into ${chunks.length} chunks of size ${chunkSize}`);
 
+      // Keep track of finished workers to ensure we wait for all
+      let finishedWorkers = 0;
+      const totalWorkersWithTasks = chunks.length;
+      
       chunks.forEach((chunk, workerIndex) => {
         const worker = this.workers[workerIndex];
         debug(`Assigning ${chunk.length} tasks to worker ${workerIndex}`);
@@ -132,6 +120,10 @@ class SharpWorkerPool {
 
         worker.on('message', (message) => {
           if (message.type === 'progress') {
+            // Calculate safe metrics for reporting
+            const safeCompletedTasks = Math.min(this.metrics.completedTasks, this.metrics.totalTasks);
+            const safeQueueLength = Math.max(0, this.metrics.totalTasks - safeCompletedTasks);
+            
             // Forward progress messages to stdout for Rust to parse
             console.log(JSON.stringify({
               type: 'progress',
@@ -141,16 +133,19 @@ class SharpWorkerPool {
               result: message.result,
               error: message.error,
               metrics: {
-                completedTasks: this.metrics.completedTasks,
+                completedTasks: safeCompletedTasks,
                 totalTasks: this.metrics.totalTasks,
-                queueLength: this.metrics.queueLength
+                queueLength: safeQueueLength
               }
             }));
             
-            // If this is a completion message, update metrics and send a throttled update
+            // If this is a completion message, update metrics and send a progress update
             if (message.progressType === 'complete') {
               this.metrics.completedTasks += 1;
-              this.metrics.queueLength = this.metrics.totalTasks - this.metrics.completedTasks;
+              // Ensure queueLength doesn't go negative
+              this.metrics.queueLength = Math.max(0, this.metrics.totalTasks - this.metrics.completedTasks);
+              
+              // Always send a progress update for each completion without throttling
               this.sendProgressUpdate();
             }
           } else if (message.type === 'results') {
@@ -164,13 +159,19 @@ class SharpWorkerPool {
               }
             });
 
-            // Update metrics
-            this.metrics.completedTasks += message.results.length;
-            this.metrics.queueLength = batchSize - this.metrics.completedTasks;
+            // Increment the count of workers that have finished
+            finishedWorkers++;
+            debug(`Worker ${workerIndex} finished. ${finishedWorkers}/${totalWorkersWithTasks} workers completed.`);
             
-            debug(`Completed ${this.metrics.completedTasks}/${batchSize} tasks`);
+            // Update queue length but ensure it doesn't go negative
+            this.metrics.queueLength = Math.max(0, batchSize - this.metrics.completedTasks);
             
-            if (this.metrics.completedTasks >= batchSize) {
+            debug(`Completed ${Math.min(this.metrics.completedTasks, batchSize)}/${batchSize} tasks`);
+            
+            // Only finalize when ALL workers have completed their tasks
+            if (finishedWorkers >= totalWorkersWithTasks) {
+              debug(`All ${totalWorkersWithTasks} workers have completed their tasks.`);
+              
               // Filter out any undefined results
               const finalResults = results.filter(r => r !== undefined);
               debug(`Batch processing complete. Final results: ${finalResults.length} items`);
