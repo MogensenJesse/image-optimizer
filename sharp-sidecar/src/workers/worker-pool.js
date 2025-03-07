@@ -177,9 +177,10 @@ class SharpWorkerPool {
                 // Log detailed optimization for debugging
                 debug(`Worker ${workerIndex} completed ${fileName}: ${formatBytes(result.original_size)} → ${formatBytes(result.optimized_size)} (${result.compression_ratio}% reduction)`);
               }
-              
-              // Always send a progress update for each completion without throttling
-              this.sendProgressUpdate();
+              else {
+                // Only send a standard progress update if we couldn't send a detailed one
+                this.sendProgressUpdate();
+              }
               
               // Log completion for debugging, but don't emit to stdout for the backend
               debug(`Worker ${workerIndex} completed ${message.taskId} - ${result ? result.compression_ratio + '% reduction' : 'no result'}`);

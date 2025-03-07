@@ -20,6 +20,9 @@ This document tracks the implementation of real-time optimization metrics for in
 - Modified worker pool to emit detailed progress updates for each completed task
 - Added file-specific optimization metrics to progress messages
 - Improved logging for better debugging
+- Removed redundant `progress_update` messages when detailed metrics are already sent
+- Only send standard progress updates if detailed updates can't be sent
+- Maintained final progress update when all tasks are complete
 
 ### 4. Enhanced Image Optimizer
 - Added file names to progress messages for better tracking

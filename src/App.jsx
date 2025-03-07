@@ -61,7 +61,7 @@ function App() {
     if (appState === APP_STATE.COMPLETED) {
       completionTimer = setTimeout(() => {
         setAppState(APP_STATE.FADE_OUT);
-      }, 1500);
+      }, 3000);
     }
     
     return () => {
@@ -222,6 +222,7 @@ function App() {
                   savedSize={progress.savedSize}
                   savedPercentage={progress.savedPercentage}
                   lastOptimizedFile={progress.lastOptimizedFile}
+                  processingTime={progress.processingTime}
                 />
               </div>
             )}

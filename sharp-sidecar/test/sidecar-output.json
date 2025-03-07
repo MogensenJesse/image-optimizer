@@ -1,181 +1,46 @@
 [
   {
-    "timestamp": "2025-03-06T16:33:48.897Z",
+    "timestamp": "2025-03-07T08:58:38.321Z",
     "message": "Starting sidecar output capture test",
     "parsed": null
   },
   {
-    "timestamp": "2025-03-06T16:33:48.899Z",
-    "message": "Timestamp: 2025-03-06T16:33:48.899Z",
+    "timestamp": "2025-03-07T08:58:38.323Z",
+    "message": "Timestamp: 2025-03-07T08:58:38.323Z",
     "parsed": null
   },
   {
-    "timestamp": "2025-03-06T16:33:48.899Z",
+    "timestamp": "2025-03-07T08:58:38.323Z",
     "message": "Node.js version: v20.18.1",
     "parsed": null
   },
   {
-    "timestamp": "2025-03-06T16:33:48.899Z",
+    "timestamp": "2025-03-07T08:58:38.324Z",
     "message": "Platform: win32-x64",
     "parsed": null
   },
   {
-    "timestamp": "2025-03-06T16:33:48.900Z",
+    "timestamp": "2025-03-07T08:58:38.324Z",
     "message": "Created batch task with 10 images",
     "parsed": null
   },
   {
-    "timestamp": "2025-03-06T16:33:48.900Z",
+    "timestamp": "2025-03-07T08:58:38.325Z",
     "message": "Processing batch...",
     "parsed": null
   },
   {
-    "timestamp": "2025-03-06T16:33:48.900Z",
+    "timestamp": "2025-03-07T08:58:38.325Z",
     "message": "Starting batch optimization",
     "parsed": null
   },
   {
-    "timestamp": "2025-03-06T16:33:48.901Z",
+    "timestamp": "2025-03-07T08:58:38.325Z",
     "message": "[Batch] Processing 10 images",
     "parsed": null
   },
   {
-    "timestamp": "2025-03-06T16:33:49.021Z",
-    "message": "{\"type\":\"progress\",\"progressType\":\"start\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_05.jpg\",\"workerId\":4,\"metrics\":{\"completedTasks\":0,\"totalTasks\":10,\"queueLength\":10}}",
-    "parsed": {
-      "type": "progress",
-      "progressType": "start",
-      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_05.jpg",
-      "workerId": 4,
-      "metrics": {
-        "completedTasks": 0,
-        "totalTasks": 10,
-        "queueLength": 10
-      }
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.022Z",
-    "message": "{\"type\":\"progress\",\"progressType\":\"start\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_04.jpg\",\"workerId\":3,\"metrics\":{\"completedTasks\":0,\"totalTasks\":10,\"queueLength\":10}}",
-    "parsed": {
-      "type": "progress",
-      "progressType": "start",
-      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_04.jpg",
-      "workerId": 3,
-      "metrics": {
-        "completedTasks": 0,
-        "totalTasks": 10,
-        "queueLength": 10
-      }
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.024Z",
-    "message": "{\"type\":\"progress\",\"progressType\":\"start\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_03.jpg\",\"workerId\":2,\"metrics\":{\"completedTasks\":0,\"totalTasks\":10,\"queueLength\":10}}",
-    "parsed": {
-      "type": "progress",
-      "progressType": "start",
-      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_03.jpg",
-      "workerId": 2,
-      "metrics": {
-        "completedTasks": 0,
-        "totalTasks": 10,
-        "queueLength": 10
-      }
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.029Z",
-    "message": "{\"type\":\"progress\",\"progressType\":\"start\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_07.jpg\",\"workerId\":6,\"metrics\":{\"completedTasks\":0,\"totalTasks\":10,\"queueLength\":10}}",
-    "parsed": {
-      "type": "progress",
-      "progressType": "start",
-      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_07.jpg",
-      "workerId": 6,
-      "metrics": {
-        "completedTasks": 0,
-        "totalTasks": 10,
-        "queueLength": 10
-      }
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.029Z",
-    "message": "{\"type\":\"progress\",\"progressType\":\"start\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_06.jpg\",\"workerId\":5,\"metrics\":{\"completedTasks\":0,\"totalTasks\":10,\"queueLength\":10}}",
-    "parsed": {
-      "type": "progress",
-      "progressType": "start",
-      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_06.jpg",
-      "workerId": 5,
-      "metrics": {
-        "completedTasks": 0,
-        "totalTasks": 10,
-        "queueLength": 10
-      }
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.031Z",
-    "message": "{\"type\":\"progress\",\"progressType\":\"start\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_09.jpg\",\"workerId\":8,\"metrics\":{\"completedTasks\":0,\"totalTasks\":10,\"queueLength\":10}}",
-    "parsed": {
-      "type": "progress",
-      "progressType": "start",
-      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_09.jpg",
-      "workerId": 8,
-      "metrics": {
-        "completedTasks": 0,
-        "totalTasks": 10,
-        "queueLength": 10
-      }
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.033Z",
-    "message": "{\"type\":\"progress\",\"progressType\":\"start\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_01.jpg\",\"workerId\":0,\"metrics\":{\"completedTasks\":0,\"totalTasks\":10,\"queueLength\":10}}",
-    "parsed": {
-      "type": "progress",
-      "progressType": "start",
-      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_01.jpg",
-      "workerId": 0,
-      "metrics": {
-        "completedTasks": 0,
-        "totalTasks": 10,
-        "queueLength": 10
-      }
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.033Z",
-    "message": "{\"type\":\"progress\",\"progressType\":\"start\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_02.jpg\",\"workerId\":1,\"metrics\":{\"completedTasks\":0,\"totalTasks\":10,\"queueLength\":10}}",
-    "parsed": {
-      "type": "progress",
-      "progressType": "start",
-      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_02.jpg",
-      "workerId": 1,
-      "metrics": {
-        "completedTasks": 0,
-        "totalTasks": 10,
-        "queueLength": 10
-      }
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.033Z",
-    "message": "{\"type\":\"progress\",\"progressType\":\"start\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_08.jpg\",\"workerId\":7,\"metrics\":{\"completedTasks\":0,\"totalTasks\":10,\"queueLength\":10}}",
-    "parsed": {
-      "type": "progress",
-      "progressType": "start",
-      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_08.jpg",
-      "workerId": 7,
-      "metrics": {
-        "completedTasks": 0,
-        "totalTasks": 10,
-        "queueLength": 10
-      }
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.034Z",
+    "timestamp": "2025-03-07T08:58:38.457Z",
     "message": "{\"type\":\"progress\",\"progressType\":\"start\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_10.jpg\",\"workerId\":9,\"metrics\":{\"completedTasks\":0,\"totalTasks\":10,\"queueLength\":10}}",
     "parsed": {
       "type": "progress",
@@ -190,7 +55,142 @@
     }
   },
   {
-    "timestamp": "2025-03-06T16:33:49.052Z",
+    "timestamp": "2025-03-07T08:58:38.458Z",
+    "message": "{\"type\":\"progress\",\"progressType\":\"start\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_03.jpg\",\"workerId\":2,\"metrics\":{\"completedTasks\":0,\"totalTasks\":10,\"queueLength\":10}}",
+    "parsed": {
+      "type": "progress",
+      "progressType": "start",
+      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_03.jpg",
+      "workerId": 2,
+      "metrics": {
+        "completedTasks": 0,
+        "totalTasks": 10,
+        "queueLength": 10
+      }
+    }
+  },
+  {
+    "timestamp": "2025-03-07T08:58:38.458Z",
+    "message": "{\"type\":\"progress\",\"progressType\":\"start\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_04.jpg\",\"workerId\":3,\"metrics\":{\"completedTasks\":0,\"totalTasks\":10,\"queueLength\":10}}",
+    "parsed": {
+      "type": "progress",
+      "progressType": "start",
+      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_04.jpg",
+      "workerId": 3,
+      "metrics": {
+        "completedTasks": 0,
+        "totalTasks": 10,
+        "queueLength": 10
+      }
+    }
+  },
+  {
+    "timestamp": "2025-03-07T08:58:38.459Z",
+    "message": "{\"type\":\"progress\",\"progressType\":\"start\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_02.jpg\",\"workerId\":1,\"metrics\":{\"completedTasks\":0,\"totalTasks\":10,\"queueLength\":10}}",
+    "parsed": {
+      "type": "progress",
+      "progressType": "start",
+      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_02.jpg",
+      "workerId": 1,
+      "metrics": {
+        "completedTasks": 0,
+        "totalTasks": 10,
+        "queueLength": 10
+      }
+    }
+  },
+  {
+    "timestamp": "2025-03-07T08:58:38.459Z",
+    "message": "{\"type\":\"progress\",\"progressType\":\"start\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_08.jpg\",\"workerId\":7,\"metrics\":{\"completedTasks\":0,\"totalTasks\":10,\"queueLength\":10}}",
+    "parsed": {
+      "type": "progress",
+      "progressType": "start",
+      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_08.jpg",
+      "workerId": 7,
+      "metrics": {
+        "completedTasks": 0,
+        "totalTasks": 10,
+        "queueLength": 10
+      }
+    }
+  },
+  {
+    "timestamp": "2025-03-07T08:58:38.459Z",
+    "message": "{\"type\":\"progress\",\"progressType\":\"start\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_09.jpg\",\"workerId\":8,\"metrics\":{\"completedTasks\":0,\"totalTasks\":10,\"queueLength\":10}}",
+    "parsed": {
+      "type": "progress",
+      "progressType": "start",
+      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_09.jpg",
+      "workerId": 8,
+      "metrics": {
+        "completedTasks": 0,
+        "totalTasks": 10,
+        "queueLength": 10
+      }
+    }
+  },
+  {
+    "timestamp": "2025-03-07T08:58:38.460Z",
+    "message": "{\"type\":\"progress\",\"progressType\":\"start\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_05.jpg\",\"workerId\":4,\"metrics\":{\"completedTasks\":0,\"totalTasks\":10,\"queueLength\":10}}",
+    "parsed": {
+      "type": "progress",
+      "progressType": "start",
+      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_05.jpg",
+      "workerId": 4,
+      "metrics": {
+        "completedTasks": 0,
+        "totalTasks": 10,
+        "queueLength": 10
+      }
+    }
+  },
+  {
+    "timestamp": "2025-03-07T08:58:38.471Z",
+    "message": "{\"type\":\"progress\",\"progressType\":\"start\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_07.jpg\",\"workerId\":6,\"metrics\":{\"completedTasks\":0,\"totalTasks\":10,\"queueLength\":10}}",
+    "parsed": {
+      "type": "progress",
+      "progressType": "start",
+      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_07.jpg",
+      "workerId": 6,
+      "metrics": {
+        "completedTasks": 0,
+        "totalTasks": 10,
+        "queueLength": 10
+      }
+    }
+  },
+  {
+    "timestamp": "2025-03-07T08:58:38.471Z",
+    "message": "{\"type\":\"progress\",\"progressType\":\"start\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_06.jpg\",\"workerId\":5,\"metrics\":{\"completedTasks\":0,\"totalTasks\":10,\"queueLength\":10}}",
+    "parsed": {
+      "type": "progress",
+      "progressType": "start",
+      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_06.jpg",
+      "workerId": 5,
+      "metrics": {
+        "completedTasks": 0,
+        "totalTasks": 10,
+        "queueLength": 10
+      }
+    }
+  },
+  {
+    "timestamp": "2025-03-07T08:58:38.473Z",
+    "message": "{\"type\":\"progress\",\"progressType\":\"start\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_01.jpg\",\"workerId\":0,\"metrics\":{\"completedTasks\":0,\"totalTasks\":10,\"queueLength\":10}}",
+    "parsed": {
+      "type": "progress",
+      "progressType": "start",
+      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_01.jpg",
+      "workerId": 0,
+      "metrics": {
+        "completedTasks": 0,
+        "totalTasks": 10,
+        "queueLength": 10
+      }
+    }
+  },
+  {
+    "timestamp": "2025-03-07T08:58:38.498Z",
     "message": "{\"type\":\"detailed_progress\",\"fileName\":\"test-image_03.jpg\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_03.jpg\",\"optimizationMetrics\":{\"originalSize\":112004,\"optimizedSize\":19479,\"savedBytes\":92525,\"compressionRatio\":\"82.61\",\"format\":\"jpeg\"},\"batchMetrics\":{\"completedTasks\":1,\"totalTasks\":10,\"progressPercentage\":10},\"formattedMessage\":\"test-image_03.jpg optimized (90.36 KB saved / 82.61% compression) - Progress: 10% (1/10)\"}",
     "parsed": {
       "type": "detailed_progress",
@@ -212,190 +212,8 @@
     }
   },
   {
-    "timestamp": "2025-03-06T16:33:49.052Z",
-    "message": "{\"type\":\"progress_update\",\"completedTasks\":1,\"totalTasks\":10,\"progressPercentage\":10,\"status\":\"processing\",\"metadata\":{}}",
-    "parsed": {
-      "type": "progress_update",
-      "completedTasks": 1,
-      "totalTasks": 10,
-      "progressPercentage": 10,
-      "status": "processing",
-      "metadata": {}
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.061Z",
-    "message": "{\"type\":\"detailed_progress\",\"fileName\":\"test-image_07.jpg\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_07.jpg\",\"optimizationMetrics\":{\"originalSize\":200553,\"optimizedSize\":33275,\"savedBytes\":167278,\"compressionRatio\":\"83.41\",\"format\":\"jpeg\"},\"batchMetrics\":{\"completedTasks\":2,\"totalTasks\":10,\"progressPercentage\":20},\"formattedMessage\":\"test-image_07.jpg optimized (163.36 KB saved / 83.41% compression) - Progress: 20% (2/10)\"}",
-    "parsed": {
-      "type": "detailed_progress",
-      "fileName": "test-image_07.jpg",
-      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_07.jpg",
-      "optimizationMetrics": {
-        "originalSize": 200553,
-        "optimizedSize": 33275,
-        "savedBytes": 167278,
-        "compressionRatio": "83.41",
-        "format": "jpeg"
-      },
-      "batchMetrics": {
-        "completedTasks": 2,
-        "totalTasks": 10,
-        "progressPercentage": 20
-      },
-      "formattedMessage": "test-image_07.jpg optimized (163.36 KB saved / 83.41% compression) - Progress: 20% (2/10)"
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.061Z",
-    "message": "{\"type\":\"progress_update\",\"completedTasks\":2,\"totalTasks\":10,\"progressPercentage\":20,\"status\":\"processing\",\"metadata\":{}}",
-    "parsed": {
-      "type": "progress_update",
-      "completedTasks": 2,
-      "totalTasks": 10,
-      "progressPercentage": 20,
-      "status": "processing",
-      "metadata": {}
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.061Z",
-    "message": "{\"type\":\"detailed_progress\",\"fileName\":\"test-image_05.jpg\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_05.jpg\",\"optimizationMetrics\":{\"originalSize\":184276,\"optimizedSize\":35490,\"savedBytes\":148786,\"compressionRatio\":\"80.74\",\"format\":\"jpeg\"},\"batchMetrics\":{\"completedTasks\":3,\"totalTasks\":10,\"progressPercentage\":30},\"formattedMessage\":\"test-image_05.jpg optimized (145.3 KB saved / 80.74% compression) - Progress: 30% (3/10)\"}",
-    "parsed": {
-      "type": "detailed_progress",
-      "fileName": "test-image_05.jpg",
-      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_05.jpg",
-      "optimizationMetrics": {
-        "originalSize": 184276,
-        "optimizedSize": 35490,
-        "savedBytes": 148786,
-        "compressionRatio": "80.74",
-        "format": "jpeg"
-      },
-      "batchMetrics": {
-        "completedTasks": 3,
-        "totalTasks": 10,
-        "progressPercentage": 30
-      },
-      "formattedMessage": "test-image_05.jpg optimized (145.3 KB saved / 80.74% compression) - Progress: 30% (3/10)"
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.062Z",
-    "message": "{\"type\":\"progress_update\",\"completedTasks\":3,\"totalTasks\":10,\"progressPercentage\":30,\"status\":\"processing\",\"metadata\":{}}",
-    "parsed": {
-      "type": "progress_update",
-      "completedTasks": 3,
-      "totalTasks": 10,
-      "progressPercentage": 30,
-      "status": "processing",
-      "metadata": {}
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.082Z",
-    "message": "{\"type\":\"detailed_progress\",\"fileName\":\"test-image_04.jpg\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_04.jpg\",\"optimizationMetrics\":{\"originalSize\":259199,\"optimizedSize\":58425,\"savedBytes\":200774,\"compressionRatio\":\"77.46\",\"format\":\"jpeg\"},\"batchMetrics\":{\"completedTasks\":4,\"totalTasks\":10,\"progressPercentage\":40},\"formattedMessage\":\"test-image_04.jpg optimized (196.07 KB saved / 77.46% compression) - Progress: 40% (4/10)\"}",
-    "parsed": {
-      "type": "detailed_progress",
-      "fileName": "test-image_04.jpg",
-      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_04.jpg",
-      "optimizationMetrics": {
-        "originalSize": 259199,
-        "optimizedSize": 58425,
-        "savedBytes": 200774,
-        "compressionRatio": "77.46",
-        "format": "jpeg"
-      },
-      "batchMetrics": {
-        "completedTasks": 4,
-        "totalTasks": 10,
-        "progressPercentage": 40
-      },
-      "formattedMessage": "test-image_04.jpg optimized (196.07 KB saved / 77.46% compression) - Progress: 40% (4/10)"
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.082Z",
-    "message": "{\"type\":\"progress_update\",\"completedTasks\":4,\"totalTasks\":10,\"progressPercentage\":40,\"status\":\"processing\",\"metadata\":{}}",
-    "parsed": {
-      "type": "progress_update",
-      "completedTasks": 4,
-      "totalTasks": 10,
-      "progressPercentage": 40,
-      "status": "processing",
-      "metadata": {}
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.083Z",
-    "message": "{\"type\":\"detailed_progress\",\"fileName\":\"test-image_06.jpg\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_06.jpg\",\"optimizationMetrics\":{\"originalSize\":139409,\"optimizedSize\":32224,\"savedBytes\":107185,\"compressionRatio\":\"76.89\",\"format\":\"jpeg\"},\"batchMetrics\":{\"completedTasks\":5,\"totalTasks\":10,\"progressPercentage\":50},\"formattedMessage\":\"test-image_06.jpg optimized (104.67 KB saved / 76.89% compression) - Progress: 50% (5/10)\"}",
-    "parsed": {
-      "type": "detailed_progress",
-      "fileName": "test-image_06.jpg",
-      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_06.jpg",
-      "optimizationMetrics": {
-        "originalSize": 139409,
-        "optimizedSize": 32224,
-        "savedBytes": 107185,
-        "compressionRatio": "76.89",
-        "format": "jpeg"
-      },
-      "batchMetrics": {
-        "completedTasks": 5,
-        "totalTasks": 10,
-        "progressPercentage": 50
-      },
-      "formattedMessage": "test-image_06.jpg optimized (104.67 KB saved / 76.89% compression) - Progress: 50% (5/10)"
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.083Z",
-    "message": "{\"type\":\"progress_update\",\"completedTasks\":5,\"totalTasks\":10,\"progressPercentage\":50,\"status\":\"processing\",\"metadata\":{}}",
-    "parsed": {
-      "type": "progress_update",
-      "completedTasks": 5,
-      "totalTasks": 10,
-      "progressPercentage": 50,
-      "status": "processing",
-      "metadata": {}
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.087Z",
-    "message": "{\"type\":\"detailed_progress\",\"fileName\":\"test-image_01.jpg\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_01.jpg\",\"optimizationMetrics\":{\"originalSize\":134991,\"optimizedSize\":26418,\"savedBytes\":108573,\"compressionRatio\":\"80.43\",\"format\":\"jpeg\"},\"batchMetrics\":{\"completedTasks\":6,\"totalTasks\":10,\"progressPercentage\":60},\"formattedMessage\":\"test-image_01.jpg optimized (106.03 KB saved / 80.43% compression) - Progress: 60% (6/10)\"}",
-    "parsed": {
-      "type": "detailed_progress",
-      "fileName": "test-image_01.jpg",
-      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_01.jpg",
-      "optimizationMetrics": {
-        "originalSize": 134991,
-        "optimizedSize": 26418,
-        "savedBytes": 108573,
-        "compressionRatio": "80.43",
-        "format": "jpeg"
-      },
-      "batchMetrics": {
-        "completedTasks": 6,
-        "totalTasks": 10,
-        "progressPercentage": 60
-      },
-      "formattedMessage": "test-image_01.jpg optimized (106.03 KB saved / 80.43% compression) - Progress: 60% (6/10)"
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.088Z",
-    "message": "{\"type\":\"progress_update\",\"completedTasks\":6,\"totalTasks\":10,\"progressPercentage\":60,\"status\":\"processing\",\"metadata\":{}}",
-    "parsed": {
-      "type": "progress_update",
-      "completedTasks": 6,
-      "totalTasks": 10,
-      "progressPercentage": 60,
-      "status": "processing",
-      "metadata": {}
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.096Z",
-    "message": "{\"type\":\"detailed_progress\",\"fileName\":\"test-image_09.jpg\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_09.jpg\",\"optimizationMetrics\":{\"originalSize\":215225,\"optimizedSize\":37536,\"savedBytes\":177689,\"compressionRatio\":\"82.56\",\"format\":\"jpeg\"},\"batchMetrics\":{\"completedTasks\":7,\"totalTasks\":10,\"progressPercentage\":70},\"formattedMessage\":\"test-image_09.jpg optimized (173.52 KB saved / 82.56% compression) - Progress: 70% (7/10)\"}",
+    "timestamp": "2025-03-07T08:58:38.518Z",
+    "message": "{\"type\":\"detailed_progress\",\"fileName\":\"test-image_09.jpg\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_09.jpg\",\"optimizationMetrics\":{\"originalSize\":215225,\"optimizedSize\":37536,\"savedBytes\":177689,\"compressionRatio\":\"82.56\",\"format\":\"jpeg\"},\"batchMetrics\":{\"completedTasks\":2,\"totalTasks\":10,\"progressPercentage\":20},\"formattedMessage\":\"test-image_09.jpg optimized (173.52 KB saved / 82.56% compression) - Progress: 20% (2/10)\"}",
     "parsed": {
       "type": "detailed_progress",
       "fileName": "test-image_09.jpg",
@@ -408,96 +226,16 @@
         "format": "jpeg"
       },
       "batchMetrics": {
-        "completedTasks": 7,
+        "completedTasks": 2,
         "totalTasks": 10,
-        "progressPercentage": 70
+        "progressPercentage": 20
       },
-      "formattedMessage": "test-image_09.jpg optimized (173.52 KB saved / 82.56% compression) - Progress: 70% (7/10)"
+      "formattedMessage": "test-image_09.jpg optimized (173.52 KB saved / 82.56% compression) - Progress: 20% (2/10)"
     }
   },
   {
-    "timestamp": "2025-03-06T16:33:49.096Z",
-    "message": "{\"type\":\"progress_update\",\"completedTasks\":7,\"totalTasks\":10,\"progressPercentage\":70,\"status\":\"processing\",\"metadata\":{}}",
-    "parsed": {
-      "type": "progress_update",
-      "completedTasks": 7,
-      "totalTasks": 10,
-      "progressPercentage": 70,
-      "status": "processing",
-      "metadata": {}
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.107Z",
-    "message": "{\"type\":\"detailed_progress\",\"fileName\":\"test-image_08.jpg\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_08.jpg\",\"optimizationMetrics\":{\"originalSize\":138547,\"optimizedSize\":27846,\"savedBytes\":110701,\"compressionRatio\":\"79.90\",\"format\":\"jpeg\"},\"batchMetrics\":{\"completedTasks\":8,\"totalTasks\":10,\"progressPercentage\":80},\"formattedMessage\":\"test-image_08.jpg optimized (108.11 KB saved / 79.90% compression) - Progress: 80% (8/10)\"}",
-    "parsed": {
-      "type": "detailed_progress",
-      "fileName": "test-image_08.jpg",
-      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_08.jpg",
-      "optimizationMetrics": {
-        "originalSize": 138547,
-        "optimizedSize": 27846,
-        "savedBytes": 110701,
-        "compressionRatio": "79.90",
-        "format": "jpeg"
-      },
-      "batchMetrics": {
-        "completedTasks": 8,
-        "totalTasks": 10,
-        "progressPercentage": 80
-      },
-      "formattedMessage": "test-image_08.jpg optimized (108.11 KB saved / 79.90% compression) - Progress: 80% (8/10)"
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.107Z",
-    "message": "{\"type\":\"progress_update\",\"completedTasks\":8,\"totalTasks\":10,\"progressPercentage\":80,\"status\":\"processing\",\"metadata\":{}}",
-    "parsed": {
-      "type": "progress_update",
-      "completedTasks": 8,
-      "totalTasks": 10,
-      "progressPercentage": 80,
-      "status": "processing",
-      "metadata": {}
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.109Z",
-    "message": "{\"type\":\"detailed_progress\",\"fileName\":\"test-image_02.jpg\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_02.jpg\",\"optimizationMetrics\":{\"originalSize\":153418,\"optimizedSize\":26837,\"savedBytes\":126581,\"compressionRatio\":\"82.51\",\"format\":\"jpeg\"},\"batchMetrics\":{\"completedTasks\":9,\"totalTasks\":10,\"progressPercentage\":90},\"formattedMessage\":\"test-image_02.jpg optimized (123.61 KB saved / 82.51% compression) - Progress: 90% (9/10)\"}",
-    "parsed": {
-      "type": "detailed_progress",
-      "fileName": "test-image_02.jpg",
-      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_02.jpg",
-      "optimizationMetrics": {
-        "originalSize": 153418,
-        "optimizedSize": 26837,
-        "savedBytes": 126581,
-        "compressionRatio": "82.51",
-        "format": "jpeg"
-      },
-      "batchMetrics": {
-        "completedTasks": 9,
-        "totalTasks": 10,
-        "progressPercentage": 90
-      },
-      "formattedMessage": "test-image_02.jpg optimized (123.61 KB saved / 82.51% compression) - Progress: 90% (9/10)"
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.109Z",
-    "message": "{\"type\":\"progress_update\",\"completedTasks\":9,\"totalTasks\":10,\"progressPercentage\":90,\"status\":\"processing\",\"metadata\":{}}",
-    "parsed": {
-      "type": "progress_update",
-      "completedTasks": 9,
-      "totalTasks": 10,
-      "progressPercentage": 90,
-      "status": "processing",
-      "metadata": {}
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.125Z",
-    "message": "{\"type\":\"detailed_progress\",\"fileName\":\"test-image_10.jpg\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_10.jpg\",\"optimizationMetrics\":{\"originalSize\":272476,\"optimizedSize\":42796,\"savedBytes\":229680,\"compressionRatio\":\"84.29\",\"format\":\"jpeg\"},\"batchMetrics\":{\"completedTasks\":10,\"totalTasks\":10,\"progressPercentage\":100},\"formattedMessage\":\"test-image_10.jpg optimized (224.3 KB saved / 84.29% compression) - Progress: 100% (10/10)\"}",
+    "timestamp": "2025-03-07T08:58:38.525Z",
+    "message": "{\"type\":\"detailed_progress\",\"fileName\":\"test-image_10.jpg\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_10.jpg\",\"optimizationMetrics\":{\"originalSize\":272476,\"optimizedSize\":42796,\"savedBytes\":229680,\"compressionRatio\":\"84.29\",\"format\":\"jpeg\"},\"batchMetrics\":{\"completedTasks\":3,\"totalTasks\":10,\"progressPercentage\":30},\"formattedMessage\":\"test-image_10.jpg optimized (224.3 KB saved / 84.29% compression) - Progress: 30% (3/10)\"}",
     "parsed": {
       "type": "detailed_progress",
       "fileName": "test-image_10.jpg",
@@ -510,27 +248,169 @@
         "format": "jpeg"
       },
       "batchMetrics": {
+        "completedTasks": 3,
+        "totalTasks": 10,
+        "progressPercentage": 30
+      },
+      "formattedMessage": "test-image_10.jpg optimized (224.3 KB saved / 84.29% compression) - Progress: 30% (3/10)"
+    }
+  },
+  {
+    "timestamp": "2025-03-07T08:58:38.532Z",
+    "message": "{\"type\":\"detailed_progress\",\"fileName\":\"test-image_08.jpg\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_08.jpg\",\"optimizationMetrics\":{\"originalSize\":138547,\"optimizedSize\":27846,\"savedBytes\":110701,\"compressionRatio\":\"79.90\",\"format\":\"jpeg\"},\"batchMetrics\":{\"completedTasks\":4,\"totalTasks\":10,\"progressPercentage\":40},\"formattedMessage\":\"test-image_08.jpg optimized (108.11 KB saved / 79.90% compression) - Progress: 40% (4/10)\"}",
+    "parsed": {
+      "type": "detailed_progress",
+      "fileName": "test-image_08.jpg",
+      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_08.jpg",
+      "optimizationMetrics": {
+        "originalSize": 138547,
+        "optimizedSize": 27846,
+        "savedBytes": 110701,
+        "compressionRatio": "79.90",
+        "format": "jpeg"
+      },
+      "batchMetrics": {
+        "completedTasks": 4,
+        "totalTasks": 10,
+        "progressPercentage": 40
+      },
+      "formattedMessage": "test-image_08.jpg optimized (108.11 KB saved / 79.90% compression) - Progress: 40% (4/10)"
+    }
+  },
+  {
+    "timestamp": "2025-03-07T08:58:38.541Z",
+    "message": "{\"type\":\"detailed_progress\",\"fileName\":\"test-image_04.jpg\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_04.jpg\",\"optimizationMetrics\":{\"originalSize\":259199,\"optimizedSize\":58425,\"savedBytes\":200774,\"compressionRatio\":\"77.46\",\"format\":\"jpeg\"},\"batchMetrics\":{\"completedTasks\":5,\"totalTasks\":10,\"progressPercentage\":50},\"formattedMessage\":\"test-image_04.jpg optimized (196.07 KB saved / 77.46% compression) - Progress: 50% (5/10)\"}",
+    "parsed": {
+      "type": "detailed_progress",
+      "fileName": "test-image_04.jpg",
+      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_04.jpg",
+      "optimizationMetrics": {
+        "originalSize": 259199,
+        "optimizedSize": 58425,
+        "savedBytes": 200774,
+        "compressionRatio": "77.46",
+        "format": "jpeg"
+      },
+      "batchMetrics": {
+        "completedTasks": 5,
+        "totalTasks": 10,
+        "progressPercentage": 50
+      },
+      "formattedMessage": "test-image_04.jpg optimized (196.07 KB saved / 77.46% compression) - Progress: 50% (5/10)"
+    }
+  },
+  {
+    "timestamp": "2025-03-07T08:58:38.554Z",
+    "message": "{\"type\":\"detailed_progress\",\"fileName\":\"test-image_02.jpg\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_02.jpg\",\"optimizationMetrics\":{\"originalSize\":153418,\"optimizedSize\":26837,\"savedBytes\":126581,\"compressionRatio\":\"82.51\",\"format\":\"jpeg\"},\"batchMetrics\":{\"completedTasks\":6,\"totalTasks\":10,\"progressPercentage\":60},\"formattedMessage\":\"test-image_02.jpg optimized (123.61 KB saved / 82.51% compression) - Progress: 60% (6/10)\"}",
+    "parsed": {
+      "type": "detailed_progress",
+      "fileName": "test-image_02.jpg",
+      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_02.jpg",
+      "optimizationMetrics": {
+        "originalSize": 153418,
+        "optimizedSize": 26837,
+        "savedBytes": 126581,
+        "compressionRatio": "82.51",
+        "format": "jpeg"
+      },
+      "batchMetrics": {
+        "completedTasks": 6,
+        "totalTasks": 10,
+        "progressPercentage": 60
+      },
+      "formattedMessage": "test-image_02.jpg optimized (123.61 KB saved / 82.51% compression) - Progress: 60% (6/10)"
+    }
+  },
+  {
+    "timestamp": "2025-03-07T08:58:38.561Z",
+    "message": "{\"type\":\"detailed_progress\",\"fileName\":\"test-image_05.jpg\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_05.jpg\",\"optimizationMetrics\":{\"originalSize\":184276,\"optimizedSize\":35490,\"savedBytes\":148786,\"compressionRatio\":\"80.74\",\"format\":\"jpeg\"},\"batchMetrics\":{\"completedTasks\":7,\"totalTasks\":10,\"progressPercentage\":70},\"formattedMessage\":\"test-image_05.jpg optimized (145.3 KB saved / 80.74% compression) - Progress: 70% (7/10)\"}",
+    "parsed": {
+      "type": "detailed_progress",
+      "fileName": "test-image_05.jpg",
+      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_05.jpg",
+      "optimizationMetrics": {
+        "originalSize": 184276,
+        "optimizedSize": 35490,
+        "savedBytes": 148786,
+        "compressionRatio": "80.74",
+        "format": "jpeg"
+      },
+      "batchMetrics": {
+        "completedTasks": 7,
+        "totalTasks": 10,
+        "progressPercentage": 70
+      },
+      "formattedMessage": "test-image_05.jpg optimized (145.3 KB saved / 80.74% compression) - Progress: 70% (7/10)"
+    }
+  },
+  {
+    "timestamp": "2025-03-07T08:58:38.569Z",
+    "message": "{\"type\":\"detailed_progress\",\"fileName\":\"test-image_06.jpg\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_06.jpg\",\"optimizationMetrics\":{\"originalSize\":139409,\"optimizedSize\":32224,\"savedBytes\":107185,\"compressionRatio\":\"76.89\",\"format\":\"jpeg\"},\"batchMetrics\":{\"completedTasks\":8,\"totalTasks\":10,\"progressPercentage\":80},\"formattedMessage\":\"test-image_06.jpg optimized (104.67 KB saved / 76.89% compression) - Progress: 80% (8/10)\"}",
+    "parsed": {
+      "type": "detailed_progress",
+      "fileName": "test-image_06.jpg",
+      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_06.jpg",
+      "optimizationMetrics": {
+        "originalSize": 139409,
+        "optimizedSize": 32224,
+        "savedBytes": 107185,
+        "compressionRatio": "76.89",
+        "format": "jpeg"
+      },
+      "batchMetrics": {
+        "completedTasks": 8,
+        "totalTasks": 10,
+        "progressPercentage": 80
+      },
+      "formattedMessage": "test-image_06.jpg optimized (104.67 KB saved / 76.89% compression) - Progress: 80% (8/10)"
+    }
+  },
+  {
+    "timestamp": "2025-03-07T08:58:38.577Z",
+    "message": "{\"type\":\"detailed_progress\",\"fileName\":\"test-image_01.jpg\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_01.jpg\",\"optimizationMetrics\":{\"originalSize\":134991,\"optimizedSize\":26418,\"savedBytes\":108573,\"compressionRatio\":\"80.43\",\"format\":\"jpeg\"},\"batchMetrics\":{\"completedTasks\":9,\"totalTasks\":10,\"progressPercentage\":90},\"formattedMessage\":\"test-image_01.jpg optimized (106.03 KB saved / 80.43% compression) - Progress: 90% (9/10)\"}",
+    "parsed": {
+      "type": "detailed_progress",
+      "fileName": "test-image_01.jpg",
+      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_01.jpg",
+      "optimizationMetrics": {
+        "originalSize": 134991,
+        "optimizedSize": 26418,
+        "savedBytes": 108573,
+        "compressionRatio": "80.43",
+        "format": "jpeg"
+      },
+      "batchMetrics": {
+        "completedTasks": 9,
+        "totalTasks": 10,
+        "progressPercentage": 90
+      },
+      "formattedMessage": "test-image_01.jpg optimized (106.03 KB saved / 80.43% compression) - Progress: 90% (9/10)"
+    }
+  },
+  {
+    "timestamp": "2025-03-07T08:58:38.578Z",
+    "message": "{\"type\":\"detailed_progress\",\"fileName\":\"test-image_07.jpg\",\"taskId\":\"D:\\\\image-optimizer\\\\sharp-sidecar\\\\test\\\\images\\\\test-image_07.jpg\",\"optimizationMetrics\":{\"originalSize\":200553,\"optimizedSize\":33275,\"savedBytes\":167278,\"compressionRatio\":\"83.41\",\"format\":\"jpeg\"},\"batchMetrics\":{\"completedTasks\":10,\"totalTasks\":10,\"progressPercentage\":100},\"formattedMessage\":\"test-image_07.jpg optimized (163.36 KB saved / 83.41% compression) - Progress: 100% (10/10)\"}",
+    "parsed": {
+      "type": "detailed_progress",
+      "fileName": "test-image_07.jpg",
+      "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_07.jpg",
+      "optimizationMetrics": {
+        "originalSize": 200553,
+        "optimizedSize": 33275,
+        "savedBytes": 167278,
+        "compressionRatio": "83.41",
+        "format": "jpeg"
+      },
+      "batchMetrics": {
         "completedTasks": 10,
         "totalTasks": 10,
         "progressPercentage": 100
       },
-      "formattedMessage": "test-image_10.jpg optimized (224.3 KB saved / 84.29% compression) - Progress: 100% (10/10)"
+      "formattedMessage": "test-image_07.jpg optimized (163.36 KB saved / 83.41% compression) - Progress: 100% (10/10)"
     }
   },
   {
-    "timestamp": "2025-03-06T16:33:49.125Z",
-    "message": "{\"type\":\"progress_update\",\"completedTasks\":10,\"totalTasks\":10,\"progressPercentage\":100,\"status\":\"processing\",\"metadata\":{}}",
-    "parsed": {
-      "type": "progress_update",
-      "completedTasks": 10,
-      "totalTasks": 10,
-      "progressPercentage": 100,
-      "status": "processing",
-      "metadata": {}
-    }
-  },
-  {
-    "timestamp": "2025-03-06T16:33:49.125Z",
+    "timestamp": "2025-03-07T08:58:38.578Z",
     "message": "{\"type\":\"progress_update\",\"completedTasks\":10,\"totalTasks\":10,\"progressPercentage\":100,\"status\":\"complete\",\"metadata\":{}}",
     "parsed": {
       "type": "progress_update",
@@ -542,22 +422,22 @@
     }
   },
   {
-    "timestamp": "2025-03-06T16:33:49.125Z",
+    "timestamp": "2025-03-07T08:58:38.578Z",
     "message": "[Complete] Successfully processed 10 images",
     "parsed": null
   },
   {
-    "timestamp": "2025-03-06T16:33:49.126Z",
+    "timestamp": "2025-03-07T08:58:38.578Z",
     "message": "Worker pool metrics:",
     "parsed": null
   },
   {
-    "timestamp": "2025-03-06T16:33:49.126Z",
+    "timestamp": "2025-03-07T08:58:38.578Z",
     "message": "Terminating worker pool",
     "parsed": null
   },
   {
-    "timestamp": "2025-03-06T16:33:49.150Z",
+    "timestamp": "2025-03-07T08:58:38.605Z",
     "message": "Batch processing complete.",
     "parsed": null
   }

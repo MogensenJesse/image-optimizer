@@ -1,14 +1,14 @@
 # Sidecar Communication Analysis Report
 
-*Generated on: 2025-03-06T16:33:49.210Z*
+*Generated on: 2025-03-07T08:58:38.662Z*
 
 ## Summary Statistics
 
-- **Total messages captured**: 43
+- **Total messages captured**: 33
 - **Message types**:
-  - `progress`: 10 messages (23.3%)
-  - `detailed_progress`: 10 messages (23.3%)
-  - `progress_update`: 11 messages (25.6%)
+  - `progress`: 10 messages (30.3%)
+  - `detailed_progress`: 10 messages (30.3%)
+  - `progress_update`: 1 messages (3.0%)
 
 ## Progress Messages Analysis
 
@@ -23,8 +23,8 @@
 {
   "type": "progress",
   "progressType": "start",
-  "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_05.jpg",
-  "workerId": 4,
+  "taskId": "D:\\image-optimizer\\sharp-sidecar\\test\\images\\test-image_10.jpg",
+  "workerId": 9,
   "metrics": {
     "completedTasks": 0,
     "totalTasks": 10,
@@ -61,17 +61,17 @@ Sample:
 }
 ```
 
-### `progress_update` Messages (11)
+### `progress_update` Messages (1)
 
 Sample:
 
 ```json
 {
   "type": "progress_update",
-  "completedTasks": 1,
+  "completedTasks": 10,
   "totalTasks": 10,
-  "progressPercentage": 10,
-  "status": "processing",
+  "progressPercentage": 100,
+  "status": "complete",
   "metadata": {}
 }
 ```
@@ -101,11 +101,11 @@ Sharp Sidecar                      Rust Backend
 
 ## Data Size Analysis
 
-- **Total data transferred**: 8.01 KB
-- **Average message size**: 190.86046511627907 bytes
+- **Total data transferred**: 6.83 KB
+- **Average message size**: 211.96969696969697 bytes
 
 ### Largest Messages
 
-1. **Type**: `detailed_progress` - **Size**: 459 bytes
+1. **Type**: `detailed_progress` - **Size**: 460 bytes
 2. **Type**: `detailed_progress` - **Size**: 456 bytes
 3. **Type**: `detailed_progress` - **Size**: 456 bytes

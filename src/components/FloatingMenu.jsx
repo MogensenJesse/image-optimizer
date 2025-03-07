@@ -24,6 +24,17 @@ function FloatingMenu({ settings, onSettingsChange, disabled, show, onClose }) {
     return `rgb(${r}, ${g}, ${b})`;
   };
 
+  // Function to get quality label based on slider value
+  const getQualityLabel = (value) => {
+    if (value === 100) return "Lossless";
+    if (value >= 90) return "Near-lossless";
+    if (value >= 70) return "Excellent";
+    if (value >= 50) return "Good";
+    if (value >= 30) return "Fair";
+    if (value >= 10) return "Poor";
+    return "Broken beyond repair";
+  };
+
   // Update the CSS variables when the quality value changes
   useEffect(() => {
     if (qualitySliderRef.current) {
@@ -97,7 +108,7 @@ function FloatingMenu({ settings, onSettingsChange, disabled, show, onClose }) {
             <div className="floating-menu__content floating-menu__content--column">
               <div className="header-row">
                 <span>Quality</span>
-                <span className="value">{settings.quality.global}%</span>
+                <span className="value"><span className="menu-control--label">{getQualityLabel(settings.quality.global)}</span> {settings.quality.global}%</span>
               </div>
               <input
                 ref={qualitySliderRef}

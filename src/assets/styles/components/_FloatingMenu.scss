@@ -129,28 +129,48 @@
       border-radius: 10px;
       cursor: pointer;
       position: relative;
-
       
-      // Colored gradient fill - WebKit (macOS)
-      &::-webkit-slider-runnable-track {
+      // Create a custom track with rounded cap
+      &::before {
+        content: '';
+        position: absolute;
+        height: 3px;
+        width: var(--slider-value);
         background: linear-gradient(
           to right,
           #d7bb21 0%,
-          var(--slider-color) var(--slider-value),
-          rgba(v.$light, 0.2) var(--slider-value)
+          var(--slider-color) 100%
         );
+        top: 50%;
+        transform: translateY(-50%);
+        left: 0;
+        border-radius: 10px; // This creates the rounded cap
+        z-index: 1;
+      }
+      
+      // Background track
+      &::after {
+        content: '';
+        position: absolute;
+        height: 3px;
+        width: 100%;
+        background: rgba(v.$light, 0.2);
+        top: 50%;
+        transform: translateY(-50%);
+        left: 0;
+        border-radius: 10px;
+      }
+      
+      // Colored gradient fill - WebKit (macOS)
+      &::-webkit-slider-runnable-track {
+        background: transparent; // Make transparent to show our custom track
         height: 3px;
         border-radius: 10px;
       }
       
       // Standard track for Chromium (Windows)
       &::-ms-track {
-        background: linear-gradient(
-          to right,
-          #d7bb21 0%,
-          var(--slider-color) var(--slider-value),
-          #444 var(--slider-value)
-        );
+        background: transparent; // Make transparent to show our custom track
         height: 3px;
         border-radius: 10px;
       }
@@ -167,6 +187,8 @@
         transition: all 0.2s ease;
         margin-top: -3px;
         opacity: 0;
+        position: relative;
+        z-index: 2; // Ensure thumb appears above our custom track
       }
       
       // Standard thumb for Chromium (Windows)
@@ -178,6 +200,8 @@
         cursor: pointer;
         transition: all 0.2s ease;
         opacity: 0;
+        position: relative;
+        z-index: 2; // Ensure thumb appears above our custom track
       }
       
       // Show thumb on hover
@@ -192,6 +216,11 @@
           transform: scale(1.2);
         }
       }
+    }
+
+    &--label {
+      opacity: 0.5;
+      margin-right: 4px;
     }
     
     // Select and input fields - shared styles

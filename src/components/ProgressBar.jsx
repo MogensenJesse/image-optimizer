@@ -11,6 +11,7 @@ import React from "react";
  * @param {number} props.savedSize - Size saved in MB (optional)
  * @param {number} props.savedPercentage - Percentage of size saved (optional)
  * @param {Object} props.lastOptimizedFile - Information about the last optimized file
+ * @param {number} props.processingTime - Time elapsed in seconds since processing started
  */
 function ProgressBar({
   completedTasks,
@@ -20,6 +21,7 @@ function ProgressBar({
   savedSize = 0,
   savedPercentage = 0,
   lastOptimizedFile = null,
+  processingTime = 0
 }) {
   // Calculate saved percentage for display
   const displayPercentage = Math.round(progressPercentage);
@@ -38,6 +40,19 @@ function ProgressBar({
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+  
+  // Format processing time to a readable format with one decimal place for seconds
+  const formatTime = (seconds) => {
+    // For seconds less than 60, show with one decimal place
+    if (seconds < 60) {
+      return `${seconds.toFixed(1)}s`;
+    }
+    
+    // For minutes + seconds format
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = (seconds % 60).toFixed(1);
+    return `${minutes}m ${remainingSeconds}s`;
   };
 
   return (
@@ -80,20 +95,12 @@ function ProgressBar({
           {isComplete ? "Optimization complete" : `${displayPercentage}%`}
         </h2>
         <p className="progress-circle__percentage-label">
-          {savedSize} MB / {savedPercentage}% saved
+          {savedSize.toFixed(2)} MB / {savedPercentage}% saved
         </p>
         
-        {/* Last optimized file information */}
-        {lastOptimizedFile && (
-          <div className="progress-circle__last-file">
-            <p className="progress-circle__last-file-name">
-              {lastOptimizedFile.fileName}
-            </p>
-            <p className="progress-circle__last-file-stats">
-              {formatFileSize(lastOptimizedFile.savedBytes)} saved ({lastOptimizedFile.compressionRatio}%)
-            </p>
-          </div>
-        )}
+        <p className="progress-circle__percentage-label">
+          {completedTasks} images optimized in {formatTime(processingTime)}
+        </p>
       </div>
     </div>
   );
