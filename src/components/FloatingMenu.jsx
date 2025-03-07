@@ -1,28 +1,30 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import closeIcon from "../assets/icons/close.svg";
 
 function FloatingMenu({ settings, onSettingsChange, disabled, show, onClose }) {
   const [resizeMode, setResizeMode] = useState(settings.resize.mode || "none"); // none, width, height, longest, shortest
   const qualitySliderRef = useRef(null);
 
-  // Calculate the gradient color based on the percentage
-  const calculateGradientColor = (percentage) => {
-    // Start color: #d7bb21 (215, 187, 33)
-    const startR = 215,
-      startG = 187,
-      startB = 33;
-    // End color: #62cd20 (98, 205, 32)
-    const endR = 98,
-      endG = 205,
-      endB = 32;
+  // Memoized function to calculate gradient color based on percentage
+  const calculateGradientColor = useMemo(() => {
+    return (percentage) => {
+      // Start color: #d7bb21 (215, 187, 33)
+      const startR = 215,
+        startG = 187,
+        startB = 33;
+      // End color: #62cd20 (98, 205, 32)
+      const endR = 98,
+        endG = 205,
+        endB = 32;
 
-    // Calculate the color at the current percentage
-    const r = Math.round(startR + (endR - startR) * (percentage / 100));
-    const g = Math.round(startG + (endG - startG) * (percentage / 100));
-    const b = Math.round(startB + (endB - startB) * (percentage / 100));
+      // Calculate the color at the current percentage
+      const r = Math.round(startR + (endR - startR) * (percentage / 100));
+      const g = Math.round(startG + (endG - startG) * (percentage / 100));
+      const b = Math.round(startB + (endB - startB) * (percentage / 100));
 
-    return `rgb(${r}, ${g}, ${b})`;
-  };
+      return `rgb(${r}, ${g}, ${b})`;
+    };
+  }, []); // Empty dependency array means this is only calculated once
 
   // Function to get quality label based on slider value
   const getQualityLabel = (value) => {

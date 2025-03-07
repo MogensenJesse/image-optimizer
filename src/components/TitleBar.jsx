@@ -4,22 +4,7 @@ import closeIcon from '../assets/icons/close.svg';
 import minimizeIcon from '../assets/icons/minimize.svg';
 
 function TitleBar() {
-  const [isMaximized, setIsMaximized] = useState(false);
   const appWindow = getCurrentWindow();
-
-  useEffect(() => {
-    // Listen to window resized event to update the maximize/restore button state
-    const unlisten = appWindow.onResized(() => {
-      appWindow.isMaximized().then(setIsMaximized);
-    });
-
-    // Check initial state
-    appWindow.isMaximized().then(setIsMaximized);
-
-    return () => {
-      unlisten.then(fn => fn());
-    };
-  }, []);
 
   const handleMinimize = () => {
     appWindow.minimize();

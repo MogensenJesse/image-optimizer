@@ -61,8 +61,10 @@ function useProgressTracker(isProcessing) {
         const currentTime = Date.now();
         const elapsedSeconds = (currentTime - batchProgressRef.current.startTime) / 1000;
         
+        // Update both the ref and the state in one go
         batchProgressRef.current.processingTime = elapsedSeconds;
         
+        // Use functional update to ensure we're using the latest state
         setProgress(prevProgress => ({
           ...prevProgress,
           processingTime: elapsedSeconds

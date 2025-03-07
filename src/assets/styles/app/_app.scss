@@ -37,7 +37,8 @@ body {
   transition: 0.6s cubic-bezier(.16,.7,.35,1);
   cursor: pointer;
 
-  &:hover {
+  // Only apply hover effects when not in processing state
+  &:not(.dropzone--processing):hover {
     background-color: rgba(v.$night, 0.6);
     transition: 0.3s cubic-bezier(.16,.7,.35,1);
     
@@ -104,6 +105,11 @@ body {
       opacity: 0;
       transition: opacity 0.3s ease;
     }
+  }
+  
+  // Add styling specifically for processing state
+  &--processing {
+    cursor: default;
   }
 }
 

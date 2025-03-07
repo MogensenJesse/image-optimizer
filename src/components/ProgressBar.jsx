@@ -1,5 +1,3 @@
-import React from "react";
-
 /**
  * ProgressBar component for displaying image optimization progress
  *
@@ -7,20 +5,16 @@ import React from "react";
  * @param {number} props.completedTasks - Number of completed tasks
  * @param {number} props.totalTasks - Total number of tasks
  * @param {number} props.progressPercentage - The calculated progress percentage (0-100)
- * @param {string} props.status - Current processing status ('idle', 'processing', 'complete', etc.)
  * @param {number} props.savedSize - Size saved in MB (optional)
  * @param {number} props.savedPercentage - Percentage of size saved (optional)
- * @param {Object} props.lastOptimizedFile - Information about the last optimized file
  * @param {number} props.processingTime - Time elapsed in seconds since processing started
  */
 function ProgressBar({
   completedTasks,
   totalTasks,
   progressPercentage,
-  status,
   savedSize = 0,
   savedPercentage = 0,
-  lastOptimizedFile = null,
   processingTime = 0
 }) {
   // Calculate saved percentage for display

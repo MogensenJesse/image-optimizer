@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from '@tauri-apps/api/event';
 import { dirname, join } from '@tauri-apps/api/path';
@@ -244,10 +244,8 @@ function App() {
                   completedTasks={progress.completedTasks}
                   totalTasks={progress.totalTasks}
                   progressPercentage={progress.progressPercentage}
-                  status={progress.status}
                   savedSize={progress.savedSize}
                   savedPercentage={progress.savedPercentage}
-                  lastOptimizedFile={progress.lastOptimizedFile}
                   processingTime={progress.processingTime}
                 />
               </div>
