@@ -35,8 +35,17 @@ body {
   background-color: rgba(v.$night, 0.4);
   border-radius: 7px;
   transition: 0.6s cubic-bezier(.16,.7,.35,1);
+  cursor: pointer;
 
-  
+  &:hover {
+    background-color: rgba(v.$night, 0.6);
+    transition: 0.3s cubic-bezier(.16,.7,.35,1);
+    
+    .dropzone__icon {
+      transform: scale(1.2);
+    }
+  }
+
   &__content {
     display: flex;
     justify-content: center;

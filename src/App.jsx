@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from '@tauri-apps/api/event';
 import { dirname, join } from '@tauri-apps/api/path';
 import { mkdir } from "@tauri-apps/plugin-fs";
+import { open } from "@tauri-apps/plugin-dialog";
 import FloatingMenu from "./components/FloatingMenu";
 import ProgressBar from "./components/ProgressBar";
 import TitleBar from "./components/TitleBar";
@@ -97,63 +98,87 @@ function App() {
     setShowMenu(!showMenu);
   };
 
+  // Function to handle file processing (used for both drop and click)
+  const processFiles = async (filePaths) => {
+    if (processingRef.current || !filePaths || filePaths.length === 0) {
+      return;
+    }
+    
+    initProgress(filePaths.length);
+    
+    // Set processing flag AFTER initializing progress
+    processingRef.current = true;
+
+    try {
+      // Start the fade in animation
+      setAppState(APP_STATE.FADE_IN);
+      
+      // Wait for animation to start
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
+      // After a short delay, start processing
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setAppState(APP_STATE.PROCESSING);
+      
+      // Create all required directories first
+      await Promise.all(filePaths.map(async (path) => {
+        const parentDir = await dirname(path);
+        const optimizedPath = await join(parentDir, 'optimized');
+        await mkdir(optimizedPath, { recursive: true });
+      }));
+
+      // Create batch tasks
+      const tasks = await Promise.all(filePaths.map(async (path) => {
+        const parentDir = await dirname(path);
+        const fileName = path.split('\\').pop();
+        const optimizedPath = await join(parentDir, 'optimized', fileName);
+        return [path, optimizedPath, settings];
+      }));
+
+      // Process batch - this will trigger progress events
+      await invoke('optimize_images', { tasks });
+      
+      // If we reach here, the invoke call completed but our state transitions
+      // will be handled by the useEffect hooks that watch for progress changes
+    } catch (error) {
+      console.error('Error processing images:', error);
+      // Reset to idle state in case of error
+      setAppState(APP_STATE.IDLE);
+      processingRef.current = false;
+    }
+  };
+
+  // Handle click on dropzone to open file picker
+  const handleDropzoneClick = async () => {
+    if (processingRef.current) {
+      return;
+    }
+    
+    try {
+      // Open file picker dialog
+      const selected = await open({
+        multiple: true,
+        filters: [{
+          name: 'Images',
+          extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif', 'gif']
+        }]
+      });
+      
+      if (selected) {
+        // Process the selected files
+        await processFiles(Array.isArray(selected) ? selected : [selected]);
+      }
+    } catch (error) {
+      console.error('Error opening file picker:', error);
+    }
+  };
+
   useEffect(() => {
     // Drag-drop event listener 
     const unsubscribeDrop = listen("tauri://drag-drop", async (event) => {
-      if (processingRef.current) {
-        return;
-      }
-      
       // Get the number of files dropped
       const droppedFiles = event.payload.paths;
-      const fileCount = droppedFiles ? droppedFiles.length : 0;
-      
-      if (!droppedFiles || droppedFiles.length === 0) {
-        return;
-      }
-      
-      initProgress(fileCount);
-      
-      // Set processing flag AFTER initializing progress
-      processingRef.current = true;
-
-      try {
-        // Start the fade in animation
-        setAppState(APP_STATE.FADE_IN);
-        
-        // Wait for animation to start
-        await new Promise(resolve => setTimeout(resolve, 50));
-        
-        // After a short delay, start processing
-        await new Promise(resolve => setTimeout(resolve, 500));
-        setAppState(APP_STATE.PROCESSING);
-        
-        // Create all required directories first
-        await Promise.all(droppedFiles.map(async (path) => {
-          const parentDir = await dirname(path);
-          const optimizedPath = await join(parentDir, 'optimized');
-          await mkdir(optimizedPath, { recursive: true });
-        }));
-
-        // Create batch tasks
-        const tasks = await Promise.all(droppedFiles.map(async (path) => {
-          const parentDir = await dirname(path);
-          const fileName = path.split('\\').pop();
-          const optimizedPath = await join(parentDir, 'optimized', fileName);
-          return [path, optimizedPath, settings];
-        }));
-
-        // Process batch - this will trigger progress events
-        await invoke('optimize_images', { tasks });
-        
-        // If we reach here, the invoke call completed but our state transitions
-        // will be handled by the useEffect hooks that watch for progress changes
-      } catch (error) {
-        console.error('Error processing images:', error);
-        // Reset to idle state in case of error
-        setAppState(APP_STATE.IDLE);
-        processingRef.current = false;
-      }
+      await processFiles(droppedFiles);
     });
 
     // Drag enter handler
@@ -210,6 +235,7 @@ function App() {
             ${showProgressBar ? 'dropzone--processing' : ''}
             ${appState === APP_STATE.FADE_OUT ? 'dropzone--fading' : ''}
             ${appState === APP_STATE.FADE_IN ? 'dropzone--fading-in' : ''}`}
+          onClick={handleDropzoneClick}
         >
           <div className="dropzone__content">
             {showProgressBar && (
