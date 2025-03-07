@@ -1,8 +1,7 @@
 const { Worker } = require('worker_threads');
 const os = require('os');
 const path = require('path');
-const debug = require('debug')('sharp-sidecar:worker-pool');
-const error = require('debug')('sharp-sidecar:worker-pool:error');
+const { debug, error } = require('../utils');
 const { createProgressUpdate, createDetailedProgressUpdate, formatBytes } = require('../utils/progress');
 
 /**
@@ -156,6 +155,9 @@ class SharpWorkerPool {
               // Extract the file name from the task ID
               const fileName = path.basename(message.taskId);
               
+              // Log completion for the current task
+              debug(`Completed ${this.metrics.completedTasks}/${this.metrics.totalTasks} tasks`);
+              
               // Create detailed progress update with optimization metrics
               if (result) {
                 const progressDetailedUpdate = createDetailedProgressUpdate(
@@ -274,7 +276,7 @@ class SharpWorkerPool {
    * @returns {Promise<void>}
    */
   terminate() {
-    console.error('Terminating worker pool');
+    error('Terminating worker pool');
     return Promise.all(this.workers.map(worker => worker.terminate()));
   }
 }

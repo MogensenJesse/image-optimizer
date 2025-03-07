@@ -16,24 +16,118 @@ const logStream = fs.createWriteStream(LOG_FILE, { flags: 'w' });
 // Capture all output to log file
 const captureOutput = (message) => {
   const timestamp = new Date().toISOString();
-  const formattedMessage = `[${timestamp}] ${typeof message === 'string' ? message : JSON.stringify(message)}`;
+  let formattedMessage;
   
-  // Write to log file
-  logStream.write(formattedMessage + '\n');
+  if (typeof message === 'string') {
+    // Trim the message to remove leading/trailing whitespace
+    message = message.trim();
+    // Skip empty messages
+    if (!message) return message;
+    formattedMessage = `[${timestamp}] ${message}`;
+  } else {
+    formattedMessage = `[${timestamp}] ${JSON.stringify(message)}`;
+  }
   
-  // Still write to original console
+  // Write to log file (only if there's actual content)
+  if (formattedMessage.length > timestamp.length + 3) {
+    logStream.write(formattedMessage + '\n');
+  }
+  
   return message;
+};
+
+// Capture process.stdout.write calls
+const originalStdoutWrite = process.stdout.write;
+process.stdout.write = function(chunk) {
+  try {
+    // If it's a Buffer, convert to string
+    if (Buffer.isBuffer(chunk)) {
+      const stringChunk = chunk.toString('utf8');
+      // Split by newlines and process each line separately
+      stringChunk.split('\n').forEach(line => {
+        if (line.trim()) captureOutput(line);
+      });
+    }
+    // Try to parse as JSON if it's a string
+    else if (typeof chunk === 'string' && chunk.trim().startsWith('{')) {
+      const message = JSON.parse(chunk);
+      captureOutput(message);
+    } else if (typeof chunk === 'string') {
+      // Split by newlines and process each line separately
+      chunk.split('\n').forEach(line => {
+        if (line.trim()) captureOutput(line);
+      });
+    } else {
+      captureOutput(chunk);
+    }
+  } catch (e) {
+    // If it's not valid JSON, just capture as is
+    captureOutput(chunk);
+  }
+  return originalStdoutWrite.apply(process.stdout, arguments);
 };
 
 // Override console methods
 console.log = function() {
-  const message = captureOutput(arguments[0]);
-  originalConsoleLog.apply(console, arguments);
+  // Properly handle multiple arguments
+  let message;
+  if (arguments.length === 1) {
+    // Handle a single argument
+    const arg = arguments[0];
+    if (typeof arg === 'string') {
+      // Split string by newlines and process each line
+      arg.split('\n').forEach(line => {
+        if (line.trim()) captureOutput(line);
+      });
+      message = arg;
+    } else {
+      message = captureOutput(arg);
+    }
+  } else {
+    // Combine multiple arguments
+    const args = Array.from(arguments).map(arg => 
+      typeof arg === 'object' ? JSON.stringify(arg) : arg
+    ).join(' ');
+    
+    // Split by newlines and process each line
+    args.split('\n').forEach(line => {
+      if (line.trim()) captureOutput(line);
+    });
+    message = args;
+  }
+  // Don't call original console.log to avoid double logging
+  // originalConsoleLog.apply(console, arguments);
 };
 
 console.error = function() {
-  const message = captureOutput(`ERROR: ${arguments[0]}`);
-  originalConsoleError.apply(console, arguments);
+  // Properly handle multiple arguments
+  let message;
+  if (arguments.length === 1) {
+    // Handle a single argument
+    const arg = arguments[0];
+    if (typeof arg === 'string') {
+      // Split string by newlines and process each line
+      arg.split('\n').forEach(line => {
+        if (line.trim()) captureOutput(`ERROR: ${line}`);
+      });
+      message = arg;
+    } else {
+      message = captureOutput(`ERROR: ${arg}`);
+    }
+  } else {
+    // Combine multiple arguments
+    const args = Array.from(arguments).map(arg => 
+      typeof arg === 'object' ? JSON.stringify(arg) : arg
+    ).join(' ');
+    
+    // Split by newlines and process each line
+    args.split('\n').forEach(line => {
+      if (line.trim()) captureOutput(`ERROR: ${line}`);
+    });
+    message = args;
+  }
+  // Don't call original console.error to avoid double logging
+  // originalConsoleError.apply(console, arguments);
 };
 
 // Setup test images
@@ -44,6 +138,13 @@ async function setupBatchTask() {
   if (!fs.existsSync(testImagesDir)) {
     console.log(`Creating test images directory: ${testImagesDir}`);
     fs.mkdirSync(testImagesDir, { recursive: true });
+  }
+  
+  // Ensure the optimized directory exists
+  const optimizedDir = path.join(testImagesDir, 'optimized');
+  if (!fs.existsSync(optimizedDir)) {
+    console.log(`Creating optimized output directory: ${optimizedDir}`);
+    fs.mkdirSync(optimizedDir, { recursive: true });
   }
   
   // Get list of test images

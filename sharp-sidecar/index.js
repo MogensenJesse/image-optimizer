@@ -45,9 +45,10 @@ if (!isMainThread && workerData?.isWorker) {
             results.push(result);
           } catch (err) {
             const fileName = path.basename(task.input);
+            const errorMessage = `Error processing ${fileName}: ${err.message}`;
             // Send error progress (keep for error reporting)
             sendProgressMessage(createErrorMessage(task.input, err, { fileName }));
-            error(`Worker ${workerId} task failed: ${fileName}`, err);
+            error(errorMessage, err);
             
             results.push({
               path: task.output,
@@ -55,6 +56,7 @@ if (!isMainThread && workerData?.isWorker) {
               optimized_size: 0,
               saved_bytes: 0,
               compression_ratio: "0.00",
+              format: null,
               success: false,
               error: err.message,
               fileName
@@ -70,7 +72,8 @@ if (!isMainThread && workerData?.isWorker) {
           results
         });
       } catch (err) {
-        error(`Worker ${workerId} error:`, err);
+        const errorMessage = `Worker ${workerId} error: ${err.message}`;
+        error(errorMessage, err);
         parentPort.postMessage({
           type: 'error',
           workerId,
@@ -107,47 +110,53 @@ async function main() {
     };
     debug('Parsed settings:', settings);
   } catch (err) {
-    error('Error parsing settings:', err);
+    const errorMessage = `Failed to parse settings: ${err.message}`;
+    error(errorMessage, err);
     error('Raw settings string:', settingsArg);
-    process.exit(1);
+    throw new Error(errorMessage);
   }
 
   try {
     switch (command) {
       case 'optimize':
         if (!inputPath || !outputPath) {
-          error('Input and output paths are required');
-          process.exit(1);
+          const errorMessage = 'Input and output paths are required';
+          error(errorMessage);
+          throw new Error(errorMessage);
         }
         try {
           const result = await optimizeImage(inputPath, outputPath, settings);
           // Ensure result is written to stdout
           process.stdout.write(JSON.stringify(result));
         } catch (err) {
-          error(err);
-          process.exit(1);
+          const errorMessage = `Error optimizing image: ${err.message}`;
+          error(errorMessage, err);
+          throw err;
         }
         break;
 
       case 'optimize-batch':
         if (!inputPath) {
-          error('Batch JSON is required');
-          process.exit(1);
+          const errorMessage = 'Batch JSON is required';
+          error(errorMessage);
+          throw new Error(errorMessage);
         }
         try {
           await optimizeBatch(inputPath);
         } catch (err) {
-          error(err);
-          process.exit(1);
+          const errorMessage = `Error in batch optimization: ${err.message}`;
+          error(errorMessage, err);
+          throw err;
         }
         break;
 
       default:
-        error(`unknown command ${command}`);
-        process.exit(1);
+        const errorMessage = `Unknown command: ${command}`;
+        error(errorMessage);
+        throw new Error(errorMessage);
     }
   } catch (err) {
-    error('Command execution failed:', err);
+    // Exit with error code 1 for command-line usage
     process.exit(1);
   }
 }

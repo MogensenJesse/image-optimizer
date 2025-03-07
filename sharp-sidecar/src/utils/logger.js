@@ -18,9 +18,9 @@ function error(...args) {
  */
 function debug(message, data = null) {
   if (data) {
-    console.error(message, JSON.stringify(data, null, 2));
+    console.log(message, JSON.stringify(data, null, 2));
   } else {
-    console.error(message);
+    console.log(message);
   }
 }
 
@@ -33,9 +33,9 @@ function debug(message, data = null) {
 function progress(stage, message, data = null) {
   const logMessage = `[${stage}] ${message}`;
   if (data) {
-    console.error(logMessage, JSON.stringify(data, null, 2));
+    console.log(logMessage, JSON.stringify(data, null, 2));
   } else {
-    console.error(logMessage);
+    console.log(logMessage);
   }
 }
 

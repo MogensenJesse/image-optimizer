@@ -147,7 +147,10 @@ impl<'a> SharpExecutor<'a> {
             .map_err(|e| OptimizerError::sidecar(format!("Failed to spawn Sharp process: {}", e)))?;
 
         let mut results = Vec::new();
+        #[cfg(feature = "benchmarking")]
         let mut final_metrics = None;
+        let mut _batch_json_buffer = String::new();
+        let mut _capturing_batch_result = false;
 
         // Helper function to process output lines
         fn process_line(line: &[u8]) -> Option<String> {
@@ -159,6 +162,56 @@ impl<'a> SharpExecutor<'a> {
             match event {
                 CommandEvent::Stdout(line) | CommandEvent::Stderr(line) => {
                     if let Some(line_str) = process_line(&line) {
+                        // Check for batch result markers
+                        if line_str == "BATCH_RESULT_START" {
+                            _capturing_batch_result = true;
+                            _batch_json_buffer.clear();
+                            continue;
+                        } else if line_str == "BATCH_RESULT_END" {
+                            _capturing_batch_result = false;
+                            // Process the complete batch JSON
+                            if !_batch_json_buffer.is_empty() {
+                                debug!("Processing complete batch result JSON");
+                                if let Ok(batch_output) = serde_json::from_str::<BatchOutput>(&_batch_json_buffer) {
+                                    // Process final batch output
+                                    debug!("Received batch output from sidecar - results count: {}", batch_output.results.len());
+                                    
+                                    // Log a summary instead of each individual result
+                                    if !batch_output.results.is_empty() {
+                                        // Add the results to our output collection without verbose logging
+                                        for (task, result) in tasks.iter().zip(batch_output.results) {
+                                            results.push(OptimizationResult {
+                                                original_path: task.input_path.clone(),
+                                                optimized_path: result.path,
+                                                original_size: result.original_size,
+                                                optimized_size: result.optimized_size,
+                                                success: result.success,
+                                                error: result.error,
+                                                saved_bytes: result.saved_bytes,
+                                                compression_ratio: result.compression_ratio.parse().unwrap_or(0.0),
+                                            });
+                                        }
+                                    }
+                                    
+                                    // Store metrics without redundant logging
+                                    #[cfg(feature = "benchmarking")]
+                                    {
+                                        final_metrics = batch_output.metrics;
+                                    }
+                                } else {
+                                    warn!("Failed to parse batch result JSON");
+                                }
+                            }
+                            continue;
+                        }
+
+                        // If we're capturing batch result JSON, add to buffer
+                        if _capturing_batch_result {
+                            _batch_json_buffer.push_str(&line_str);
+                            continue;
+                        }
+
+                        // Process other types of messages
                         if line_str.contains("\"progressType\"") || line_str.contains("\"status\"") || 
                            line_str.contains("\"type\":\"progress_detail\"") || line_str.contains("\"type\":\"detailed_progress\"") {
                             // Try to parse as Progress type from core module first
@@ -182,9 +235,12 @@ impl<'a> SharpExecutor<'a> {
                                 debug!("Could not parse progress message: {}", line_str);
                             }
                         } else {
-                            // Try to parse as batch output
+                            // Try to parse as batch output (old format - kept for backward compatibility)
                             if let Ok(batch_output) = serde_json::from_str::<BatchOutput>(&line_str) {
                                 // Process final batch output
+                                debug!("Received batch output from sidecar (old format) - results count: {}", batch_output.results.len());
+                                
+                                // Add the results to our output collection without verbose logging
                                 for (task, result) in tasks.iter().zip(batch_output.results) {
                                     results.push(OptimizationResult {
                                         original_path: task.input_path.clone(),
@@ -199,7 +255,10 @@ impl<'a> SharpExecutor<'a> {
                                 }
                                 
                                 // Store metrics without redundant logging
-                                final_metrics = batch_output.metrics;
+                                #[cfg(feature = "benchmarking")]
+                                {
+                                    final_metrics = batch_output.metrics;
+                                }
                             }
                         }
                     }
@@ -221,14 +280,24 @@ impl<'a> SharpExecutor<'a> {
         self.pool.release().await;
 
         // Log worker metrics once at the end with useful information
-        if let Some(metrics) = &final_metrics {
-            debug!("Worker metrics summary: {} workers with avg {:.1} tasks/worker",
-                metrics.worker_count,
-                metrics.tasks_per_worker.iter().sum::<usize>() as f64 / metrics.worker_count as f64
-            );
+        #[cfg(feature = "benchmarking")]
+        {
+            if let Some(metrics) = &final_metrics {
+                debug!("Worker metrics summary: {} workers with avg {:.1} tasks/worker",
+                    metrics.worker_count,
+                    metrics.tasks_per_worker.iter().sum::<usize>() as f64 / metrics.worker_count as f64
+                );
+            }
         }
         
-        Ok((results, final_metrics))
+        #[cfg(feature = "benchmarking")]
+        {
+            return Ok((results, final_metrics));
+        }
+        #[cfg(not(feature = "benchmarking"))]
+        {
+            return Ok((results, None));
+        }
     }
     
     #[cfg(not(feature = "benchmarking"))]
@@ -259,6 +328,10 @@ impl<'a> SharpExecutor<'a> {
             .map_err(|e| OptimizerError::sidecar(format!("Failed to spawn Sharp process: {}", e)))?;
 
         let mut results = Vec::new();
+        #[cfg(feature = "benchmarking")]
+        let mut final_metrics = None;
+        let mut _batch_json_buffer = String::new();
+        let mut _capturing_batch_result = false;
 
         // Helper function to process output lines
         fn process_line(line: &[u8]) -> Option<String> {
@@ -293,9 +366,12 @@ impl<'a> SharpExecutor<'a> {
                                 debug!("Could not parse progress message: {}", line_str);
                             }
                         } else {
-                            // Try to parse as batch output
+                            // Try to parse as batch output (old format - kept for backward compatibility)
                             if let Ok(batch_output) = serde_json::from_str::<BatchOutput>(&line_str) {
                                 // Process final batch output
+                                debug!("Received batch output from sidecar (old format) - results count: {}", batch_output.results.len());
+                                
+                                // Add the results to our output collection without verbose logging
                                 for (task, result) in tasks.iter().zip(batch_output.results) {
                                     results.push(OptimizationResult {
                                         original_path: task.input_path.clone(),
@@ -307,6 +383,12 @@ impl<'a> SharpExecutor<'a> {
                                         saved_bytes: result.saved_bytes,
                                         compression_ratio: result.compression_ratio.parse().unwrap_or(0.0),
                                     });
+                                }
+                                
+                                // Store metrics without redundant logging
+                                #[cfg(feature = "benchmarking")]
+                                {
+                                    final_metrics = batch_output.metrics;
                                 }
                             }
                         }

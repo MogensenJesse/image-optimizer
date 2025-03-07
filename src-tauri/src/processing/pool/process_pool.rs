@@ -227,8 +227,22 @@ impl ProcessPool {
             // Record metrics for each result
             #[cfg(feature = "benchmarking")]
             {
-                for result in &chunk_results {
-                    metrics_collector.record_size_change(result.original_size, result.optimized_size);
+                debug!("Processing batch of {} results from executor", chunk_results.len());
+                
+                // Process the results in a batch rather than logging each one individually
+                if !chunk_results.is_empty() {
+                    // Log a single summary instead of every file
+                    let total_original = chunk_results.iter().map(|r| r.original_size).sum::<u64>();
+                    let total_optimized = chunk_results.iter().map(|r| r.optimized_size).sum::<u64>();
+                    let avg_ratio = chunk_results.iter().map(|r| r.compression_ratio).sum::<f64>() / chunk_results.len() as f64;
+                    
+                    debug!("Batch summary: {} files, avg ratio: {:.2}%, total: {} → {} bytes", 
+                        chunk_results.len(), avg_ratio, total_original, total_optimized);
+                    
+                    // Record metrics without logging each file
+                    for result in &chunk_results {
+                        metrics_collector.record_size_change(result.original_size, result.optimized_size);
+                    }
                 }
                 
                 // Record processing time
@@ -248,6 +262,8 @@ impl ProcessPool {
                         worker_metrics.tasks_per_worker
                     );
                 }
+                
+                debug!("Finished processing batch with metrics");
             }
 
             results.extend(chunk_results);

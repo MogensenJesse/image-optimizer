@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Instant;
 use std::collections::HashMap;
 use crate::benchmarking::reporter::BenchmarkReporter;
+use tracing::debug;
 
 /// Module containing validation and formatting functions for metrics
 pub mod validations {
@@ -91,9 +92,7 @@ pub trait MetricsCollector: Send + Sync {
     fn record_worker_stats(&mut self, worker_count: usize, tasks_per_worker: Vec<usize>);
     
     /// Finalize collection and return the metrics
-    fn finalize(&mut self) -> Option<BenchmarkMetrics> {
-        None
-    }
+    fn finalize(&mut self) -> Option<BenchmarkMetrics>;
 }
 
 /// Null implementation of MetricsCollector that doesn't record anything
@@ -227,6 +226,8 @@ impl BenchmarkMetrics {
     }
 
     fn finalize_metrics(&mut self) -> Self {
+        debug!("Finalizing metrics with {} images", self.compression_ratios_count);
+            
         if let Some(start_time) = self.start_time {
             let total_duration = start_time.elapsed().as_secs_f64();
             self.total_duration = validations::validate_duration(total_duration);
@@ -246,7 +247,10 @@ impl BenchmarkMetrics {
             // Calculate mode batch size
             self.mode_batch_size = self.calculate_mode_batch_size();
         }
-
+        
+        debug!("Final metrics: {:.1}% compression, {} → {} bytes", 
+            self.avg_compression_ratio, self.total_original_size, self.total_optimized_size);
+            
         self.clone()
     }
 
