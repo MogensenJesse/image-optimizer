@@ -124,12 +124,6 @@ pub struct BatchMetrics {
     pub progress_percentage: usize,
 }
 
-// Define type aliases to help with the transition to the centralized system
-// This alias is maintained for potential backward compatibility with code that
-// might reference this type directly in the future.
-#[allow(dead_code)]
-pub type Progress = CoreProgress;
-
 // Add conversion implementations between progress types
 impl From<ProgressType> for CoreProgressType {
     fn from(progress_type: ProgressType) -> Self {

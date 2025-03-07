@@ -41,22 +41,24 @@ tauri-plugin-opener = "2"
 tokio = { version = "1.42.0", features = ["full", "time"] }
 futures = "0.3.31"
 num_cpus = "1.16.0"
-crossbeam-channel = "0.5.14"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
-parking_lot = "0.12.3"
+lazy_static = "1.5.0"
+thiserror = "2.0.11"
+anyhow = "1.0.95"
 
 # Optional: Add logging for better debugging
 tauri-plugin-log = "2"
-lazy_static = "1.5.0"
-sysinfo = "0.33.1"
-thiserror = "2.0.11"
-enum-map = { version = "2.7.3", features = [], optional = true }
-anyhow = "1.0.95"
+
+# The following dependencies were unused and have been removed:
+# crossbeam-channel = "0.5.14"
+# parking_lot = "0.12.3"
+# sysinfo = "0.33.1"
+# enum-map = { version = "2.7.3", features = [], optional = true }
 
 [features]
 # Define the benchmarking feature for compile-time optimization
 # When enabled, this includes all code needed for performance benchmarking
-benchmarking = ["enum-map"]
+benchmarking = []
 # Keep the old name as an alias for backward compatibility
 benchmark = ["benchmarking"]

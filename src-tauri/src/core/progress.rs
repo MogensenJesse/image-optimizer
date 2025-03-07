@@ -92,56 +92,6 @@ impl Progress {
         }
     }
 
-    /// Set the task ID for this progress update
-    /// 
-    /// This builder method is part of the fluent API design for Progress objects
-    /// and is maintained for API consistency and future extensibility.
-    #[allow(dead_code)]
-    pub fn with_task_id(mut self, task_id: &str) -> Self {
-        self.task_id = Some(task_id.to_string());
-        self
-    }
-
-    /// Set the worker ID for this progress update
-    /// 
-    /// This builder method is part of the fluent API design for Progress objects
-    /// and is maintained for API consistency and future extensibility.
-    #[allow(dead_code)]
-    pub fn with_worker_id(mut self, worker_id: usize) -> Self {
-        self.worker_id = Some(worker_id);
-        self
-    }
-
-    /// Set the result for this progress update
-    /// 
-    /// This builder method is part of the fluent API design for Progress objects
-    /// and is maintained for API consistency and future extensibility.
-    #[allow(dead_code)]
-    pub fn with_result(mut self, result: SharpResult) -> Self {
-        self.result = Some(result);
-        self
-    }
-
-    /// Set an error message for this progress update
-    /// 
-    /// This builder method is part of the fluent API design for Progress objects
-    /// and is maintained for API consistency and future extensibility.
-    #[allow(dead_code)]
-    pub fn with_error(mut self, error: &str) -> Self {
-        self.error = Some(error.to_string());
-        self
-    }
-
-    /// Set metadata for this progress update
-    /// 
-    /// This builder method is part of the fluent API design for Progress objects
-    /// and is maintained for API consistency and future extensibility.
-    #[allow(dead_code)]
-    pub fn with_metadata(mut self, metadata: serde_json::Value) -> Self {
-        self.metadata = Some(metadata);
-        self
-    }
-
     /// Create from a metrics object
     /// 
     /// This factory method allows creating a Progress object from a metrics instance,

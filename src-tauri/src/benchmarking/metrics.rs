@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
-#[allow(unused_imports)]
-use tracing::{warn, debug};
 use std::collections::HashMap;
 use crate::benchmarking::reporter::BenchmarkReporter;
 
