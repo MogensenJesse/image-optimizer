@@ -5,151 +5,113 @@ const os = require('os');
 
 // Configure logging
 const LOG_FILE = path.join(__dirname, 'sidecar-output.log');
-const JSON_OUTPUT_FILE = path.join(__dirname, 'sidecar-output.json');
 
 // Redirect console.log to capture the messages sent to stdout
 const originalConsoleLog = console.log;
 const originalConsoleError = console.error;
 
-// Capture all output
-const allOutputs = [];
+// Setup logging to file
+const logStream = fs.createWriteStream(LOG_FILE, { flags: 'w' });
+
+// Capture all output to log file
 const captureOutput = (message) => {
-  allOutputs.push({
-    timestamp: new Date().toISOString(),
-    message: typeof message === 'string' ? message : JSON.stringify(message),
-    parsed: typeof message === 'string' ? tryParseJson(message) : message
-  });
+  const timestamp = new Date().toISOString();
+  const formattedMessage = `[${timestamp}] ${typeof message === 'string' ? message : JSON.stringify(message)}`;
+  
+  // Write to log file
+  logStream.write(formattedMessage + '\n');
   
   // Still write to original console
   return message;
 };
 
-// Try to parse a JSON string, return null if it fails
-function tryParseJson(str) {
-  try {
-    return JSON.parse(str);
-  } catch (e) {
-    return null;
-  }
-}
-
-// Override console.log to capture messages
+// Override console methods
 console.log = function() {
   const message = captureOutput(arguments[0]);
   originalConsoleLog.apply(console, arguments);
-  return message;
 };
 
-// Override console.error to capture error messages
 console.error = function() {
-  const message = captureOutput(arguments[0]);
+  const message = captureOutput(`ERROR: ${arguments[0]}`);
   originalConsoleError.apply(console, arguments);
-  return message;
 };
 
-// Create a temporary output directory
-const outputDir = path.join(os.tmpdir(), 'sharp-sidecar-test-output');
-fs.mkdirSync(outputDir, { recursive: true });
-
-// Setup batch task for the images
+// Setup test images
 async function setupBatchTask() {
-  const imagesDir = path.join(__dirname, 'images');
-  const files = fs.readdirSync(imagesDir).filter(file => file.endsWith('.jpg'));
+  const testImagesDir = path.join(__dirname, 'images');
   
-  const batch = [];
-  
-  for (const file of files) {
-    const inputPath = path.join(imagesDir, file);
-    const outputPath = path.join(outputDir, file);
-    
-    batch.push({
-      input: inputPath,
-      output: outputPath,
-      settings: {
-        quality: { global: 85 },
-        resize: { 
-          mode: 'width', 
-          size: 800,
-          maintainAspect: true 
-        },
-        outputFormat: 'jpeg'
-      }
-    });
+  // Ensure the test images directory exists
+  if (!fs.existsSync(testImagesDir)) {
+    console.log(`Creating test images directory: ${testImagesDir}`);
+    fs.mkdirSync(testImagesDir, { recursive: true });
   }
   
-  console.log(`Created batch task with ${batch.length} images`);
-  return batch;
+  // Get list of test images
+  const imageFiles = fs.readdirSync(testImagesDir)
+    .filter(file => /\.(jpg|jpeg|png|webp)$/i.test(file))
+    .map(file => path.join(testImagesDir, file));
+  
+  if (imageFiles.length === 0) {
+    console.error('No test images found. Please add some test images to the images directory.');
+    process.exit(1);
+  }
+  
+  // Create batch task - format as expected by the batch processor
+  const tasks = imageFiles.map(imagePath => {
+    const outputPath = path.join(path.dirname(imagePath), 'optimized', path.basename(imagePath));
+    return {
+      input: imagePath,
+      output: outputPath,
+      settings: {
+        quality: { global: 80 },
+        resize: { mode: 'none' },
+        outputFormat: 'original'
+      }
+    };
+  });
+  
+  console.log(`Created batch task with ${tasks.length} images`);
+  return tasks;
 }
 
-// Process batch and capture output
+// Run the test
 async function runTest() {
+  console.log('Starting sidecar output capture test');
+  console.log(`Timestamp: ${new Date().toISOString()}`);
+  console.log(`Node.js version: ${process.version}`);
+  console.log(`Platform: ${process.platform}-${os.arch()}`);
+  
   try {
-    console.log('Starting sidecar output capture test');
-    console.log(`Timestamp: ${new Date().toISOString()}`);
-    console.log(`Node.js version: ${process.version}`);
-    console.log(`Platform: ${process.platform}-${process.arch}`);
+    // Setup batch task
+    const tasks = await setupBatchTask();
     
-    const batch = await setupBatchTask();
+    // Process batch - convert tasks to JSON string as expected by optimizeBatch
     console.log('Processing batch...');
-    
-    const batchJson = JSON.stringify(batch);
-    const result = await optimizeBatch(batchJson);
-    
+    const tasksJson = JSON.stringify(tasks);
+    await optimizeBatch(tasksJson);
     console.log('Batch processing complete.');
     
-    // Write all captured output to file
-    fs.writeFileSync(LOG_FILE, allOutputs.map(item => `[${item.timestamp}] ${item.message}`).join('\n'));
-    fs.writeFileSync(JSON_OUTPUT_FILE, JSON.stringify(allOutputs, null, 2));
+    // Close log stream
+    logStream.end();
     
-    console.log(`Raw output saved to: ${LOG_FILE}`);
-    console.log(`JSON output saved to: ${JSON_OUTPUT_FILE}`);
-    
-    // Count and summarize message types
-    const messageTypes = {};
-    allOutputs.forEach(output => {
-      if (output.parsed && output.parsed.type) {
-        messageTypes[output.parsed.type] = (messageTypes[output.parsed.type] || 0) + 1;
-      }
-    });
-    
-    console.log('Message type summary:');
-    Object.entries(messageTypes).forEach(([type, count]) => {
-      console.log(`- ${type}: ${count} messages`);
-    });
-    
-    // Look specifically at progress messages
-    const progressMessages = allOutputs.filter(output => 
-      output.parsed && output.parsed.type === 'progress');
-    
-    console.log(`Progress messages: ${progressMessages.length}`);
-    
-    // Get unique progress types
-    const progressTypes = new Set();
-    progressMessages.forEach(msg => {
-      if (msg.parsed.progressType) {
-        progressTypes.add(msg.parsed.progressType);
-      }
-    });
-    
-    console.log('Progress message types:');
-    [...progressTypes].forEach(type => {
-      console.log(`- ${type}`);
-    });
-    
-    return result;
+    return 0;
   } catch (error) {
-    console.error('Error running test:', error);
-    throw error;
+    console.error(`Error in test: ${error.message}`);
+    console.error(error.stack);
+    
+    // Close log stream
+    logStream.end();
+    
+    return 1;
   }
 }
 
 // Run the test
 runTest()
-  .then(result => {
-    console.log('Test completed successfully');
-    process.exit(0);
+  .then(exitCode => {
+    process.exit(exitCode);
   })
-  .catch(err => {
-    console.error('Test failed:', err);
+  .catch(error => {
+    console.error(`Unhandled error: ${error.message}`);
     process.exit(1);
   }); 

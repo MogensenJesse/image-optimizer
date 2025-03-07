@@ -1,4 +1,4 @@
-# PowerShell script to run the sidecar tests in sequence
+# PowerShell script to run the sidecar tests
 
 # Set the base directory to the location of this script
 $BASE_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -44,33 +44,24 @@ function Invoke-Script {
     Write-Host ""
 }
 
-# Step 1: Run the data capture test
+# Run the test
 Invoke-Script "$BASE_DIR\run-test.js"
 
-# Step 2: Analyze the results
-Invoke-Script "$BASE_DIR\analyze-results.js"
-
-# Step 3: Display the results
-Write-Host "==========================================" -ForegroundColor Cyan
-Write-Host "Test Results" -ForegroundColor Cyan
-Write-Host "==========================================" -ForegroundColor Cyan
-
-# Display the analysis report
-$REPORT_FILE = "$BASE_DIR\sidecar-analysis.md"
-if (Test-Path $REPORT_FILE) {
-    Write-Host "Analysis report has been generated at:" -ForegroundColor Green
-    Write-Host "$REPORT_FILE"
+# Display the log file
+$LOG_FILE = "$BASE_DIR\sidecar-output.log"
+if (Test-Path $LOG_FILE) {
+    Write-Host "==========================================" -ForegroundColor Cyan
+    Write-Host "Sidecar Output Log" -ForegroundColor Cyan
+    Write-Host "==========================================" -ForegroundColor Cyan
+    Write-Host "Log file: $LOG_FILE"
     Write-Host ""
-    Write-Host "Report Summary:" -ForegroundColor Yellow
+    Write-Host "Log Contents:" -ForegroundColor Yellow
     Write-Host "------------------------------------------"
     
-    # Extract the summary section from the markdown file
-    # Display first 20 lines which should include summary
-    Get-Content $REPORT_FILE -Head 20
-    Write-Host "..."
-    Write-Host "(See the full report for more details)"
+    # Display the log file
+    Get-Content $LOG_FILE
 } else {
-    Write-Host "ERROR: Analysis report not found at $REPORT_FILE" -ForegroundColor Red
+    Write-Host "ERROR: Log file not found at $LOG_FILE" -ForegroundColor Red
 }
 
 Write-Host ""

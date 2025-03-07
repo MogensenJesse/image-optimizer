@@ -22,9 +22,8 @@ function runTest() {
     
     console.log('Test completed successfully!');
     
-    // Check if output files were created
+    // Check if output file was created
     const logFile = path.join(__dirname, 'sidecar-output.log');
-    const jsonFile = path.join(__dirname, 'sidecar-output.json');
     
     if (fs.existsSync(logFile)) {
       console.log(`Log file created: ${logFile}`);
@@ -32,18 +31,7 @@ function runTest() {
       console.log(`Log file size: ${stats.size} bytes`);
     } else {
       console.error(`ERROR: Log file not created: ${logFile}`);
-    }
-    
-    if (fs.existsSync(jsonFile)) {
-      console.log(`JSON file created: ${jsonFile}`);
-      const stats = fs.statSync(jsonFile);
-      console.log(`JSON file size: ${stats.size} bytes`);
-      
-      // Parse the JSON file to count message types
-      const jsonData = JSON.parse(fs.readFileSync(jsonFile, 'utf8'));
-      console.log(`Total captured messages: ${jsonData.length}`);
-    } else {
-      console.error(`ERROR: JSON file not created: ${jsonFile}`);
+      return 1;
     }
     
     return 0;
