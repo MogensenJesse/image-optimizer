@@ -38,9 +38,62 @@ The optimization workflow follows these steps:
 3. **Task Processing**: Tasks are validated, batched, and distributed to Sharp workers
 4. **Result Handling**: Optimization results return to the frontend with statistics and file paths
 
-![System Data Flow](https://via.placeholder.com/800x400?text=System+Data+Flow+Diagram)
+```mermaid
+flowchart TD
+    %% User Interaction
+    User([User]) -->|Selects Images| UI1[Drag & Drop Area]
+    User -->|Configures Settings| UI2[Settings Panel]
+    
+    %% Frontend Processing
+    UI1 -->|File Paths| FE1[File Validation]
+    UI2 -->|Quality/Format Settings| FE2[Task Creation]
+    FE1 -->|Valid Files| FE2
+    FE2 -->|Task Objects| FE3[Tauri Invoke API]
+    
+    %% Backend Processing
+    FE3 -->|optimize_images Command| BE1[Command Handler]
+    BE1 -->|Task Queue| BE2[Process Pool]
+    BE2 -->|Distribute Tasks| BE3[Worker Management]
+    
+    %% Sidecar Processing
+    BE3 -->|JSON Task Messages| SC1[Sharp Sidecar]
+    SC1 -->|Worker Assignment| SC2[Worker Threads]
+    SC2 -->|Image Processing| SC3[Sharp Pipeline]
+    SC3 -->|Format-specific Processing| SC4[Optimization]
+    
+    %% Results Flow
+    SC4 -->|Optimization Results| SC5[Results Collection]
+    SC5 -->|Progress Events| BE4[Event Handling]
+    BE4 -->|Tauri Events| FE4[Progress Tracking]
+    SC5 -->|Final Results| BE5[Results Aggregation]
+    BE5 -->|Command Response| FE5[Results Display]
+    
+    %% UI Updates
+    FE4 -->|Progress Updates| UI3[Progress Bar]
+    FE5 -->|Statistics| UI4[Results Summary]
+    
+    %% File System Operations
+    SC4 -.->|Write Optimized Files| FS[File System]
+    UI4 -.->|Open Result Folder| FS
+    
+    %% Styling
+    classDef frontend fill:#d4f1f9,stroke:#05a0c8,stroke-width:2px
+    classDef backend fill:#ffe6cc,stroke:#f7931e,stroke-width:2px
+    classDef sidecar fill:#e6f5d0,stroke:#8bc34a,stroke-width:2px
+    classDef ui fill:#f9d4e7,stroke:#d81b60,stroke-width:2px
+    classDef storage fill:#e6e6e6,stroke:#757575,stroke-width:2px
+    classDef user fill:#f5f5f5,stroke:#424242,stroke-width:1px
+    
+    %% Apply styles
+    class FE1,FE2,FE3,FE4,FE5 frontend
+    class BE1,BE2,BE3,BE4,BE5 backend
+    class SC1,SC2,SC3,SC4,SC5 sidecar
+    class UI1,UI2,UI3,UI4 ui
+    class FS storage
+    class User user
+```
 
-### 1.2 Frontend (React)
+### 1.2 Frontend (React) 
 
 The frontend provides a clean and interactive user interface for image optimization tasks.
 
@@ -469,39 +522,7 @@ The pkg configuration in `sharp-sidecar/package.json` specifies:
 
 This ensures all native binaries and assets are correctly bundled in the executable.
 
-### 2.4 Development Workflow
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/your-org/image-optimizer.git
-   cd image-optimizer
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   npm install
-   cd sharp-sidecar && npm install && cd ..
-   ```
-
-3. **Run in development mode**:
-   
-   Standard development (regular logging):
-   ```bash
-   npm run tauri dev
-   ```
-   
-   Benchmarking mode (enhanced metrics and logging):
-   ```bash
-   npm run tauri:benchmark
-   ```
-   
-   The benchmarking mode:
-   - Enables detailed performance logging
-   - Tracks CPU and memory usage
-   - Provides optimization statistics
-   - Shows detailed worker pool activity
-
-### 2.5 Production Build
+### 2.4 Production Build
 
 ```bash
 npm run tauri build
@@ -512,43 +533,3 @@ This creates optimized builds for target platforms (Windows, macOS) with:
 - Optimized Rust binary
 - Sharp sidecar bundled as a platform-specific executable
 - Automatic platform-specific installers (MSI for Windows, DMG for macOS)
-
-### 2.6 Build Configuration
-
-Build behavior is controlled through various configuration files:
-
-#### NPM Scripts
-
-The build pipeline is defined in `package.json`:
-
-```json
-"scripts": {
-  "dev": "vite",
-  "build": "vite build",
-  "preview": "vite preview",
-  "build:sharp": "cd sharp-sidecar && npm run build:rename",
-  "tauri": "npm run build:sharp && tauri",
-  "tauri:dev": "npm run build:sharp && tauri dev",
-  "tauri:benchmark": "npm run build:sharp && tauri dev --features benchmarking",
-  "tauri:build": "npm run build:sharp && tauri build",
-  "tauri:build:benchmark": "npm run build:sharp && tauri build --features benchmarking"
-}
-```
-
-#### Rust Feature Flags
-
-The conditional compilation in Rust (`#[cfg(feature = "benchmarking")]`) enables additional instrumentation without affecting production performance. When the benchmarking feature is enabled, the application:
-
-- Collects detailed timing information for each processing step
-- Logs comprehensive statistics about worker pool utilization
-- Reports memory and CPU usage during image processing
-- Generates performance reports for optimization analysis
-
-#### Tauri Configuration
-
-The `tauri.conf.json` file controls build settings such as:
-- Application metadata and versioning
-- Window configuration and appearance
-- Plugin activation and settings
-- Platform-specific build options
-- Resource bundling specifications
