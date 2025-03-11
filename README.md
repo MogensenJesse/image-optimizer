@@ -1,102 +1,53 @@
 # Image Optimizer
 
-A high-performance desktop application for batch optimizing images while maintaining quality. Built with Tauri, React, and Sharp, it provides an efficient and user-friendly solution for image optimization tasks.
+![Image Optimizer Screenshot](./screenshot.png)
 
-This application is aimed at:
-- 📸 Photographers optimizing large photo collections
-- 🎨 Designers preparing images for web and mobile apps
-- 🌐 Web developers reducing website load times
-- 🖥️ Content creators managing media assets
-- 📱 App developers optimizing application resources
+Image Optimizer is a high-performance desktop application designed to streamline image compression and optimization without compromising visual quality. It offers advanced tools for rapid batch processing of images, including resizing, format conversion, and compression.
 
-The application automatically balances compression and quality, ensuring images stay perceptually lossless while significantly reducing file sizes.
+## Features
 
-## ✨ Features
+- **Visual Quality Preservation**: Optimizes file size while maintaining perceptual image quality
+- **Format Conversion**: Seamlessly convert between image formats while maintaining visual quality
+- **Intelligent Resizing**: Multiple resize modes including width, height, longest and shortest side and aspect ratio preservation
+- **Quality Control**: Fine-tune compression levels with format-specific quality settings
+- **Batch Processing**: Process multiple images in parallel for maximum efficiency
+- **Cross-Platform**: Available for Windows and macOS
 
-- 🖼️ Modern drag-and-drop interface
-- 📁 Efficient batch processing
-- 🚀 Multi-threaded image optimization
-- 💾 Smart output directory management
-- 📊 Real-time optimization statistics
-- 🎨 Native OS integration
-- 🔒 Secure processing architecture
+## Use Cases
 
-## 🛠️ Technology Stack
+- **Web Developers**: Reduce page load times by up to 80% with optimized images for better SEO rankings and user experience
+- **Content Creators**: Maintain visual quality while reducing file sizes by 30-80% for faster social media uploads
+- **Photographers**: Process entire photoshoots in minutes instead of hours while preserving professional quality
+- **E-commerce Managers**: Create consistent product images with uniform dimensions and optimal file sizes
+- **UI/UX Designers**: Export perfectly sized assets for applications with predictable file sizes
+- **Digital Marketers**: Reduce email campaign load times and improve engagement with optimized images
+- **Storage Optimization**: Reduce storage requirements for large image collections without sacrificing quality
 
-- **Frontend**: React 18 with modern JavaScript
-- **Backend**: Rust with Tauri v2
-- **Image Processing**: Sharp via Node.js sidecar
-- **Build System**: Vite
+## Technology Stack
 
-## 🏗️ Architecture
+- **Tauri**: Modern framework for building smaller, faster, and more secure desktop applications
+- **React**: Component-based UI with hooks for state management
+- **SCSS**: Modular styling system with variables
+- **Rust**: High-performance, memory-safe language for the core application logic
+- **Tokio**: Asynchronous runtime for non-blocking operations
+- **Node.js**: Dedicated sidecar process for image processing operations
+- **Sharp**: High-performance image processing library with libvips
 
-The application uses a three-tier architecture:
-- React frontend for user interface
-- Rust/Tauri backend for system operations
-- Node.js sidecar with Sharp for image processing
+## Documentation
 
-```mermaid
-graph TD
-    A[React Frontend] -->|Image Tasks| B[Rust Backend]
-    B -->|Processing| C[Sharp Sidecar]
-    C -->|Results| B
-    B -->|Updates| A
-```
+For detailed technical information about the architecture, components, and implementation details, please refer to our [Technical Documentation](./DOCUMENTATION.md).
 
-## 🚀 Getting Started
+## Roadmap
 
-### Prerequisites
+*Coming soon*
 
-- Node.js v20 or later
-- Rust (latest stable)
-- [Tauri Prerequisites](https://v2.tauri.app/start/prerequisites/)
+- [ ] Support for additional image formats (GIF, TIFF)
+- [ ] Batch renaming capabilities
+- [ ] Image metadata preservation options
+- [ ] Custom presets for different use cases
+- [ ] Command-line interface for automation
+- [ ] Plugin system for extensibility
 
-### Installation
 
-1. Install dependencies:
-```bash
-# Frontend dependencies
-npm install
-
-# Sharp sidecar dependencies
-cd sharp-sidecar
-npm install
-```
-
-2. Development mode:
-```bash
-npm run tauri dev
-```
-
-3. Build for production:
-```bash
-npm run tauri build
-```
-
-4. Benchmark mode:
-```bash
-npm run tauri:benchmark
-```
-This mode enables performance metrics collection and detailed logging for optimization analysis.
-
-## 📁 Project Structure
-
-```
-image-optimizer/
-├── src/               # React frontend
-├── src-tauri/         # Rust backend
-├── sharp-sidecar/     # Image processing service
-└── dist/              # Build output
-```
-
-## ⚡ Performance optimizations
-
-- **Multi-threaded image processing**: Leverages all available CPU cores to process multiple images simultaneously, significantly reducing total processing time.
-
-- **Efficient memory usage with stream processing**: Handles large images and batches without loading entire files into memory, preventing out-of-memory issues even with high-resolution images.
-
-- **Optimized for large batch operations**: Smart batching system that automatically adjusts processing parameters based on file sizes and system resources.
-
-- **Real-time progress tracking**: Provides detailed insights into optimization progress, including compression ratios, time estimates, and resource usage.
-
-- **Automatic resource management**: Dynamically adjusts worker threads and memory allocation based on system load and available resources.
+## License
+This project is licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). Please review the license terms before using or distributing this software.
