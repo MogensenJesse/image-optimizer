@@ -15,16 +15,7 @@ The Image Optimizer is a high-performance desktop application built with Tauri (
 ## 1. System Architecture
 ### 1.1 High-Level Architecture
 
-The Image Optimizer is built on a three-tier architecture that separates concerns between the user interface, system operations, and image processing:
-
-```mermaid
-graph TD
-    A[Frontend - React] -->|Tauri API| B[Backend - Rust/Tauri]
-    B -->|Commands| A
-    B -->|Process Management| C[Sharp Sidecar - Node.js]
-    C -->|Processing Results| B
-    B -->|Events| A
-```
+The Image Optimizer is built on a three-tier architecture that separates concerns between the user interface, system operations, and image processing.
 
 #### Component Interactions and Data Flow
 
@@ -128,17 +119,6 @@ flowchart TD
 
 The frontend provides a clean and interactive user interface for image optimization tasks.
 
-```mermaid
-graph TD
-    A[App.jsx] --> B[Components]
-    A --> C[Hooks]
-    B --> D[FloatingMenu.jsx]
-    B --> E[ProgressBar.jsx]
-    B --> F[TitleBar.jsx]
-    C --> G[useProgressTracker.js]
-    A <-.->|Events & State| G
-```
-
 #### Key Components
 
 - **App.jsx**: Main component managing application state, file handling, and task coordination
@@ -169,9 +149,8 @@ const [settings, setSettings] = useState({
 | Setting | Options | Description |
 |---------|---------|-------------|
 | Quality | 0-100 slider | Controls compression level |
+| Resize Mode | None, Width, Height, Longest edge, Shortest edge | How images should be resized |
 | Output Format | Original, JPEG, PNG, WebP, AVIF | Target format for conversion |
-| Resize Mode | None, Width, Height, Scale | How images should be resized |
-| Metadata | Keep, Strip | Whether to preserve image metadata |
 
 #### Tauri API Integration
 
@@ -243,19 +222,6 @@ SCSS modules are linked using the `@use` directive, with variables namespaced fo
 ### 1.3 Backend (Tauri/Rust)
 
 The backend, built with Rust and Tauri, provides a robust foundation for image processing with efficient resource management and parallel execution.
-
-```mermaid
-graph TD
-    A[main.rs] --> B[Core Modules]
-    A --> C[Commands]
-    A --> D[Processing]
-    B --> B1[AppState]
-    B --> B2[Types]
-    B --> B3[Progress]
-    D --> D1[Process Pool]
-    D --> D2[Sharp Executor]
-    D --> D3[Batch Processing]
-```
 
 #### Core Architecture and Key Modules
 
@@ -354,7 +320,7 @@ The backend implements a robust error handling system:
 
 - **Custom Error Types**: Domain-specific errors with detailed context
 - **Result Propagation**: Consistent error handling throughout the codebase
-- **Graceful Recovery**: Automatic retry for transient failures and clean shutdown on critical errors
+- **Graceful Recovery**: Clean shutdown on critical errors
 
 #### Benchmarking Capabilities
 
@@ -367,18 +333,6 @@ The codebase includes conditional compilation for benchmarking features:
 ### 1.4 Image Processing
 
 The Sharp sidecar is a high-performance Node.js component that leverages the Sharp library to process images with optimal quality and speed.
-
-```mermaid
-graph TD
-    A[index.js] --> B[Processing]
-    A --> C[Workers]
-    A --> D[Utils]
-    A --> E[Config]
-    B --> B1[optimizer.js]
-    B --> B2[batch.js]
-    C --> C1[worker-pool.js]
-    E --> E1[formats]
-```
 
 #### Architecture
 
@@ -440,18 +394,20 @@ The sidecar implements a detailed progress reporting system that provides real-t
 // Progress message structure
 {
   type: 'progress',
-  status: 'start|complete|error',
-  path: '/path/to/file.jpg',
-  data: {
-    // Status-specific data (metrics, errors, etc.)
-    workerId: 2,
-    fileName: 'image.jpg',
-    original_size: 1024000,
-    optimized_size: 512000,
-    saved_bytes: 512000,
-    compression_ratio: 50,
-    processing_time_ms: 350
-  }
+  progressType: 'start|progress|complete|error',
+  taskId: '/path/to/file.jpg',
+  workerId: 2,
+  fileName: 'image.jpg',
+  // For complete messages, additional data:
+  original_size: 1024000,
+  optimized_size: 512000,
+  saved_bytes: 512000,
+  compression_ratio: 50,
+  processing_time_ms: 350,
+  formattedOriginalSize: '1.0 MB',
+  formattedOptimizedSize: '512 KB',
+  formattedSavedBytes: '512 KB',
+  optimizationMessage: 'image.jpg optimized: 1.0 MB → 512 KB (50% reduction)'
 }
 ```
 
