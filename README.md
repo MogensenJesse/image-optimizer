@@ -39,15 +39,9 @@ For detailed technical information about the architecture, components, and imple
 
 ## Roadmap
 
-*Coming soon*
-
-- [ ] Support for additional image formats (GIF, TIFF)
-- [ ] Batch renaming capabilities
-- [ ] Image metadata preservation options
-- [ ] Custom presets for different use cases
-- [ ] Command-line interface for automation
-- [ ] Plugin system for extensibility
-
+- [ ] Add SVG support
+- [ ] Add additional performance optimizations
+- [ ] Add unsupported image format detection
 
 ## License
 This project is licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). Please review the license terms before using or distributing this software.
