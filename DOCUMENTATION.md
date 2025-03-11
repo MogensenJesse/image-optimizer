@@ -39,7 +39,7 @@ The optimization workflow follows these steps:
 4. **Result Handling**: Optimization results return to the frontend with statistics and file paths
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#f0f0f0', 'primaryTextColor': '#333', 'primaryBorderColor': '#999', 'lineColor': '#666', 'secondaryColor': '#fafafa', 'tertiaryColor': '#f4f4f4'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#232323', 'primaryTextColor': '#e0e0e0', 'primaryBorderColor': '#444', 'lineColor': '#888', 'secondaryColor': '#1a1a1a', 'tertiaryColor': '#333'}}}%%
 flowchart TD
     %% Define subgraphs for better organization
     subgraph User["🧑‍💻 User Interaction"]
@@ -101,16 +101,16 @@ flowchart TD
     
     %% Add a title
     Title[<b>Image Optimizer System Data Flow</b>]
-    style Title fill:none,stroke:none,color:#333,font-size:16px
+    style Title fill:none,stroke:none,color:#e0e0e0,font-size:18px
     
-    %% Enhanced styling
-    classDef userStyle fill:#f5f5f5,stroke:#424242,stroke-width:1px,color:#333,font-weight:bold,rounded:true
-    classDef frontendStyle fill:#d4f1f9,stroke:#05a0c8,stroke-width:2px,color:#05506e,font-weight:bold,rounded:true
-    classDef backendStyle fill:#ffe6cc,stroke:#f7931e,stroke-width:2px,color:#a85c00,font-weight:bold,rounded:true
-    classDef sidecarStyle fill:#e6f5d0,stroke:#8bc34a,stroke-width:2px,color:#3e701a,font-weight:bold,rounded:true
-    classDef uiStyle fill:#f9d4e7,stroke:#d81b60,stroke-width:2px,color:#880e4f,font-weight:bold,rounded:true
-    classDef storageStyle fill:#e6e6e6,stroke:#757575,stroke-width:2px,color:#424242,font-weight:bold,shape:cylinder
-    classDef subgraphStyle fill:#fafafa,stroke:#999,stroke-width:1px,color:#333,font-weight:bold
+    %% Enhanced styling based on app's color scheme
+    classDef userStyle fill:#232323,stroke:#444,stroke-width:1px,color:#e0e0e0,font-weight:bold,rounded:true
+    classDef frontendStyle fill:#1a1a1a,stroke:#d7b221,stroke-width:2px,color:#e0e0e0,font-weight:bold,rounded:true
+    classDef backendStyle fill:#1a1a1a,stroke:#cd3120,stroke-width:2px,color:#e0e0e0,font-weight:bold,rounded:true
+    classDef sidecarStyle fill:#1a1a1a,stroke:#62cd20,stroke-width:2px,color:#e0e0e0,font-weight:bold,rounded:true
+    classDef uiStyle fill:#1a1a1a,stroke:#d7bb21,stroke-width:2px,color:#e0e0e0,font-weight:bold,rounded:true
+    classDef storageStyle fill:#232323,stroke:#888,stroke-width:2px,color:#e0e0e0,font-weight:bold,shape:cylinder
+    classDef subgraphStyle fill:#1a1a1a,stroke:#444,stroke-width:1px,color:#e0e0e0,font-weight:bold
     
     %% Apply enhanced styles
     class User1 userStyle
