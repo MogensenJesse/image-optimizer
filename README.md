@@ -1,6 +1,6 @@
 # Image Optimizer
 
-![Image Optimizer Screenshot](./screenshot.png)
+![Image Optimizer Screenshot](./screenshot.png) 
 
 Image Optimizer is a high-performance desktop application designed to streamline image compression and optimization without compromising visual quality. It offers advanced tools for rapid batch processing of images, including resizing, format conversion, and compression.
 
