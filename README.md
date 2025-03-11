@@ -35,7 +35,7 @@ Image Optimizer is a high-performance desktop application designed to streamline
 
 ## Documentation
 
-For detailed technical information about the architecture, components, and implementation details, please refer to our [Technical Documentation](./DOCUMENTATION.md).
+For detailed technical information about the architecture, components, and implementation details, please refer to the [Technical Documentation](./DOCUMENTATION.md).
 
 ## Roadmap
 
