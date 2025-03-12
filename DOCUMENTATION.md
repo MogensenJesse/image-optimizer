@@ -49,8 +49,8 @@ flowchart TD
     
     subgraph Backend["⚙️ Backend (Rust/Tauri)"]
         direction TB
-        BE1[Command Handler] --> BE2[Process Pool]
-        BE2 --> BE3[Worker Management]
+        BE1[Command Handler] --> BE2[Direct Executor]
+        BE3[Warmup Process]
         BE4[Event Handling]
         BE5[Results Aggregation]
     end
@@ -75,7 +75,8 @@ flowchart TD
     
     FE3 -->|optimize_images Command| BE1
     
-    BE3 -->|JSON Task Messages| SC1
+    BE2 -->|JSON Task Messages| SC1
+    BE3 -->|Initializes| BE2
     
     SC4 -->|Optimization Results| SC5
     SC5 -->|Progress Events| BE4
@@ -221,7 +222,7 @@ SCSS modules are linked using the `@use` directive, with variables namespaced fo
 
 ### 1.3 Backend (Tauri/Rust)
 
-The backend, built with Rust and Tauri, provides a robust foundation for image processing with efficient resource management and parallel execution.
+The backend, built with Rust and Tauri, provides a robust foundation for image processing with efficient resource management and direct execution.
 
 #### Core Architecture and Key Modules
 
@@ -229,6 +230,7 @@ The backend is organized into several key modules:
 
 - **Core**: Contains fundamental types and state management
   - **state.rs**: Manages application resources and provides dependency injection
+  - **task.rs**: Defines task structures and warmup functionality
   - **types.rs**: Defines data structures for image settings and results
   - **progress.rs**: Handles progress reporting and metrics collection
 
@@ -237,9 +239,8 @@ The backend is organized into several key modules:
   - **mod.rs**: Module exports
 
 - **Processing**: Handles image optimization operations
-  - **pool/**: Process pool implementation for parallel execution
-  - **sharp/**: Communication with the Sharp sidecar
-  - **batch/**: Batch processing logic and chunking
+  - **sharp/**: Communication with the Sharp sidecar via DirectExecutor
+  - **mod.rs**: Module exports
 
 - **Utils**:
   - **error.rs**: Error handling and result types
@@ -247,7 +248,7 @@ The backend is organized into several key modules:
   - **formats.rs**: Image format utilities
 
 - **Benchmarking** _(Enabled with feature flag)_:
-  - **metrics.rs**: Performance metrics collection
+  - **metrics.rs**: Performance metrics collection including warmup benefits
   - **reporter.rs**: Benchmark reporting mechanisms
 
 #### Command API
@@ -269,19 +270,19 @@ pub async fn optimize_image(
 |---------|---------|------------|
 | optimize_image | Process a single image | input_path, output_path, settings |
 | optimize_images | Batch processing | tasks (array) |
-| get_active_tasks | Status monitoring | none |
+| get_active_tasks | Status monitoring (returns empty array in current architecture) | none |
 
 #### State Management
 
-The backend uses a centralized `AppState` for resource management:
+The backend uses a simplified `AppState` for resource management:
 
-- **Lazy Initialization**: The process pool is created on first use
+- **Direct Execution**: Uses a DirectExecutor instead of a process pool for simpler architecture
 - **Thread Safety**: Uses Arc and Mutex for safe concurrent access
 - **Resource Cleanup**: Proper shutdown of resources on application exit
 
 ```rust
 pub struct AppState {
-    pub(crate) process_pool: Arc<Mutex<Option<ProcessPool>>>,
+    pub(crate) app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
 }
 ```
 
@@ -294,24 +295,45 @@ The backend relies on several key Rust crates:
 - **tracing**: Structured logging and diagnostics
 - **futures**: Tools for asynchronous programming
 
-#### Process Pool
+#### Direct Executor
 
-The `ProcessPool` manages a collection of Node.js processes for concurrent image processing:
+The `DirectExecutor` replaces the previous ProcessPool implementation with a simpler, more efficient approach:
 
-- **Dynamic Scaling**: Automatically scales based on available CPU cores
-- **Resource Limiting**: Uses semaphores to control concurrency
-- **Task Queuing**: Handles backpressure with a task queue
-- **Batch Optimization**: Chunks large batches for efficient processing
+- **Direct Communication**: Spawns a Sharp sidecar process directly for each batch of images
+- **Warmup Mechanism**: Initializes the Sharp environment at application startup
+- **Progress Reporting**: Provides real-time progress updates during processing
+- **Batch Processing**: Processes images in configurable batch sizes for optimal performance
 
 ```rust
-pub struct ProcessPool {
-    semaphore: Arc<Semaphore>,
-    app: tauri::AppHandle,
-    max_size: usize,
-    batch_size: Arc<Mutex<usize>>,
-    active_count: Arc<Mutex<usize>>,
-    task_queue: Arc<Mutex<VecDeque<QueuedTask>>>,
+pub struct DirectExecutor {
+    app: AppHandle,
 }
+```
+
+#### Warmup System
+
+The application implements a warmup system to reduce the "cold start" penalty for the first image processing task:
+
+- **Minimal Task**: Uses a tiny 1x1 pixel JPEG to initialize the Sharp sidecar without noticeable delay
+- **Background Initialization**: Runs the warmup process asynchronously during application startup
+- **Performance Benefits**: Significantly reduces the latency for the first image processed
+- **Metrics Tracking**: In benchmark mode, tracks and reports the benefits of warmup
+
+The warmup process is initiated in main.rs:
+
+```rust
+// Start warmup in a separate task so it doesn't block app startup
+tauri::async_runtime::spawn(async move {
+    // Add a small delay to ensure the app is fully initialized
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    
+    let state = app_handle.state::<AppState>();
+    if let Err(e) = state.warmup_executor().await {
+        debug!("Executor warmup failed: {}", e);
+    } else {
+        debug!("Executor warmup completed in the background");
+    }
+});
 ```
 
 #### Error Handling
@@ -327,8 +349,9 @@ The backend implements a robust error handling system:
 The codebase includes conditional compilation for benchmarking features:
 
 - **Feature Flags**: Toggle benchmarking with Rust feature flags
-- **Performance Metrics**: Collect detailed timing information
+- **Performance Metrics**: Collect detailed timing information, including warmup benefits
 - **Resource Monitoring**: Track CPU and memory usage during processing
+- **Warmup Metrics**: Track performance difference between first task (after warmup) and subsequent tasks
 
 ### 1.4 Image Processing
 
@@ -345,9 +368,14 @@ The Node.js sidecar follows a modular structure organized into four main compone
 
 #### Worker Thread Model
 
-The sidecar implements a multi-threading architecture using Node.js worker threads to maximize CPU utilization. Rather than processing images sequentially, the system creates a pool of worker threads based on available CPU cores. Each thread operates independently, allowing simultaneous processing of multiple images while a coordinator manages task distribution and result collection.
+The sidecar implements a multi-threading architecture using Node.js worker threads to maximize CPU utilization. Each Sharp sidecar instance creates a pool of worker threads based on available CPU cores, allowing parallel processing of multiple images within a single sidecar process. This internal parallelism is why the application moved from a Rust-level process pool to a direct executor approach:
 
-Key capabilities include dynamic thread allocation, balanced workload distribution, centralized progress tracking, and isolated failure handling to prevent entire batch cancellation when individual images fail.
+- **Internal Worker Threads**: The Sharp sidecar natively uses worker threads for parallel processing
+- **Single Process Efficiency**: A single sidecar process efficiently utilizes all available CPU cores
+- **Reduced Overhead**: The direct execution model eliminates redundant process management overhead
+- **Warmup Optimization**: Pre-initializing the sidecar improves first-task performance
+
+The coordinator thread distributes tasks to worker threads and collects results, ensuring balanced workload distribution and centralized progress tracking.
 
 #### Worker Communication Protocol
 
@@ -520,3 +548,24 @@ This creates optimized builds for target platforms (Windows, macOS) with:
 - Optimized Rust binary
 - Sharp sidecar bundled as a platform-specific executable
 - Automatic platform-specific installers (MSI for Windows, DMG for macOS)
+
+## 3. Technical Insights
+
+The Image Optimizer's architecture has evolved through performance optimization. Key architectural insights include:
+
+#### Process Pool Removal
+The application originally used a ProcessPool in Rust to manage multiple Node.js sidecar processes. This was found to be unnecessarily complex and memory-intensive because:
+
+- The Sharp sidecar already implements worker threads internally
+- Multiple Node.js processes incurred high memory overhead
+- Process management added complexity without proportional performance benefits
+
+#### Direct Executor with Warmup
+The architecture was simplified to use a DirectExecutor that directly spawns a Sharp sidecar process, along with a warmup mechanism:
+
+- **Simplified Architecture**: Removed redundant layers of parallelism
+- **Reduced Memory Usage**: Single Node.js process with worker threads uses less memory
+- **Improved Startup Experience**: Pre-warming the sidecar eliminates cold start delays
+- **Equivalent Performance**: For large batches, performance remains excellent due to Sharp's internal worker threads
+
+This change demonstrates how understanding the full stack (from Rust to Node.js to Sharp's internals) led to a more efficient architecture that is both simpler to maintain and more resource-efficient while maintaining high performance.
