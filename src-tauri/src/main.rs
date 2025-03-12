@@ -8,10 +8,7 @@ mod processing;
 mod benchmarking;
 mod commands;
 
-use tracing::info;
-#[cfg(feature = "benchmarking")]
-use tracing::debug;
-#[cfg(feature = "benchmarking")]
+use tracing::{info, debug};
 use tauri::Manager;
 use crate::core::AppState;
 use crate::commands::{optimize_image, optimize_images, get_active_tasks};
@@ -65,22 +62,27 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
-    // Initialize process pool with benchmarking if enabled
-    #[cfg(feature = "benchmarking")]
-    {
-        info!("Initializing process pool with benchmarking...");
-        let app_handle = app.app_handle().clone();
-        let state = app.state::<AppState>();
-        tokio::runtime::Runtime::new().unwrap().block_on(async {
-            let pool = state.get_or_init_process_pool(app_handle).await
-                .expect("Failed to initialize process pool");
-            
-            // Enable benchmarking on the pool
-            pool.set_benchmark_mode(true).await;
-            info!("✓ Process pool initialized with benchmarking enabled");
-            debug!("Process pool configuration: {} processes", pool.get_max_size());
-        });
-    }
+    // Initialize app handle in AppState
+    let app_handle = app.app_handle().clone();
+    let state = app.state::<AppState>();
+    tokio::runtime::Runtime::new().unwrap().block_on(async {
+        state.set_app_handle(app_handle).await;
+        debug!("✓ AppState initialized");
+    });
+
+    // Start warmup in a separate task so it doesn't block app startup
+    let app_handle = app.app_handle().clone();
+    tauri::async_runtime::spawn(async move {
+        // Add a small delay to ensure the app is fully initialized
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        
+        let state = app_handle.state::<AppState>();
+        if let Err(e) = state.warmup_executor().await {
+            debug!("Executor warmup failed: {}", e);
+        } else {
+            debug!("Executor warmup completed in the background");
+        }
+    });
 
     info!("Starting application event loop...");
     app.run(|_app_handle, event| {

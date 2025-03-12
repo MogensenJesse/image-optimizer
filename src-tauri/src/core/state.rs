@@ -1,52 +1,58 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::processing::ProcessPool;
-use tracing::{info, warn};
+use crate::processing::sharp::DirectExecutor;
+use tracing::debug;
 use crate::utils::OptimizerError;
-
-lazy_static::lazy_static! {
-    pub(crate) static ref PROCESS_POOL: Arc<Mutex<Option<ProcessPool>>> = Arc::new(Mutex::new(None));
-}
 
 #[derive(Clone)]
 pub struct AppState {
-    pub(crate) process_pool: Arc<Mutex<Option<ProcessPool>>>,
+    pub(crate) app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
 }
 
 impl AppState {
     pub fn new() -> Self {
         Self {
-            process_pool: Arc::clone(&PROCESS_POOL),
+            app_handle: Arc::new(Mutex::new(None)),
         }
     }
 
-    pub async fn get_or_init_process_pool(&self, app: tauri::AppHandle) -> Result<ProcessPool, OptimizerError> {
-        let mut pool = self.process_pool.lock().await;
-        if pool.is_none() {
-            let new_pool = ProcessPool::new(app);
-            // Warm up the pool
-            new_pool.warmup().await?;
-            *pool = Some(new_pool);
-        }
-        Ok(pool.as_ref().unwrap().clone())
+    pub async fn set_app_handle(&self, app: tauri::AppHandle) {
+        let mut handle = self.app_handle.lock().await;
+        *handle = Some(app);
+    }
+
+    pub async fn get_app_handle(&self) -> Result<tauri::AppHandle, OptimizerError> {
+        let handle = self.app_handle.lock().await;
+        handle.clone().ok_or_else(|| OptimizerError::processing("App handle not initialized"))
+    }
+
+    pub async fn create_executor(&self) -> Result<DirectExecutor, OptimizerError> {
+        let app = self.get_app_handle().await?;
+        Ok(DirectExecutor::new(app))
+    }
+
+    /// Initialize and warm up the executor
+    /// This reduces the cold start penalty for the first real task
+    pub async fn warmup_executor(&self) -> Result<(), OptimizerError> {
+        debug!("Initializing and warming up executor...");
+        
+        // Create and warm up the executor
+        let executor = self.create_executor().await?;
+        executor.warmup().await?;
+        
+        debug!("Executor warmup completed successfully");
+        Ok(())
     }
 
     /// Attempt to gracefully shutdown
     pub async fn shutdown(&self) {
-        info!("Initiating AppState shutdown");
-        if let Ok(mut pool) = self.process_pool.try_lock() {
-            if pool.take().is_some() {
-                info!("Process pool shutdown complete");
-            }
-        } else {
-            warn!("Could not acquire lock for process pool during shutdown");
-        }
+        debug!("Initiating AppState shutdown");
     }
 }
 
 impl Drop for AppState {
     fn drop(&mut self) {
-        info!("AppState is being dropped");
+        debug!("AppState is being dropped");
         
         // Create a new runtime for cleanup
         let runtime = tokio::runtime::Runtime::new().unwrap();

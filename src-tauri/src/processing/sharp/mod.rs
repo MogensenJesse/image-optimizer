@@ -1,4 +1,6 @@
 pub mod types;
-mod executor;
+// Removed deprecated executor module
+mod direct_executor;
 
-pub use executor::SharpExecutor; 
+// Only using DirectExecutor for image processing
+pub use direct_executor::DirectExecutor; 

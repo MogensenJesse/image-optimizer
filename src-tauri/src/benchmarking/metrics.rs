@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 use std::collections::HashMap;
-use crate::benchmarking::reporter::BenchmarkReporter;
 use tracing::debug;
 
 /// Module containing validation and formatting functions for metrics
@@ -80,6 +79,7 @@ impl Default for WorkerPoolMetrics {
 /// without directly depending on the benchmarking system.
 pub trait MetricsCollector: Send + Sync {
     /// Record the processing time for a task
+    #[allow(dead_code)]
     fn record_time(&mut self, duration_secs: f64);
     
     /// Record compression metrics for an optimized image
@@ -89,6 +89,7 @@ pub trait MetricsCollector: Send + Sync {
     fn record_batch_info(&mut self, batch_size: usize);
     
     /// Record worker pool statistics
+    #[allow(dead_code)]
     fn record_worker_stats(&mut self, worker_count: usize, tasks_per_worker: Vec<usize>);
     
     /// Finalize collection and return the metrics
@@ -97,12 +98,6 @@ pub trait MetricsCollector: Send + Sync {
 
 /// Null implementation of MetricsCollector that doesn't record anything
 pub struct NullMetricsCollector;
-
-impl NullMetricsCollector {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
 
 impl MetricsCollector for NullMetricsCollector {
     fn record_time(&mut self, _duration_secs: f64) {
@@ -145,6 +140,10 @@ pub struct BenchmarkMetrics {
     // Worker pool metrics
     pub worker_pool: Option<WorkerPoolMetrics>,
     
+    // Warmup metrics
+    pub first_task_after_warmup: bool,
+    pub first_task_time_secs: Option<f64>,
+    
     // Internal tracking fields - not visible in serialization
     #[serde(skip)]
     start_time: Option<Instant>,
@@ -173,6 +172,8 @@ impl Default for BenchmarkMetrics {
             total_batches: 0,
             mode_batch_size: 0,
             worker_pool: None,
+            first_task_after_warmup: true,
+            first_task_time_secs: None,
             start_time: None,
             processing_times_sum: 0.0,
             processing_times_count: 0,
@@ -190,6 +191,14 @@ impl BenchmarkMetrics {
 
     pub fn record_processing_time(&mut self, time: f64) {
         let validated_time = validations::validate_duration(time);
+        
+        // If this is the first task after warmup, record its time separately
+        if self.first_task_after_warmup {
+            self.first_task_time_secs = Some(validated_time);
+            self.first_task_after_warmup = false;
+            debug!("First task after warmup took {:.2}s", validated_time);
+        }
+        
         self.processing_times_sum += validated_time;
         self.processing_times_count += 1;
     }
@@ -300,33 +309,5 @@ impl MetricsCollector for BenchmarkMetrics {
     
     fn finalize(&mut self) -> Option<BenchmarkMetrics> {
         Some(self.finalize_metrics())
-    }
-}
-
-/// Factory for creating the appropriate metrics collector based on configuration
-pub struct MetricsFactory;
-
-impl MetricsFactory {
-    /// Create a metrics collector based on whether benchmarking is enabled
-    pub fn create_collector(enable_benchmarking: bool) -> Box<dyn MetricsCollector> {
-        if enable_benchmarking {
-            let mut metrics = BenchmarkMetrics::default();
-            metrics.start_benchmarking();
-            Box::new(metrics)
-        } else {
-            Box::new(NullMetricsCollector::new())
-        }
-    }
-    
-    /// Extract benchmark metrics from a collector and create a reporter, if benchmarking is enabled
-    pub fn extract_benchmark_metrics(
-        enable_benchmarking: bool, 
-        mut collector: Box<dyn MetricsCollector>
-    ) -> Option<BenchmarkReporter> {
-        if !enable_benchmarking {
-            return None;
-        }
-        
-        collector.finalize().map(BenchmarkReporter::from_metrics)
     }
 } 
