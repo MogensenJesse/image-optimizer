@@ -301,11 +301,28 @@ The `DirectExecutor` replaces the previous ProcessPool implementation with a sim
 
 - **Direct Communication**: Spawns a Sharp sidecar process directly for each batch of images
 - **Warmup Mechanism**: Initializes the Sharp environment at application startup
-- **Progress Reporting**: Provides real-time progress updates during processing
+- **Progress Reporting**: Delegates to a dedicated ProgressHandler for real-time progress updates
 - **Batch Processing**: Processes images in configurable batch sizes for optimal performance
+- **Optimized Logging**: Uses targeted logging without excessive debug output for better performance
 
 ```rust
 pub struct DirectExecutor {
+    app: AppHandle,
+    progress_handler: ProgressHandler,
+}
+```
+
+#### Progress Handler
+
+The `ProgressHandler` is responsible for managing progress updates during image optimization:
+
+- **Message Processing**: Parses and processes different types of progress messages from the Sharp sidecar
+- **User Feedback**: Formats user-friendly progress messages with details about optimization
+- **Event Emission**: Emits Tauri events to update the frontend with progress information
+- **Metadata Management**: Enriches progress updates with relevant metadata for the UI
+
+```rust
+pub struct ProgressHandler {
     app: AppHandle,
 }
 ```
