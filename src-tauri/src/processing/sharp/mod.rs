@@ -1,7 +1,6 @@
 pub mod types;
-// Removed deprecated executor module
-mod direct_executor;
 mod progress_handler;
+mod memory_map_executor;
 
-// Only using DirectExecutor for image processing
-pub use direct_executor::DirectExecutor;
+// Export only the MemoryMapExecutor
+pub use memory_map_executor::MemoryMapExecutor;

@@ -150,6 +150,39 @@ async function main() {
         }
         break;
 
+      case 'optimize-batch-mmap':
+        if (!inputPath) {
+          const errorMessage = 'Memory-mapped file path is required';
+          error(errorMessage);
+          throw new Error(errorMessage);
+        }
+        
+        try {
+          // Read from the memory-mapped file
+          const fs = require('fs');
+          debug(`Reading batch data from memory-mapped file: ${inputPath}`);
+          const fileData = fs.readFileSync(inputPath, 'utf8');
+          
+          debug(`Successfully read ${fileData.length} bytes from memory-mapped file`);
+          
+          // Process the batch
+          await optimizeBatch(fileData);
+          
+          // Clean up the file - only if processing was successful
+          try {
+            fs.unlinkSync(inputPath);
+            debug(`Successfully removed temporary file: ${inputPath}`);
+          } catch (unlinkErr) {
+            // Just log the error, don't fail the whole process
+            error(`Warning: Failed to remove temporary file: ${unlinkErr.message}`);
+          }
+        } catch (err) {
+          const errorMessage = `Error reading from memory-mapped file: ${err.message}`;
+          error(errorMessage, err);
+          throw err;
+        }
+        break;
+
       default:
         const errorMessage = `Unknown command: ${command}`;
         error(errorMessage);

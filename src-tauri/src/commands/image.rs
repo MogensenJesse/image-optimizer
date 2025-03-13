@@ -91,8 +91,10 @@ pub async fn optimize_images(
         image_tasks.push(image_task);
     }
 
-    // Process in chunks of 20 to avoid overwhelming the system
-    const CHUNK_SIZE: usize = 75;
+    // Process in chunks to avoid overwhelming the system
+    // Increased from 75 to 500 now that we're using memory-mapped files
+    // and no longer limited by command line length
+    const CHUNK_SIZE: usize = 500;
     let chunks: Vec<_> = image_tasks.chunks(CHUNK_SIZE).collect();
     debug!("Processing {} images in {} chunks of size {}", task_count, chunks.len(), CHUNK_SIZE);
     

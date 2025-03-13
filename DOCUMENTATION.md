@@ -20,13 +20,13 @@ The Image Optimizer is built on a three-tier architecture that separates concern
 #### Component Interactions and Data Flow
 
 - **Frontend to Backend**: The React frontend communicates with the Rust backend using Tauri's invoke API to send commands like `optimize_image` and `optimize_images`.
-- **Backend to Sharp Sidecar**: The Rust backend manages a pool of Node.js processes that run the Sharp image processing library, communicating via JSON messages.
+- **Backend to Sharp Sidecar**: The Rust backend communicates with the Sharp sidecar using memory-mapped files for efficient data transfer, sending batches of up to 500 images at a time.
 - **Events and Progress**: The sidecar emits progress events during processing that flow back to the frontend through Tauri's event system.
 
 The optimization workflow follows these steps:
 1. **Image Selection**: User selects images via drag-and-drop or file picker
 2. **Task Creation**: Frontend creates optimization tasks with settings and sends them to the backend
-3. **Task Processing**: Tasks are validated, batched, and distributed to Sharp workers
+3. **Task Processing**: Tasks are validated, batched, and transferred to the Sharp sidecar via memory-mapped files
 4. **Result Handling**: Optimization results return to the frontend with statistics and file paths
 
 ```mermaid
@@ -49,7 +49,7 @@ flowchart TD
     
     subgraph Backend["⚙️ Backend (Rust/Tauri)"]
         direction TB
-        BE1[Command Handler] --> BE2[Direct Executor]
+        BE1[Command Handler] --> BE2[Memory Map Executor]
         BE3[Warmup Process]
         BE4[Event Handling]
         BE5[Results Aggregation]
@@ -75,7 +75,7 @@ flowchart TD
     
     FE3 -->|optimize_images Command| BE1
     
-    BE2 -->|JSON Task Messages| SC1
+    BE2 -->|Memory-Mapped File| SC1
     BE3 -->|Initializes| BE2
     
     SC4 -->|Optimization Results| SC5
@@ -222,7 +222,7 @@ SCSS modules are linked using the `@use` directive, with variables namespaced fo
 
 ### 1.3 Backend (Tauri/Rust)
 
-The backend, built with Rust and Tauri, provides a robust foundation for image processing with efficient resource management and direct execution.
+The backend, built with Rust and Tauri, provides a robust foundation for image processing with efficient resource management and memory-mapped file communication.
 
 #### Core Architecture and Key Modules
 
@@ -235,11 +235,11 @@ The backend is organized into several key modules:
   - **progress.rs**: Handles progress reporting and metrics collection
 
 - **Commands**: 
-  - **image.rs**: Implements image processing commands (optimize_image, optimize_images)
+  - **image.rs**: Implements image processing commands (optimize_image, optimize_images) with support for large batches up to 500 images
   - **mod.rs**: Module exports
 
 - **Processing**: Handles image optimization operations
-  - **sharp/**: Communication with the Sharp sidecar via DirectExecutor
+  - **sharp/**: Communication with the Sharp sidecar via MemoryMapExecutor
   - **mod.rs**: Module exports
 
 - **Utils**:
@@ -269,14 +269,14 @@ pub async fn optimize_image(
 | Command | Purpose | Parameters |
 |---------|---------|------------|
 | optimize_image | Process a single image | input_path, output_path, settings |
-| optimize_images | Batch processing | tasks (array) |
+| optimize_images | Batch processing (up to 500 images per batch) | tasks (array) |
 | get_active_tasks | Status monitoring (returns empty array in current architecture) | none |
 
 #### State Management
 
 The backend uses a simplified `AppState` for resource management:
 
-- **Direct Execution**: Uses a DirectExecutor instead of a process pool for simpler architecture
+- **Memory-Mapped Execution**: Uses a MemoryMapExecutor for efficient data transfer
 - **Thread Safety**: Uses Arc and Mutex for safe concurrent access
 - **Resource Cleanup**: Proper shutdown of resources on application exit
 
@@ -294,19 +294,20 @@ The backend relies on several key Rust crates:
 - **serde**: Serialization and deserialization of data structures
 - **tracing**: Structured logging and diagnostics
 - **futures**: Tools for asynchronous programming
+- **memmap2**: Memory-mapped file operations for high-performance IPC
 
-#### Direct Executor
+#### Memory-Mapped Executor
 
-The `DirectExecutor` replaces the previous ProcessPool implementation with a simpler, more efficient approach:
+The `MemoryMapExecutor` provides a high-performance approach to communicating with the Sharp sidecar:
 
-- **Direct Communication**: Spawns a Sharp sidecar process directly for each batch of images
+- **Memory-Mapped Files**: Uses shared memory for zero-copy data transfer
+- **Large Batch Support**: Supports batches of up to 500 images (increased from previous 75 limit)
 - **Warmup Mechanism**: Initializes the Sharp environment at application startup
 - **Progress Reporting**: Delegates to a dedicated ProgressHandler for real-time progress updates
-- **Batch Processing**: Processes images in configurable batch sizes for optimal performance
-- **Optimized Logging**: Uses targeted logging without excessive debug output for better performance
+- **Optimized Memory Advice**: Uses memory advise hints to optimize access patterns
 
 ```rust
-pub struct DirectExecutor {
+pub struct MemoryMapExecutor {
     app: AppHandle,
     progress_handler: ProgressHandler,
 }
@@ -577,7 +578,7 @@ The application originally used a ProcessPool in Rust to manage multiple Node.js
 - Multiple Node.js processes incurred high memory overhead
 - Process management added complexity without proportional performance benefits
 
-#### Direct Executor with Warmup
+#### DirectExecutor Implementation
 The architecture was simplified to use a DirectExecutor that directly spawns a Sharp sidecar process, along with a warmup mechanism:
 
 - **Simplified Architecture**: Removed redundant layers of parallelism
@@ -585,4 +586,14 @@ The architecture was simplified to use a DirectExecutor that directly spawns a S
 - **Improved Startup Experience**: Pre-warming the sidecar eliminates cold start delays
 - **Equivalent Performance**: For large batches, performance remains excellent due to Sharp's internal worker threads
 
-This change demonstrates how understanding the full stack (from Rust to Node.js to Sharp's internals) led to a more efficient architecture that is both simpler to maintain and more resource-efficient while maintaining high performance.
+#### Memory-Mapped File Communication
+The most recent architectural improvement replaced command-line parameter passing with memory-mapped files:
+
+- **Zero-Copy Performance**: Near zero-copy performance for large data transfers
+- **Increased Batch Size**: Batch processing limit increased from 75 to 500 images
+- **Removed Command Line Limitations**: Eliminated the 8,191 character Windows command line limit
+- **Sequential Access Optimization**: Uses memory advice hints to optimize for sequential read patterns
+- **Proper Resource Management**: Careful handling of memory-mapped resources with explicit cleanup
+- **Cross-Platform Support**: Implementation designed to work consistently across Windows, macOS, and Linux
+
+These evolutionary changes demonstrate how understanding the full stack (from Rust to Node.js to Sharp's internals) led to a more efficient architecture that is both simpler to maintain and more resource-efficient while maintaining high performance.

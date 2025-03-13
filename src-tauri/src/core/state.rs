@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::processing::sharp::DirectExecutor;
+use crate::processing::sharp::MemoryMapExecutor;
 use tracing::debug;
 use crate::utils::OptimizerError;
 
@@ -26,9 +26,9 @@ impl AppState {
         handle.clone().ok_or_else(|| OptimizerError::processing("App handle not initialized"))
     }
 
-    pub async fn create_executor(&self) -> Result<DirectExecutor, OptimizerError> {
+    pub async fn create_executor(&self) -> Result<MemoryMapExecutor, OptimizerError> {
         let app = self.get_app_handle().await?;
-        Ok(DirectExecutor::new(app))
+        Ok(MemoryMapExecutor::new(app))
     }
 
     /// Initialize and warm up the executor

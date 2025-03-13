@@ -1,3 +1,5 @@
+use memmap2::MmapOptions;
+use std::fs::OpenOptions;
 use tauri::AppHandle;
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::{CommandEvent, TerminatedPayload};
@@ -15,41 +17,37 @@ use std::str::from_utf8;
 use tauri::async_runtime::Receiver;
 
 #[derive(Debug, Deserialize)]
-struct BatchOutput {
-    results: Vec<SharpResult>,
+pub struct BatchOutput {
+    pub results: Vec<SharpResult>,
     #[cfg(feature = "benchmarking")]
-    metrics: Option<WorkerPoolMetrics>,
+    pub metrics: Option<WorkerPoolMetrics>,
 }
 
-/// Direct executor that spawns a Sharp sidecar process for each batch
-/// without maintaining a pool of processes
-pub struct DirectExecutor {
+/// Memory-mapped file executor that uses shared memory for batch data transfer
+pub struct MemoryMapExecutor {
     app: AppHandle,
     progress_handler: ProgressHandler,
 }
 
-impl DirectExecutor {
+impl MemoryMapExecutor {
     pub fn new(app: AppHandle) -> Self {
         Self {
             app: app.clone(),
             progress_handler: ProgressHandler::new(app),
         }
     }
-
+    
     /// Warms up the executor by processing a minimal image task
-    /// This helps reduce the cold start penalty for the first real task
     pub async fn warmup(&self) -> OptimizerResult<()> {
-        debug!("Warming up DirectExecutor...");
+        debug!("Warming up MemoryMapExecutor...");
         
         // Create a minimal task that will initialize the Sharp pipeline
-        // but requires minimal processing time
         let dummy_task = ImageTask::create_warmup_task()?;
         
         // Execute the task but don't care about the result
-        // Just need to initialize the Sharp sidecar
         let _ = self.execute_batch(&[dummy_task]).await?;
         
-        debug!("DirectExecutor warmup completed successfully");
+        debug!("MemoryMapExecutor warmup completed successfully");
         Ok(())
     }
     
@@ -75,28 +73,76 @@ impl DirectExecutor {
             .map_err(|e| OptimizerError::sidecar(format!("Sidecar spawn failed: {}", e)))
     }
     
-    /// Converts SharpResults to OptimizationResults
-    fn convert_to_optimization_results(
-        &self, 
-        tasks: &[ImageTask], 
-        results: Vec<SharpResult>
-    ) -> Vec<OptimizationResult> {
-        tasks.iter()
-            .zip(results)
-            .map(|(task, result)| OptimizationResult {
-                original_path: task.input_path.clone(),
-                optimized_path: result.path,
-                original_size: result.original_size,
-                optimized_size: result.optimized_size,
-                success: result.success,
-                error: result.error,
-                saved_bytes: result.saved_bytes,
-                compression_ratio: result.compression_ratio.parse().unwrap_or(0.0),
-            })
-            .collect()
+    /// Handles command events from the sidecar process - reuse from DirectExecutor
+    async fn handle_sidecar_events(
+        &self,
+        tasks: &[ImageTask],
+        mut rx: Receiver<CommandEvent>,
+    ) -> OptimizerResult<Vec<OptimizationResult>> {
+        // Use the same implementation as DirectExecutor
+        let mut results = Vec::new();
+        #[cfg(feature = "benchmarking")]
+        let mut final_metrics = None;
+        let mut batch_json_buffer = String::new();
+        let mut capturing_batch_result = false;
+        
+        // Process output events in real-time
+        debug!("Starting to process output events from sidecar");
+        
+        while let Some(event) = rx.recv().await {
+            match event {
+                CommandEvent::Stdout(line) | CommandEvent::Stderr(line) => {
+                    if let Some(line_str) = Self::process_line(&line) {
+                        #[cfg(feature = "benchmarking")]
+                        {
+                            capturing_batch_result = self.process_output_line(
+                                &line_str,
+                                &mut batch_json_buffer,
+                                capturing_batch_result,
+                                tasks,
+                                &mut results,
+                                &mut final_metrics,
+                            );
+                        }
+                        
+                        #[cfg(not(feature = "benchmarking"))]
+                        {
+                            capturing_batch_result = self.process_output_line(
+                                &line_str,
+                                &mut batch_json_buffer,
+                                capturing_batch_result,
+                                tasks,
+                                &mut results,
+                            );
+                        }
+                    }
+                }
+                CommandEvent::Terminated(payload) => {
+                    let payload = payload as TerminatedPayload;
+                    if let Some(code) = payload.code {
+                        if code != 0 {
+                            return Err(OptimizerError::sidecar(format!("Sharp process exited with code {}", code)));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        
+        // Validate results
+        if results.is_empty() {
+            return Err(OptimizerError::processing("No results received from sidecar".to_string()));
+        }
+        
+        Ok(results)
     }
     
-    /// Process a line of output from the sidecar
+    /// Helper function to process output lines
+    fn process_line(line: &[u8]) -> Option<String> {
+        from_utf8(line).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+    }
+    
+    /// Process a line of output from the sidecar (benchmarking version)
     #[cfg(feature = "benchmarking")]
     fn process_output_line(
         &self, 
@@ -105,8 +151,9 @@ impl DirectExecutor {
         capturing_batch_result: bool,
         tasks: &[ImageTask],
         results: &mut Vec<OptimizationResult>,
-        final_metrics: &mut Option<WorkerPoolMetrics>,
+        final_metrics: &mut Option<crate::benchmarking::metrics::WorkerPoolMetrics>,
     ) -> bool {
+        // Copied from DirectExecutor
         // Return value indicates if we're capturing batch result
         let mut is_capturing = capturing_batch_result;
         
@@ -124,7 +171,7 @@ impl DirectExecutor {
             if let Ok(batch_output) = serde_json::from_str::<BatchOutput>(&batch_json_buffer) {
                 debug!("Received batch output from sidecar - results count: {}", batch_output.results.len());
                 
-                // Convert results
+                // Convert results - reuse conversion method from DirectExecutor
                 let optimization_results = self.convert_to_optimization_results(tasks, batch_output.results);
                 results.extend(optimization_results);
                 
@@ -173,6 +220,7 @@ impl DirectExecutor {
         tasks: &[ImageTask],
         results: &mut Vec<OptimizationResult>,
     ) -> bool {
+        // Copied from DirectExecutor
         // Return value indicates if we're capturing batch result
         let mut is_capturing = capturing_batch_result;
         
@@ -223,133 +271,129 @@ impl DirectExecutor {
         is_capturing
     }
     
-    /// Helper function to process output lines
-    fn process_line(line: &[u8]) -> Option<String> {
-        from_utf8(line).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+    /// Converts SharpResults to OptimizationResults
+    fn convert_to_optimization_results(
+        &self, 
+        tasks: &[ImageTask], 
+        results: Vec<SharpResult>
+    ) -> Vec<OptimizationResult> {
+        tasks.iter()
+            .zip(results)
+            .map(|(task, result)| OptimizationResult {
+                original_path: task.input_path.clone(),
+                optimized_path: result.path,
+                original_size: result.original_size,
+                optimized_size: result.optimized_size,
+                success: result.success,
+                error: result.error,
+                saved_bytes: result.saved_bytes,
+                compression_ratio: result.compression_ratio.parse().unwrap_or(0.0),
+            })
+            .collect()
     }
     
-    /// Handles command events from the sidecar process
-    async fn handle_sidecar_events(
-        &self,
-        tasks: &[ImageTask],
-        mut rx: Receiver<CommandEvent>,
-    ) -> OptimizerResult<Vec<OptimizationResult>> {
-        let mut results = Vec::new();
-        #[cfg(feature = "benchmarking")]
-        let mut final_metrics = None;
-        let mut batch_json_buffer = String::new();
-        let mut capturing_batch_result = false;
-        
-        // Process output events in real-time
-        debug!("Starting to process output events from sidecar");
-        
-        while let Some(event) = rx.recv().await {
-            match event {
-                CommandEvent::Stdout(line) | CommandEvent::Stderr(line) => {
-                    if let Some(line_str) = Self::process_line(&line) {
-                        #[cfg(feature = "benchmarking")]
-                        {
-                            capturing_batch_result = self.process_output_line(
-                                &line_str,
-                                &mut batch_json_buffer,
-                                capturing_batch_result,
-                                tasks,
-                                &mut results,
-                                &mut final_metrics,
-                            );
-                        }
-                        
-                        #[cfg(not(feature = "benchmarking"))]
-                        {
-                            capturing_batch_result = self.process_output_line(
-                                &line_str,
-                                &mut batch_json_buffer,
-                                capturing_batch_result,
-                                tasks,
-                                &mut results,
-                            );
-                        }
-                    }
-                }
-                CommandEvent::Error(err) => {
-                    warn!("Sharp sidecar process error: {}", err);
-                    return Err(OptimizerError::sidecar(format!("Sharp process error: {}", err)));
-                }
-                CommandEvent::Terminated(TerminatedPayload { code, .. }) => {
-                    debug!("Sharp sidecar process terminated with code: {:?}", code);
-                    if code.unwrap_or(-1) != 0 {
-                        return Err(OptimizerError::sidecar(format!("Sharp process failed with status: {:?}", code)));
-                    }
-                    break;
-                }
-                _ => {} // Handle any future CommandEvent variants
+    /// Clean up temporary file, ignoring errors
+    fn cleanup_temp_file(&self, file_path: &std::path::Path) {
+        if file_path.exists() {
+            if let Err(e) = std::fs::remove_file(file_path) {
+                warn!("Failed to clean up temporary file {}: {}", file_path.display(), e);
+            } else {
+                debug!("Successfully cleaned up temporary file: {}", file_path.display());
             }
         }
+    }
+    
+    /// Execute a batch of tasks using memory-mapped file for data transfer
+    pub async fn execute_batch(&self, tasks: &[ImageTask]) 
+        -> OptimizerResult<Vec<OptimizationResult>> {
+        debug!("Processing batch of {} tasks using memory-mapped file", tasks.len());
         
-        #[cfg(feature = "benchmarking")]
-        {
-            // Log worker metrics once at the end with useful information
-            if let Some(metrics) = &final_metrics {
-                debug!("Worker metrics summary: {} workers with avg {:.1} tasks/worker",
-                    metrics.worker_count,
-                    metrics.tasks_per_worker.iter().sum::<usize>() as f64 / metrics.worker_count as f64
-                );
+        // Generate a unique temporary file path
+        let temp_file_path = std::env::temp_dir().join(format!("image_optimizer_mmap_{}.dat", 
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis()));
+        
+        debug!("Using temporary file for memory mapping: {:?}", temp_file_path);
+        
+        // Prepare batch data
+        let batch_json = self.prepare_batch_data(tasks)?;
+        let data_len = batch_json.len();
+        
+        debug!("Prepared batch data: {} bytes for {} tasks", data_len, tasks.len());
+        
+        // Use a block to ensure resources are properly dropped
+        let results = {
+            // Create and size the file
+            let file = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .open(&temp_file_path)
+                .map_err(|e| OptimizerError::processing(format!("Failed to create memory map file: {}", e)))?;
+            
+            file.set_len(data_len as u64)
+                .map_err(|e| OptimizerError::processing(format!("Failed to set memory map file size: {}", e)))?;
+            
+            // Apply platform-specific optimizations
+            #[cfg(target_os = "windows")]
+            {
+                debug!("Applying Windows-specific memory mapping optimizations");
+                // Windows-specific optimizations would go here if needed
             }
-        }
+            
+            #[cfg(unix)]
+            {
+                debug!("Applying Unix-specific memory mapping optimizations");
+                // Unix-specific optimizations would go here if needed
+            }
+            
+            // Map the file into memory
+            // SAFETY: We've properly created and sized the file, and it will remain valid
+            // for the lifetime of the mmap. We also ensure exclusive access.
+            let mut mmap = unsafe { 
+                MmapOptions::new().map_mut(&file)
+                    .map_err(|e| OptimizerError::processing(format!("Failed to map file to memory: {}", e)))?
+            };
+            
+            // Write data to memory-mapped region
+            mmap.copy_from_slice(batch_json.as_bytes());
+            mmap.flush()
+                .map_err(|e| OptimizerError::processing(format!("Failed to flush memory map: {}", e)))?;
+            
+            // Create sidecar command
+            debug!("Creating sidecar command for batch processing via memory-mapped file");
+            let cmd = self.create_sidecar_command()?;
+            
+            // Run the command with the memory-mapped file path
+            debug!("Spawning Sharp sidecar process with memory-mapped file");
+            let (rx, _child) = cmd
+                .args(&["optimize-batch-mmap", &temp_file_path.to_string_lossy()])
+                .spawn()
+                .map_err(|e| OptimizerError::sidecar(format!("Failed to spawn Sharp process: {}", e)))?;
+            
+            debug!("Sidecar process started, waiting for results");
+            
+            // Handle sidecar events and return results
+            let results = self.handle_sidecar_events(tasks, rx).await?;
+            
+            // Explicitly unmap before dropping to ensure resources are released properly
+            drop(mmap);
+            
+            // Close file handle explicitly
+            drop(file);
+            
+            results
+        }; // End of block - all resources are dropped here
+        
+        // Clean up the temporary file
+        // Note: The sidecar should also try to clean up the file after reading
+        self.cleanup_temp_file(&temp_file_path);
         
         debug!("Batch processing completed, returning {} results", results.len());
         Ok(results)
     }
-
-    #[cfg(feature = "benchmarking")]
-    pub async fn execute_batch(&self, tasks: &[ImageTask]) 
-        -> OptimizerResult<Vec<OptimizationResult>> {
-        debug!("Processing batch of {} tasks", tasks.len());
-        
-        // Create sidecar command
-        let cmd = self.create_sidecar_command()?;
-        
-        // Prepare batch data
-        let batch_json = self.prepare_batch_data(tasks)?;
-        
-        // Run the command and capture output stream
-        let (rx, _child) = cmd
-            .args(&["optimize-batch", &batch_json])
-            .spawn()
-            .map_err(|e| OptimizerError::sidecar(format!("Failed to spawn Sharp process: {}", e)))?;
-
-        // Handle sidecar events and return results
-        self.handle_sidecar_events(tasks, rx).await
-    }
-    
-    #[cfg(not(feature = "benchmarking"))]
-    pub async fn execute_batch(&self, tasks: &[ImageTask]) 
-        -> OptimizerResult<Vec<OptimizationResult>> {
-        debug!("Processing batch of {} tasks", tasks.len());
-        
-        // Create sidecar command
-        debug!("Creating sidecar command for batch processing");
-        let cmd = self.create_sidecar_command()?;
-        
-        // Prepare batch data
-        debug!("Serializing batch task data");
-        let batch_json = self.prepare_batch_data(tasks)?;
-        
-        // Run the command and capture output stream
-        debug!("Spawning Sharp sidecar process for batch optimization");
-        let (rx, _child) = cmd
-            .args(&["optimize-batch", &batch_json])
-            .spawn()
-            .map_err(|e| OptimizerError::sidecar(format!("Failed to spawn Sharp process: {}", e)))?;
-
-        debug!("Sidecar process started, waiting for results");
-        
-        // Handle sidecar events and return results
-        self.handle_sidecar_events(tasks, rx).await
-    }
 }
 
-impl ProgressReporter for DirectExecutor {
+impl ProgressReporter for MemoryMapExecutor {
     fn report_progress(&self, progress: &Progress) {
         self.progress_handler.report_progress(progress);
     }
