@@ -15,8 +15,8 @@ function TitleBar() {
   };
 
   return (
-    <div className="title-bar">
-      <h1 className="title-bar-title">Image optimizer</h1>
+    <div className="title-bar" data-tauri-drag-region>
+      <h1 className="title-bar-title" data-tauri-drag-region>Image optimizer</h1>
       <div className="window-controls">
         <button 
           onClick={handleMinimize} 

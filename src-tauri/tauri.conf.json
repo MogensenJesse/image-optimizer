@@ -10,6 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "image-optimizer",
@@ -19,9 +20,13 @@
         "decorations": false,
         "dragDropEnabled": true,
         "windowEffects": {
-          "effects": ["acrylic"]
+          "effects": ["dark", "acrylic"],
+          "radius": 10
         }
-      }
+        
+          
+        }
+      
     ],
     "security": {
       "csp": null
