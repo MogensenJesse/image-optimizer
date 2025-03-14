@@ -20,7 +20,7 @@
         "decorations": false,
         "dragDropEnabled": true,
         "windowEffects": {
-          "effects": ["dark", "acrylic"],
+          "effects": ["underWindowBackground", "acrylic"],
           "radius": 10
         }
         
