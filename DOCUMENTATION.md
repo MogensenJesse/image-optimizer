@@ -534,9 +534,9 @@ npm run build:sharp
 ```
 
 The sidecar packaging process:
-1. Compiles the Node.js application into a standalone executable
+1. Compiles the Node.js application into a standalone executable for the current platform (Windows, macOS, or Linux)
 2. Includes Sharp with platform-specific binaries and dependencies
-3. Uses the Rust target triple (e.g., `x86_64-pc-windows-msvc`) to name the executable
+3. Uses the Rust target triple (e.g., `x86_64-pc-windows-msvc` or `x86_64-apple-darwin`) to name the executable
 4. Moves the executable to `src-tauri/binaries/` for Tauri to access
 
 The pkg configuration in `sharp-sidecar/package.json` specifies:
@@ -545,15 +545,132 @@ The pkg configuration in `sharp-sidecar/package.json` specifies:
   "assets": [
     "node_modules/sharp/**/*",
     "node_modules/@img/sharp-win32-x64/**/*",
+    "node_modules/@img/sharp-darwin-x64/**/*",
+    "node_modules/@img/sharp-darwin-arm64/**/*",
     "optimizationDefaults.js"
   ],
   "targets": [
-    "node20-win-x64"
+    "node20-win-x64",
+    "node20-macos-x64", 
+    "node20-macos-arm64"
   ]
 }
 ```
 
-This ensures all native binaries and assets are correctly bundled in the executable.
+This ensures all native binaries and assets are correctly bundled in the executable for each supported platform.
+
+#### Cross-Platform Compatibility
+
+The build process includes robust platform detection and file management:
+
+1. **Platform-Specific Binaries**: The sidecar is built for multiple target platforms including Windows (x64), macOS Intel (x64), and macOS Apple Silicon (arm64)
+2. **Intelligent Executable Selection**: The rename script prioritizes the correct platform-specific binary when multiple are present
+3. **Adaptive Naming**: Handles platform-specific naming conventions such as the `.exe` extension on Windows
+
+The rename script (`rename.js`) uses the Rust target triple to determine the appropriate output filename:
+
+```javascript
+// Get platform-specific extension
+const ext = platform === "win32" ? ".exe" : "";
+
+// Map of possible source file names, prioritizing current platform
+let possibleSourceFiles = [];
+
+// First add platform-specific files based on current OS
+if (platform === "darwin") {
+  // macOS specific, prioritize correct architecture
+  if (arch === "arm64") {
+    possibleSourceFiles.push("sharp-sidecar-macos-arm64");
+  } else {
+    possibleSourceFiles.push("sharp-sidecar-macos-x64");
+  }
+} else if (platform === "win32") {
+  // Windows specific
+  possibleSourceFiles.push("sharp-sidecar-win-x64.exe");
+}
+
+// Rename to the Tauri-compatible format
+const destPath = path.join(targetDir, `sharp-sidecar-${targetTriple}${ext}`);
+```
+
+This approach ensures that the build process works consistently across development environments and creates the appropriate executables for all supported platforms.
+
+#### Library Dependency Handling
+
+The Sharp sidecar requires several native libraries, particularly `libvips` for image processing. Platform-specific post-build scripts ensure these dependencies are correctly bundled and accessible at runtime:
+
+##### macOS Dependency Management
+
+On macOS, the `macos-post-build.sh` script handles dependency management with several key enhancements:
+
+1. **Robust Binary Detection**: Automatically locates the sidecar binary if not explicitly provided:
+   ```bash
+   # If no binary path provided, try to find it in the target directory
+   if [ -z "$BINARY_PATH" ]; then
+     TARGET_DIR="../src-tauri/binaries"
+     BINARY_PATH=$(find "$TARGET_DIR" -name "sharp-sidecar-*" -type f -not -name "*.exe" | head -n 1)
+   fi
+   ```
+
+2. **Resilient Directory Creation**: Ensures all required directories exist for native modules:
+   ```bash
+   mkdir -p "../src-tauri/binaries/sharp/build/Release"
+   mkdir -p "../src-tauri/binaries/sharp/vendor/lib"
+   mkdir -p "../src-tauri/binaries/libs"
+   ```
+
+3. **Native Library Copying**: Automatically copies all libvips libraries to the correct locations:
+   ```bash
+   # Copy libvips libraries to the libs directory
+   find "./node_modules/sharp/vendor/lib" -name "libvips*.dylib" -exec cp {} "../src-tauri/binaries/libs/" \;
+   ```
+
+4. **Fault Tolerance**: Continues execution even if certain operations fail, with appropriate warnings
+
+5. **Dynamic Library Path Management**: During testing, the DYLD_LIBRARY_PATH environment variable is set to include the libs directory:
+   ```bash
+   # Manual setting of environment variable for testing
+   export DYLD_LIBRARY_PATH="$PWD/src-tauri/binaries/libs:$DYLD_LIBRARY_PATH"
+   ```
+
+   This approach can be formalized in the production code by adding this to the command creation:
+   ```rust
+   // Potential enhancement to Rust code for library path management
+   let libs_path = app_dir.join("libs").to_string_lossy().to_string();
+   command.env("DYLD_LIBRARY_PATH", libs_path);
+   ```
+
+##### Testing and Verification
+
+The build process includes a verification mechanism through test files that validate the sidecar's functionality:
+
+1. **Test JSON Configuration**: A test.json file specifies sample optimization tasks:
+   ```json
+   [
+     {
+       "input": "/tmp/test.jpg",
+       "output": "/tmp/test-output.jpg",
+       "settings": {
+         "quality": { "global": 90 },
+         "resize": { "mode": "none", "maintainAspect": true },
+         "outputFormat": "original"
+       }
+     }
+   ]
+   ```
+
+2. **Benchmark Mode**: A special build configuration with enhanced logging and metrics:
+   ```bash
+   npm run tauri:benchmark   # Runs with --features benchmarking flag
+   ```
+
+3. **Library Path Validation**: Automatically verifies that all required libraries are accessible:
+   ```
+   Set SHARP_DIST_DIR to: /path/to/app/src-tauri/binaries/sharp
+   Found Sharp native modules directory
+   ```
+
+These enhancements ensure consistent operation across development and production environments, with automatic handling of platform-specific library requirements and dependency paths.
 
 ### 2.4 Production Build
 
@@ -597,3 +714,4 @@ The most recent architectural improvement replaced command-line parameter passin
 - **Cross-Platform Support**: Implementation designed to work consistently across Windows, macOS, and Linux
 
 These evolutionary changes demonstrate how understanding the full stack (from Rust to Node.js to Sharp's internals) led to a more efficient architecture that is both simpler to maintain and more resource-efficient while maintaining high performance.
+

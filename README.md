@@ -37,12 +37,48 @@ Image Optimizer is a high-performance desktop application designed to streamline
 
 For detailed technical information about the architecture, components, and implementation details, please refer to the [Technical Documentation](./DOCUMENTATION.md).
 
+## Development
+
+### Prerequisites
+
+- Node.js and npm (preferably via nvm)
+- Rust toolchain
+- Tauri CLI
+- pkg (for packaging the Node.js sidecar)
+
+### Cross-Platform Development
+
+The application is designed to work across platforms:
+
+```bash
+# Development mode
+npm run tauri:dev
+
+# Production build
+npm run tauri:build
+```
+
+The build system automatically:
+- Selects the appropriate platform-specific binaries for the Sharp sidecar
+- Packages these binaries for Windows (x64), macOS Intel (x64), and macOS Apple Silicon (arm64)
+- Uses memory-mapped file communication for cross-platform compatibility
+
+### Platform-Specific Notes
+
+#### macOS
+- Supports both Intel (x64) and Apple Silicon (arm64) architectures
+- Uses the correctly named binaries (`sharp-sidecar-x86_64-apple-darwin` or `sharp-sidecar-aarch64-apple-darwin`)
+
+#### Windows
+- Properly handles Windows executable extensions (`.exe`)
+- Uses the correctly named binary (`sharp-sidecar-x86_64-pc-windows-msvc.exe`)
+
 ## Roadmap
 
 - [ ] Add SVG support
 - [ ] Add additional performance optimizations
 - [ ] Add unsupported image format detection
-- [ ] Add macOS support
+- [x] Add macOS support
 - [ ] Add updating mechanism
 - [ ] Redesign the product website
 

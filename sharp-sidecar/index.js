@@ -1,9 +1,37 @@
+// Handle Sharp native modules path resolution
+const fs = require('fs');
+const path = require('path');
+
+// Check if we're running as a packaged executable
+const isPackaged = !process.argv[0].endsWith('node') && !process.argv[0].endsWith('nodejs');
+
+if (isPackaged) {
+  console.log('Running as packaged executable, setting up Sharp native modules paths');
+  
+  // Get the executable directory
+  const execDir = path.dirname(process.execPath);
+  
+  // Set environment variables for Sharp to find native modules
+  process.env.SHARP_DIST_DIR = path.join(execDir, 'sharp');
+  
+  // Log for debugging
+  console.log(`Set SHARP_DIST_DIR to: ${process.env.SHARP_DIST_DIR}`);
+  
+  // Verify directories exist
+  if (fs.existsSync(path.join(execDir, 'sharp', 'build', 'Release'))) {
+    console.log('Found Sharp native modules directory');
+  } else {
+    console.error('ERROR: Sharp native modules directory not found at:', path.join(execDir, 'sharp', 'build', 'Release'));
+    console.log('Available directories:', fs.readdirSync(execDir));
+  }
+}
+
+// Now load worker_threads and continue with the rest of the code
 const { isMainThread, parentPort, workerData } = require('worker_threads');
 const { optimizeImage } = require('./src/processing/optimizer');
 const { optimizeBatch } = require('./src/processing/batch');
 const { error, debug } = require('./src/utils');
 const { createStartMessage, createCompleteMessage, createErrorMessage, sendProgressMessage, formatBytes } = require('./src/utils/progress');
-const path = require('path');
 
 // Worker thread code
 if (!isMainThread && workerData?.isWorker) {
