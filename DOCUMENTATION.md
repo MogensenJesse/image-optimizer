@@ -510,178 +510,90 @@ The sidecar incorporates several techniques to maximize performance:
 - Tauri CLI for application building
 - pkg (for packaging the Node.js sidecar into an executable)
 
-### 2.2 Build Process Overview
+### 2.2 Build Process
 
 The build system handles three primary modes:
 
-1. **Standard Development**: Builds the application with standard debugging capabilities
-2. **Benchmarking Mode**: Enables detailed performance metrics and enhanced logging
-3. **Production**: Creates optimized, distributable builds for target platforms
+1. **Standard Development**: `npm run tauri:dev` - Builds with standard debugging capabilities
+2. **Benchmarking Mode**: `npm run tauri:benchmark` - Enables detailed performance metrics and logging
+3. **Production**: `npm run tauri:build` - Creates optimized, distributable builds
 
 All build modes automatically compile the Sharp sidecar into a standalone executable before building the main application.
 
 ### 2.3 Sidecar Build Process
 
-The Sharp sidecar is packaged as a self-contained executable using `pkg` and automatically integrated into the Tauri application:
+The Sharp sidecar is packaged as a self-contained executable using `pkg` with cross-platform support:
 
 ```bash
-# Build sidecar and rename for platform compatibility
-npm run build:sharp
-
-# This executes:
-# 1. pkg --no-bytecode --public-packages "*" --public .  (packages Node.js app as executable)
-# 2. node rename.js                                      (renames executable for Tauri integration)
+npm run build:sharp  # Triggers: cd sharp-sidecar && npm run build:rename
 ```
 
-The sidecar packaging process:
-1. Compiles the Node.js application into a standalone executable for the current platform (Windows, macOS, or Linux)
-2. Includes Sharp with platform-specific binaries and dependencies
-3. Uses the Rust target triple (e.g., `x86_64-pc-windows-msvc` or `x86_64-apple-darwin`) to name the executable
-4. Moves the executable to `src-tauri/binaries/` for Tauri to access
+This executes three key steps:
+1. **Packaging**: `pkg --no-bytecode --public-packages "*" --public .` creates a standalone executable
+2. **Renaming**: `node rename.js` renames the executable using the Rust target triple (e.g., `x86_64-pc-windows-msvc.exe`)
+3. **Post-Processing**: `node post-build.js` handles platform-specific operations (libraries, permissions)
 
-The pkg configuration in `sharp-sidecar/package.json` specifies:
+The pkg configuration in `sharp-sidecar/package.json` bundles all necessary assets for each platform:
+
 ```json
 "pkg": {
-  "assets": [
-    "node_modules/sharp/**/*",
-    "node_modules/@img/sharp-win32-x64/**/*",
-    "node_modules/@img/sharp-darwin-x64/**/*",
-    "node_modules/@img/sharp-darwin-arm64/**/*",
-    "optimizationDefaults.js"
-  ],
-  "targets": [
-    "node20-win-x64",
-    "node20-macos-x64", 
-    "node20-macos-arm64"
-  ]
+  "assets": ["node_modules/sharp/**/*", "..."],
+  "targets": ["node20-win-x64", "node20-macos-x64", "node20-macos-arm64"]
 }
 ```
-
-This ensures all native binaries and assets are correctly bundled in the executable for each supported platform.
 
 #### Cross-Platform Compatibility
 
-The build process includes robust platform detection and file management:
+The build process features robust platform detection and handling:
 
-1. **Platform-Specific Binaries**: The sidecar is built for multiple target platforms including Windows (x64), macOS Intel (x64), and macOS Apple Silicon (arm64)
-2. **Intelligent Executable Selection**: The rename script prioritizes the correct platform-specific binary when multiple are present
-3. **Adaptive Naming**: Handles platform-specific naming conventions such as the `.exe` extension on Windows
+1. **Platform Detection**: Automatically identifies Windows vs macOS environments
+2. **Executable Selection**: Prioritizes the correct platform binary based on OS and architecture
+3. **Native Adaptations**: Handles platform-specific conventions (e.g., .exe extension on Windows)
+4. **Cross-Platform Post-Build**: Uses a unified Node.js script with platform-specific branches
 
-The rename script (`rename.js`) uses the Rust target triple to determine the appropriate output filename:
+The process is designed to produce identical directory structures across platforms, with platform-specific binaries placed in the correct locations.
+
+#### Library Dependency Management
+
+The post-build script handles complex native library dependencies for each platform:
 
 ```javascript
-// Get platform-specific extension
-const ext = platform === "win32" ? ".exe" : "";
-
-// Map of possible source file names, prioritizing current platform
-let possibleSourceFiles = [];
-
-// First add platform-specific files based on current OS
-if (platform === "darwin") {
-  // macOS specific, prioritize correct architecture
-  if (arch === "arm64") {
-    possibleSourceFiles.push("sharp-sidecar-macos-arm64");
-  } else {
-    possibleSourceFiles.push("sharp-sidecar-macos-x64");
-  }
-} else if (platform === "win32") {
-  // Windows specific
-  possibleSourceFiles.push("sharp-sidecar-win-x64.exe");
+// Platform-specific operations
+if (platform === 'darwin') {
+  // macOS: Uses shell commands for file operations
+  execSync(`cp -R "${releaseSource}/" "${sharpReleaseDir}/"`);
+  execSync(`find "${vendorSource}" -name "libvips*.dylib" -exec cp {} "${libsDir}/" \\;`);
+  fs.chmodSync(binaryPath, 0o755);  // Set executable permissions
+} else if (platform === 'win32') {
+  // Windows: Uses Node.js filesystem APIs
+  copyDirRecursiveSync(releaseSource, sharpReleaseDir);
+  // Copy DLLs to libs directory
+  fs.readdirSync(vendorSource).forEach(file => {
+    if (file.startsWith('libvips') && file.endsWith('.dll')) {
+      fs.copyFileSync(path.join(vendorSource, file), path.join(libsDir, file));
+    }
+  });
 }
-
-// Rename to the Tauri-compatible format
-const destPath = path.join(targetDir, `sharp-sidecar-${targetTriple}${ext}`);
 ```
 
-This approach ensures that the build process works consistently across development environments and creates the appropriate executables for all supported platforms.
-
-#### Library Dependency Handling
-
-The Sharp sidecar requires several native libraries, particularly `libvips` for image processing. Platform-specific post-build scripts ensure these dependencies are correctly bundled and accessible at runtime:
-
-##### macOS Dependency Management
-
-On macOS, the `macos-post-build.sh` script handles dependency management with several key enhancements:
-
-1. **Robust Binary Detection**: Automatically locates the sidecar binary if not explicitly provided:
-   ```bash
-   # If no binary path provided, try to find it in the target directory
-   if [ -z "$BINARY_PATH" ]; then
-     TARGET_DIR="../src-tauri/binaries"
-     BINARY_PATH=$(find "$TARGET_DIR" -name "sharp-sidecar-*" -type f -not -name "*.exe" | head -n 1)
-   fi
-   ```
-
-2. **Resilient Directory Creation**: Ensures all required directories exist for native modules:
-   ```bash
-   mkdir -p "../src-tauri/binaries/sharp/build/Release"
-   mkdir -p "../src-tauri/binaries/sharp/vendor/lib"
-   mkdir -p "../src-tauri/binaries/libs"
-   ```
-
-3. **Native Library Copying**: Automatically copies all libvips libraries to the correct locations:
-   ```bash
-   # Copy libvips libraries to the libs directory
-   find "./node_modules/sharp/vendor/lib" -name "libvips*.dylib" -exec cp {} "../src-tauri/binaries/libs/" \;
-   ```
-
-4. **Fault Tolerance**: Continues execution even if certain operations fail, with appropriate warnings
-
-5. **Dynamic Library Path Management**: During testing, the DYLD_LIBRARY_PATH environment variable is set to include the libs directory:
-   ```bash
-   # Manual setting of environment variable for testing
-   export DYLD_LIBRARY_PATH="$PWD/src-tauri/binaries/libs:$DYLD_LIBRARY_PATH"
-   ```
-
-   This approach can be formalized in the production code by adding this to the command creation:
-   ```rust
-   // Potential enhancement to Rust code for library path management
-   let libs_path = app_dir.join("libs").to_string_lossy().to_string();
-   command.env("DYLD_LIBRARY_PATH", libs_path);
-   ```
-
-##### Testing and Verification
-
-The build process includes a verification mechanism through test files that validate the sidecar's functionality:
-
-1. **Test JSON Configuration**: A test.json file specifies sample optimization tasks:
-   ```json
-   [
-     {
-       "input": "/tmp/test.jpg",
-       "output": "/tmp/test-output.jpg",
-       "settings": {
-         "quality": { "global": 90 },
-         "resize": { "mode": "none", "maintainAspect": true },
-         "outputFormat": "original"
-       }
-     }
-   ]
-   ```
-
-2. **Benchmark Mode**: A special build configuration with enhanced logging and metrics:
-   ```bash
-   npm run tauri:benchmark   # Runs with --features benchmarking flag
-   ```
-
-3. **Library Path Validation**: Automatically verifies that all required libraries are accessible:
-   ```
-   Set SHARP_DIST_DIR to: /path/to/app/src-tauri/binaries/sharp
-   Found Sharp native modules directory
-   ```
-
-These enhancements ensure consistent operation across development and production environments, with automatic handling of platform-specific library requirements and dependency paths.
+Key aspects include:
+- Creation of consistent directory structures across platforms
+- Platform-appropriate file operations and permissions handling
+- Resilient error handling for graceful continuation on failure
+- Special handling for Windows file system limitations
 
 ### 2.4 Production Build
 
+Production builds are created with:
+
 ```bash
-npm run tauri build
+npm run tauri:build  # or npm run tauri:build:benchmark for performance metrics
 ```
 
-This creates optimized builds for target platforms (Windows, macOS) with:
+This produces optimized builds for target platforms with:
 - Minified frontend assets
 - Optimized Rust binary
-- Sharp sidecar bundled as a platform-specific executable
+- Platform-specific executable and dependencies
 - Automatic platform-specific installers (MSI for Windows, DMG for macOS)
 
 ## 3. Technical Insights

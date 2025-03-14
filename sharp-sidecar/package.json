@@ -6,7 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "build": "pkg --no-bytecode --public-packages \"*\" --public .",
-    "build:rename": "npm run build && node rename.js && bash ./macos-post-build.sh"
+    "build:rename": "npm run build && node rename.js && node post-build.js"
   },
   "author": "",
   "license": "ISC",
