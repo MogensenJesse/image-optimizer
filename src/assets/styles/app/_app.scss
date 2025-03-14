@@ -1,8 +1,13 @@
 // App Container and Layout
 @use '../base/variables' as v;
 
+html {
+  background: transparent;
+}
+
 body {
   overflow: hidden;
+  background: transparent;
 }
 
 .container {
@@ -10,7 +15,6 @@ body {
   width: 100%;
   height: 100%;
   background-color: rgba(v.$onyx, 0.6);
-  border-radius: 10px;
 }
 
 .app-content {

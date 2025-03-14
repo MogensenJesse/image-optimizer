@@ -13,6 +13,9 @@ use tauri::Manager;
 use crate::core::AppState;
 use crate::commands::{optimize_image, optimize_images, get_active_tasks};
 
+// Import the window-vibrancy crate
+use window_vibrancy::{apply_vibrancy, apply_acrylic, NSVisualEffectMaterial};
+
 fn main() {
     // Initialize logging with more verbose output in benchmark mode
     #[cfg(feature = "benchmarking")]
@@ -59,6 +62,25 @@ fn main() {
             optimize_images,
             get_active_tasks,
         ])
+        .setup(|app| {
+            let window = app.get_webview_window("main").unwrap();
+            
+            #[cfg(target_os = "macos")]
+            {
+                info!("Applying vibrancy effect for macOS");
+                apply_vibrancy(&window, NSVisualEffectMaterial::HudWindow, None, None)
+                    .expect("Failed to apply vibrancy effect on macOS");
+            }
+            
+            #[cfg(target_os = "windows")]
+            {
+                info!("Applying acrylic effect for Windows");
+                apply_acrylic(&window, Some((18, 18, 18, 125)))
+                    .expect("Failed to apply acrylic effect on Windows");
+            }
+                
+            Ok(())
+        })
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 

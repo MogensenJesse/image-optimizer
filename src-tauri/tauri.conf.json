@@ -20,13 +20,10 @@
         "decorations": false,
         "dragDropEnabled": true,
         "windowEffects": {
-          "effects": ["underWindowBackground", "acrylic"],
+          "effects": ["acrylic"],
           "radius": 10
         }
-        
-          
-        }
-      
+      }
     ],
     "security": {
       "csp": null
