@@ -600,6 +600,19 @@ This produces optimized builds for target platforms with:
 
 The Image Optimizer's architecture has evolved through performance optimization. Key architectural insights include:
 
+#### Application Structure
+The codebase follows a well-defined structure:
+
+- **main.rs**: The primary entry point with complete application initialization
+- **lib.rs**: A public API layer for external consumers and potential testing
+- **Module Organization**: Core logic is separated into specialized modules:
+  - **core**: Contains fundamental types and state management
+  - **processing**: Handles all image optimization logic
+  - **commands**: Implements Tauri command interfaces
+  - **utils**: Houses shared utilities and error handling
+
+This dual-entry approach allows the codebase to be used both as a standalone application and as a library component, facilitating testing and potential integration into other projects.
+
 #### Process Pool Removal
 The application originally used a ProcessPool in Rust to manage multiple Node.js sidecar processes. This was found to be unnecessarily complex and memory-intensive because:
 

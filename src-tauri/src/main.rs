@@ -1,6 +1,9 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+// This is the primary entry point for the Image Optimizer application.
+// The lib.rs file serves only as a public API for external consumers.
+
 mod utils;
 mod core;
 mod processing;
@@ -13,8 +16,9 @@ use tauri::Manager;
 use crate::core::AppState;
 use crate::commands::{optimize_image, optimize_images, get_active_tasks};
 
-// Import the window-vibrancy crate
-use window_vibrancy::{apply_vibrancy, apply_acrylic, NSVisualEffectMaterial};
+// Import the window-vibrancy crate only on macOS
+#[cfg(target_os = "macos")]
+use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
 fn main() {
     // Initialize logging with more verbose output in benchmark mode
@@ -62,21 +66,14 @@ fn main() {
             optimize_images,
             get_active_tasks,
         ])
-        .setup(|app| {
-            let window = app.get_webview_window("main").unwrap();
-            
+        .setup(|_app| {
             #[cfg(target_os = "macos")]
             {
+                let window = _app.get_webview_window("main").unwrap();
                 info!("Applying vibrancy effect for macOS");
+                // Note: This requires macOSPrivateApi=true in tauri.conf.json
                 apply_vibrancy(&window, NSVisualEffectMaterial::HudWindow, None, None)
                     .expect("Failed to apply vibrancy effect on macOS");
-            }
-            
-            #[cfg(target_os = "windows")]
-            {
-                info!("Applying acrylic effect for Windows");
-                apply_acrylic(&window, Some((18, 18, 18, 125)))
-                    .expect("Failed to apply acrylic effect on Windows");
             }
                 
             Ok(())
