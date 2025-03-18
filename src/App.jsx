@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from '@tauri-apps/api/event';
-import { dirname, join } from '@tauri-apps/api/path';
+import { dirname, join, basename } from '@tauri-apps/api/path';
 import { mkdir } from "@tauri-apps/plugin-fs";
 import { open } from "@tauri-apps/plugin-dialog";
 import FloatingMenu from "./components/FloatingMenu";
@@ -105,18 +105,11 @@ function App() {
     }
     
     initProgress(filePaths.length);
-    
-    // Set processing flag AFTER initializing progress
     processingRef.current = true;
 
     try {
-      // Start the fade in animation
       setAppState(APP_STATE.FADE_IN);
-      
-      // Wait for animation to start
       await new Promise(resolve => setTimeout(resolve, 50));
-      
-      // After a short delay, start processing
       await new Promise(resolve => setTimeout(resolve, 500));
       setAppState(APP_STATE.PROCESSING);
       
@@ -130,19 +123,14 @@ function App() {
       // Create batch tasks
       const tasks = await Promise.all(filePaths.map(async (path) => {
         const parentDir = await dirname(path);
-        const fileName = path.split('\\').pop();
+        const fileName = await basename(path);
         const optimizedPath = await join(parentDir, 'optimized', fileName);
         return [path, optimizedPath, settings];
       }));
 
-      // Process batch - this will trigger progress events
       await invoke('optimize_images', { tasks });
-      
-      // If we reach here, the invoke call completed but our state transitions
-      // will be handled by the useEffect hooks that watch for progress changes
     } catch (error) {
       console.error('Error processing images:', error);
-      // Reset to idle state in case of error
       setAppState(APP_STATE.IDLE);
       processingRef.current = false;
     }
