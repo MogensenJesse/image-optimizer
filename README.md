@@ -37,41 +37,15 @@ Image Optimizer is a high-performance desktop application designed to streamline
 
 For detailed technical information about the architecture, components, and implementation details, please refer to the [Technical Documentation](./DOCUMENTATION.md).
 
-## Development
+## Security
 
-### Prerequisites
+- **Unsigned Builds**: Currently, both Windows and macOS builds are not code-signed. This is on the roadmap but doesn't affect the application's security.
 
-- Node.js and npm (preferably via nvm)
-- Rust toolchain
-- Tauri CLI
-- pkg (for packaging the Node.js sidecar)
+- **Security Warnings**: You may encounter security warnings when first running the application:
+  - **Windows**: You might see a "Windows protected your PC" message. Click "More info" and then "Run anyway" to proceed.
+  - **macOS**: You may need to right-click (or Control-click) the app and select "Open" from the context menu, then click "Open" in the dialog that appears.
 
-### Cross-Platform Development
-
-The application is designed to work across platforms:
-
-```bash
-# Development mode
-npm run tauri:dev
-
-# Production build
-npm run tauri:build
-```
-
-The build system automatically:
-- Selects the appropriate platform-specific binaries for the Sharp sidecar
-- Packages these binaries for Windows (x64), macOS Intel (x64), and macOS Apple Silicon (arm64)
-- Uses memory-mapped file communication for cross-platform compatibility
-
-### Platform-Specific Notes
-
-#### macOS
-- Supports both Intel (x64) and Apple Silicon (arm64) architectures
-- Uses the correctly named binaries (`sharp-sidecar-x86_64-apple-darwin` or `sharp-sidecar-aarch64-apple-darwin`)
-
-#### Windows
-- Properly handles Windows executable extensions (`.exe`)
-- Uses the correctly named binary (`sharp-sidecar-x86_64-pc-windows-msvc.exe`)
+- **No Network Requirements**: Image Optimizer processes all images locally without sending any data to external servers.
 
 ## Roadmap
 
@@ -81,6 +55,8 @@ The build system automatically:
 - [x] Add macOS support
 - [ ] Add updating mechanism
 - [ ] Redesign the product website
+- [ ] Design product logo & icons
+- [ ] Implement code signing for Windows and macOS builds
 
 ## License
 This project is licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). Please review the license terms before using or distributing this software.
