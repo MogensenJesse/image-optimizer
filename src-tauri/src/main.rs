@@ -92,8 +92,8 @@ fn main() {
     // Start warmup in a separate task so it doesn't block app startup
     let app_handle = app.app_handle().clone();
     tauri::async_runtime::spawn(async move {
-        // Add a small delay to ensure the app is fully initialized
-        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        // Reduced delay to speed up first optimization
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         
         let state = app_handle.state::<AppState>();
         if let Err(e) = state.warmup_executor().await {

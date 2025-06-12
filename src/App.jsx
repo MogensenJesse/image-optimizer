@@ -108,27 +108,40 @@ function App() {
     processingRef.current = true;
 
     try {
+      // Start UI animations immediately
       setAppState(APP_STATE.FADE_IN);
-      await new Promise(resolve => setTimeout(resolve, 50));
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setAppState(APP_STATE.PROCESSING);
       
-      // Create all required directories first
-      await Promise.all(filePaths.map(async (path) => {
-        const parentDir = await dirname(path);
-        const optimizedPath = await join(parentDir, 'optimized');
-        await mkdir(optimizedPath, { recursive: true });
-      }));
+      // Start optimization process in parallel with UI animations
+      const optimizationPromise = (async () => {
+        // Create all required directories first
+        await Promise.all(filePaths.map(async (path) => {
+          const parentDir = await dirname(path);
+          const optimizedPath = await join(parentDir, 'optimized');
+          await mkdir(optimizedPath, { recursive: true });
+        }));
 
-      // Create batch tasks
-      const tasks = await Promise.all(filePaths.map(async (path) => {
-        const parentDir = await dirname(path);
-        const fileName = await basename(path);
-        const optimizedPath = await join(parentDir, 'optimized', fileName);
-        return [path, optimizedPath, settings];
-      }));
+        // Create batch tasks
+        const tasks = await Promise.all(filePaths.map(async (path) => {
+          const parentDir = await dirname(path);
+          const fileName = await basename(path);
+          const optimizedPath = await join(parentDir, 'optimized', fileName);
+          return [path, optimizedPath, settings];
+        }));
 
-      await invoke('optimize_images', { tasks });
+        // Start the actual optimization
+        return invoke('optimize_images', { tasks });
+      })();
+      
+      // Handle UI animations independently
+      const animationPromise = (async () => {
+        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise(resolve => setTimeout(resolve, 150));
+        setAppState(APP_STATE.PROCESSING);
+      })();
+      
+      // Wait for both to complete, but optimization can start before animations finish
+      await Promise.all([optimizationPromise, animationPromise]);
+      
     } catch (error) {
       console.error('Error processing images:', error);
       setAppState(APP_STATE.IDLE);

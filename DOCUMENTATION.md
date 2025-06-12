@@ -127,7 +127,7 @@ The frontend provides a clean and interactive user interface for image optimizat
   - **FloatingMenu.jsx**: Settings panel for optimization configurations
   - **ProgressBar.jsx**: Visual display of optimization progress with metrics
   - **TitleBar.jsx**: Custom window controls
-- **useProgressTracker.js**: Custom hook for managing progress state and statistics
+- **useProgressTracker.js**: Advanced custom hook managing progress state, batch tracking, timing metrics, and detailed optimization statistics across multiple processing batches
 
 #### State Management
 
@@ -207,9 +207,9 @@ The frontend uses SCSS for styling, organized in a modular structure:
 src/assets/styles/
 ├── main.scss           # Main entry point
 ├── base/               # Foundation styles
-│   ├── _variables.scss # Global variables and colors
-│   ├── _reset.scss     # CSS normalization
-│   └── _typography.scss# Text styling
+│   ├── variables.scss  # Global variables and colors
+│   ├── reset.scss      # CSS normalization
+│   └── typography.scss # Text styling
 ├── app/                # Application-level styles
 │   └── _app.scss       # Main container and layouts
 └── components/         # Component-specific styles
@@ -495,7 +495,7 @@ Format-specific settings are applied dynamically based on quality requirements, 
 
 The sidecar incorporates several techniques to maximize performance:
 
-- **Batch Processing**: Groups images for efficient handling
+- **Batch Processing**: Groups images for efficient handling (up to 500 images per batch via memory-mapped files)
 - **Adaptive Settings**: Optimizes parameters based on image content
 - **Memory Management**: Streams large images to avoid memory issues
 - **Real-time Feedback**: Provides progress updates during processing
@@ -515,7 +515,7 @@ The sidecar incorporates several techniques to maximize performance:
 The build system handles three primary modes:
 
 1. **Standard Development**: `npm run tauri:dev` - Builds with standard debugging capabilities
-2. **Benchmarking Mode**: `npm run tauri:benchmark` - Enables detailed performance metrics and logging
+2. **Benchmarking Mode**: `npm run tauri:benchmark` - Enables detailed performance metrics, debug logging, warmup benefits tracking, and resource monitoring via Rust feature flags
 3. **Production**: `npm run tauri:build` - Creates optimized, distributable builds
 
 All build modes automatically compile the Sharp sidecar into a standalone executable before building the main application.
