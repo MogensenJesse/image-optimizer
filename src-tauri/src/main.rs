@@ -7,8 +7,6 @@
 mod utils;
 mod core;
 mod processing;
-#[cfg(feature = "benchmarking")]
-mod benchmarking;
 mod commands;
 
 use tracing::{info, debug};
@@ -21,19 +19,8 @@ use crate::commands::{optimize_image, optimize_images, get_active_tasks};
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
 fn main() {
-    // Initialize logging with more verbose output in benchmark mode
-    #[cfg(feature = "benchmarking")]
-    let benchmark_mode = true;
-    
-    #[cfg(not(feature = "benchmarking"))]
-    let benchmark_mode = false;
-    
     let subscriber = tracing_subscriber::fmt()
-        .with_max_level(if benchmark_mode {
-            tracing::Level::DEBUG
-        } else {
-            tracing::Level::INFO
-        })
+        .with_max_level(tracing::Level::INFO)
         .with_file(false)         // Remove file path
         .with_line_number(false)  // Remove line numbers
         .with_thread_ids(false)   // Remove thread IDs
@@ -46,13 +33,6 @@ fn main() {
     subscriber.init();
     
     info!("=== Application Starting ===");
-    if benchmark_mode {
-        info!("Benchmark mode: ENABLED");
-        info!("Debug logging: ENABLED");
-    } else {
-        info!("Benchmark mode: DISABLED");
-        info!("Debug logging: DISABLED");
-    }
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_process::init())

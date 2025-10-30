@@ -56,10 +56,3 @@ tauri-plugin-log = "2"
 # parking_lot = "0.12.3"
 # sysinfo = "0.33.1"
 # enum-map = { version = "2.7.3", features = [], optional = true }
-
-[features]
-# Define the benchmarking feature for compile-time optimization
-# When enabled, this includes all code needed for performance benchmarking
-benchmarking = []
-# Keep the old name as an alias for backward compatibility
-benchmark = ["benchmarking"]

@@ -7,8 +7,6 @@ use crate::utils::{OptimizerError, OptimizerResult};
 use crate::core::{ImageTask, OptimizationResult};
 use super::types::{SharpResult, DetailedProgressUpdate};
 use super::progress_handler::ProgressHandler;
-#[cfg(feature = "benchmarking")]
-use crate::benchmarking::metrics::WorkerPoolMetrics;
 use tracing::{debug, warn};
 use serde_json;
 use serde::Deserialize;
@@ -18,8 +16,10 @@ use tauri::async_runtime::Receiver;
 #[derive(Debug, Deserialize)]
 pub struct BatchOutput {
     pub results: Vec<SharpResult>,
-    #[cfg(feature = "benchmarking")]
-    pub metrics: Option<WorkerPoolMetrics>,
+    // Ignore metrics field from sidecar (not used by backend, kept for deserialization compatibility)
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub metrics: Option<serde_json::Value>,
 }
 
 /// Memory-mapped file executor that uses shared memory for batch data transfer
@@ -78,10 +78,7 @@ impl MemoryMapExecutor {
         tasks: &[ImageTask],
         mut rx: Receiver<CommandEvent>,
     ) -> OptimizerResult<Vec<OptimizationResult>> {
-        // Use the same implementation as DirectExecutor
         let mut results = Vec::new();
-        #[cfg(feature = "benchmarking")]
-        let mut final_metrics = None;
         let mut batch_json_buffer = String::new();
         let mut capturing_batch_result = false;
         
@@ -92,28 +89,13 @@ impl MemoryMapExecutor {
             match event {
                 CommandEvent::Stdout(line) | CommandEvent::Stderr(line) => {
                     if let Some(line_str) = Self::process_line(&line) {
-                        #[cfg(feature = "benchmarking")]
-                        {
-                            capturing_batch_result = self.process_output_line(
-                                &line_str,
-                                &mut batch_json_buffer,
-                                capturing_batch_result,
-                                tasks,
-                                &mut results,
-                                &mut final_metrics,
-                            );
-                        }
-                        
-                        #[cfg(not(feature = "benchmarking"))]
-                        {
-                            capturing_batch_result = self.process_output_line(
-                                &line_str,
-                                &mut batch_json_buffer,
-                                capturing_batch_result,
-                                tasks,
-                                &mut results,
-                            );
-                        }
+                        capturing_batch_result = self.process_output_line(
+                            &line_str,
+                            &mut batch_json_buffer,
+                            capturing_batch_result,
+                            tasks,
+                            &mut results,
+                        );
                     }
                 }
                 CommandEvent::Terminated(payload) => {
@@ -141,76 +123,7 @@ impl MemoryMapExecutor {
         from_utf8(line).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
     }
     
-    /// Process a line of output from the sidecar (benchmarking version)
-    #[cfg(feature = "benchmarking")]
-    fn process_output_line(
-        &self, 
-        line_str: &str, 
-        batch_json_buffer: &mut String,
-        capturing_batch_result: bool,
-        tasks: &[ImageTask],
-        results: &mut Vec<OptimizationResult>,
-        final_metrics: &mut Option<crate::benchmarking::metrics::WorkerPoolMetrics>,
-    ) -> bool {
-        // Copied from DirectExecutor
-        // Return value indicates if we're capturing batch result
-        let mut is_capturing = capturing_batch_result;
-        
-        // Check for batch result markers
-        if line_str == "BATCH_RESULT_START" {
-            debug!("Received BATCH_RESULT_START marker");
-            is_capturing = true;
-            batch_json_buffer.clear();
-        } else if line_str == "BATCH_RESULT_END" {
-            debug!("Received BATCH_RESULT_END marker");
-            is_capturing = false;
-            
-            // Parse the batch result JSON
-            debug!("Parsing batch result JSON (buffer size: {} bytes)", batch_json_buffer.len());
-            if let Ok(batch_output) = serde_json::from_str::<BatchOutput>(&batch_json_buffer) {
-                debug!("Received batch output from sidecar - results count: {}", batch_output.results.len());
-                
-                // Convert results - reuse conversion method from DirectExecutor
-                let optimization_results = self.convert_to_optimization_results(tasks, batch_output.results);
-                results.extend(optimization_results);
-                
-                // Store metrics in benchmark mode
-                *final_metrics = batch_output.metrics;
-            } else {
-                warn!("Failed to parse batch result JSON");
-            }
-        } else if is_capturing {
-            // If we're capturing batch result JSON, add to buffer
-            batch_json_buffer.push_str(line_str);
-            batch_json_buffer.push('\n');
-        } else {
-            // Try to parse as various progress message types
-            if let Ok(progress) = serde_json::from_str::<super::types::ProgressMessage>(line_str) {
-                self.progress_handler.handle_progress(progress);
-            } else if let Ok(update) = serde_json::from_str::<super::types::ProgressUpdate>(line_str) {
-                self.progress_handler.handle_progress_update(update);
-            } else if let Ok(detailed) = serde_json::from_str::<DetailedProgressUpdate>(line_str) {
-                self.progress_handler.handle_detailed_progress_update(detailed);
-            } else {
-                // Try to parse as batch output (old format - kept for backward compatibility)
-                if let Ok(batch_output) = serde_json::from_str::<BatchOutput>(line_str) {
-                    debug!("Received batch output from sidecar (old format) - results count: {}", batch_output.results.len());
-                    
-                    // Convert and add results
-                    let optimization_results = self.convert_to_optimization_results(tasks, batch_output.results);
-                    results.extend(optimization_results);
-                    
-                    // Store metrics in benchmark mode
-                    *final_metrics = batch_output.metrics;
-                }
-            }
-        }
-        
-        is_capturing
-    }
-    
-    /// Process a line of output from the sidecar (non-benchmarking version)
-    #[cfg(not(feature = "benchmarking"))]
+    /// Process a line of output from the sidecar
     fn process_output_line(
         &self, 
         line_str: &str, 
@@ -219,7 +132,6 @@ impl MemoryMapExecutor {
         tasks: &[ImageTask],
         results: &mut Vec<OptimizationResult>,
     ) -> bool {
-        // Copied from DirectExecutor
         // Return value indicates if we're capturing batch result
         let mut is_capturing = capturing_batch_result;
         

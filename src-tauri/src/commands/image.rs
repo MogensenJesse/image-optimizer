@@ -1,18 +1,10 @@
 use serde::Deserialize;
 use tauri::State;
 use tauri::Emitter;
-#[cfg(not(feature = "benchmarking"))]
 use tracing::debug;
-#[cfg(feature = "benchmarking")]
-use tracing::{info, debug};
 use crate::core::{AppState, ImageSettings, OptimizationResult};
 use crate::core::ImageTask;
 use crate::utils::{OptimizerResult, validate_task};
-#[cfg(feature = "benchmarking")]
-use crate::benchmarking::{
-    metrics::{BenchmarkMetrics, MetricsCollector},
-    reporter::BenchmarkReporter,
-};
 
 #[derive(Debug, Deserialize)]
 pub struct BatchImageTask {
@@ -101,31 +93,10 @@ pub async fn optimize_images(
     let mut completed_tasks = 0;
     let total_tasks = task_count;
     
-    // Initialize benchmarking metrics if the feature is enabled
-    #[cfg(feature = "benchmarking")]
-    let mut benchmark_metrics = BenchmarkMetrics::default();
-    #[cfg(feature = "benchmarking")]
-    benchmark_metrics.start_benchmarking();
-    
     // Process each chunk
     for (i, chunk) in chunks.iter().enumerate() {
         debug!("Processing chunk {}/{} ({} images)", i + 1, chunks.len(), chunk.len());
         let results = executor.execute_batch(chunk).await?;
-        
-        // Collect benchmarking metrics if the feature is enabled
-        #[cfg(feature = "benchmarking")]
-        {
-            // Record batch info
-            benchmark_metrics.record_batch_info(chunk.len());
-            
-            // Record size changes for each result
-            for result in &results {
-                benchmark_metrics.record_size_change(
-                    result.original_size,
-                    result.optimized_size
-                );
-            }
-        }
         
         // Update completed count
         completed_tasks += results.len();
@@ -159,19 +130,6 @@ pub async fn optimize_images(
         "status": "complete"
     });
     let _ = app.emit("batch-progress", final_progress);
-    
-    // Generate and display benchmark report if the feature is enabled
-    #[cfg(feature = "benchmarking")]
-    {
-        // Create a reporter from our metrics collector
-        let final_metrics = benchmark_metrics.finalize();
-        
-        // Create reporter and display the report if we have metrics
-        if let Some(metrics) = final_metrics {
-            let reporter = BenchmarkReporter::from_metrics(metrics);
-            info!("\n{}", reporter);
-        }
-    }
     
     debug!("All chunks processed, returning {} results", all_results.len());
     Ok(all_results)
