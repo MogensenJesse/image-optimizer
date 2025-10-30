@@ -1,5 +1,9 @@
-const sharp = require('sharp');
-const { getFormatSettings, isFormatSupported, getLosslessSettings } = require('../config/formats');
+const sharp = require("sharp");
+const {
+  getFormatSettings,
+  isFormatSupported,
+  getLosslessSettings,
+} = require("../config/formats");
 const {
   debug,
   progress,
@@ -7,9 +11,9 @@ const {
   getFileSize,
   getCompressionStats,
   createResultObject,
-  ensureCorrectExtension
-} = require('../utils');
-const { formatBytes } = require('../utils/progress');
+  ensureCorrectExtension,
+} = require("../utils");
+const { formatBytes } = require("../utils/progress");
 
 /**
  * Optimize a single image with the given settings
@@ -25,29 +29,29 @@ const { formatBytes } = require('../utils/progress');
  */
 async function optimizeImage(input, output, settings) {
   try {
-    debug('Starting optimization with settings:', settings);
-    
+    debug("Starting optimization with settings:", settings);
+
     // Validate inputs
     if (!input) {
-      const errorMessage = 'Input file path is required';
+      const errorMessage = "Input file path is required";
       error(errorMessage);
       throw new Error(errorMessage);
     }
-    
+
     if (!output) {
-      const errorMessage = 'Output file path is required';
+      const errorMessage = "Output file path is required";
       error(errorMessage);
       throw new Error(errorMessage);
     }
-    
+
     const inputSize = getFileSize(input);
     if (inputSize === 0) {
       const errorMessage = `Input file is empty or cannot be read: ${input}`;
       error(errorMessage);
       throw new Error(errorMessage);
     }
-    
-    const fileName = require('path').basename(input);
+
+    const fileName = require("path").basename(input);
 
     let image;
     try {
@@ -57,7 +61,7 @@ async function optimizeImage(input, output, settings) {
       error(errorMessage, err);
       throw new Error(errorMessage);
     }
-    
+
     let metadata;
     try {
       metadata = await image.metadata();
@@ -66,9 +70,12 @@ async function optimizeImage(input, output, settings) {
       error(errorMessage, err);
       throw new Error(errorMessage);
     }
-    
+
     const inputFormat = metadata.format;
-    progress('Input', `${fileName}: Format: ${inputFormat}, dimensions: ${metadata.width}x${metadata.height}`);
+    progress(
+      "Input",
+      `${fileName}: Format: ${inputFormat}, dimensions: ${metadata.width}x${metadata.height}`,
+    );
 
     if (!isFormatSupported(inputFormat)) {
       const errorMessage = `Unsupported input format: ${inputFormat}`;
@@ -77,7 +84,10 @@ async function optimizeImage(input, output, settings) {
     }
 
     // Determine output format
-    const outputFormat = settings?.outputFormat === 'original' ? inputFormat : settings.outputFormat;
+    const outputFormat =
+      settings?.outputFormat === "original"
+        ? inputFormat
+        : settings.outputFormat;
     debug(`Converting ${fileName} to format: ${outputFormat}`);
 
     if (!isFormatSupported(outputFormat)) {
@@ -87,58 +97,62 @@ async function optimizeImage(input, output, settings) {
     }
 
     // Apply resize if needed
-    if (settings?.resize?.mode !== 'none' && settings?.resize?.size) {
+    if (settings?.resize?.mode !== "none" && settings?.resize?.size) {
       const size = parseInt(settings.resize.size);
-      progress('Resize', `Mode: ${settings.resize.mode}, size: ${size}`);
+      progress("Resize", `Mode: ${settings.resize.mode}, size: ${size}`);
 
       try {
         switch (settings.resize.mode) {
-          case 'width':
-            image = image.resize(size, null, { 
+          case "width":
+            image = image.resize(size, null, {
               withoutEnlargement: true,
-              fit: 'inside'
+              fit: "inside",
             });
             break;
-          case 'height':
-            image = image.resize(null, size, { 
+          case "height":
+            image = image.resize(null, size, {
               withoutEnlargement: true,
-              fit: 'inside'
+              fit: "inside",
             });
             break;
-          case 'longest':
+          case "longest":
             if (metadata.width >= metadata.height) {
-              image = image.resize(size, null, { 
+              image = image.resize(size, null, {
                 withoutEnlargement: true,
-                fit: 'inside'
+                fit: "inside",
               });
             } else {
-              image = image.resize(null, size, { 
+              image = image.resize(null, size, {
                 withoutEnlargement: true,
-                fit: 'inside'
+                fit: "inside",
               });
             }
             break;
-          case 'shortest':
+          case "shortest":
             if (metadata.width <= metadata.height) {
-              image = image.resize(size, null, { 
+              image = image.resize(size, null, {
                 withoutEnlargement: true,
-                fit: 'inside'
+                fit: "inside",
               });
             } else {
-              image = image.resize(null, size, { 
+              image = image.resize(null, size, {
                 withoutEnlargement: true,
-                fit: 'inside'
+                fit: "inside",
               });
             }
             break;
-          default:
+          default: {
             const errorMessage = `Unknown resize mode: ${settings.resize.mode}`;
             error(errorMessage);
             throw new Error(errorMessage);
+          }
         }
 
         const resizedMetadata = await image.metadata();
-        progress('Resize', `New dimensions: ${resizedMetadata.width}x${resizedMetadata.height}`);
+        progress(
+          "Resize",
+          `New dimensions: ${resizedMetadata.width}x${resizedMetadata.height}`,
+        );
       } catch (err) {
         const errorMessage = `Error resizing image ${fileName}: ${err.message}`;
         error(errorMessage, err);
@@ -150,7 +164,7 @@ async function optimizeImage(input, output, settings) {
     let formatOptions;
     try {
       formatOptions = getFormatSettings(outputFormat, settings?.quality);
-      debug('Using format options:', formatOptions);
+      debug("Using format options:", formatOptions);
     } catch (err) {
       const errorMessage = `Error getting format settings for ${outputFormat}: ${err.message}`;
       error(errorMessage, err);
@@ -158,7 +172,11 @@ async function optimizeImage(input, output, settings) {
     }
 
     // Ensure output path has correct extension
-    const outputPath = ensureCorrectExtension(output, inputFormat, outputFormat);
+    const outputPath = ensureCorrectExtension(
+      output,
+      inputFormat,
+      outputFormat,
+    );
     debug(`Writing ${fileName} to: ${outputPath}`);
 
     // Convert and save
@@ -169,7 +187,7 @@ async function optimizeImage(input, output, settings) {
       error(errorMessage, err);
       throw new Error(errorMessage);
     }
-    
+
     let outputSize;
     try {
       outputSize = getFileSize(outputPath);
@@ -178,20 +196,23 @@ async function optimizeImage(input, output, settings) {
       error(errorMessage, err);
       throw new Error(errorMessage);
     }
-    
+
     const stats = getCompressionStats(inputSize, outputSize);
-    progress('Complete', `${fileName}: Saved ${formatBytes(stats.saved_bytes)} (${stats.compression_ratio}% reduction)`);
+    progress(
+      "Complete",
+      `${fileName}: Saved ${formatBytes(stats.saved_bytes)} (${stats.compression_ratio}% reduction)`,
+    );
 
     return createResultObject(outputPath, stats, outputFormat);
   } catch (err) {
     // If error doesn't have a specific message already set, add context
-    if (err.message && !err.message.includes('Error in optimizeImage:')) {
-      error('Error in optimizeImage:', err);
+    if (err.message && !err.message.includes("Error in optimizeImage:")) {
+      error("Error in optimizeImage:", err);
     }
     throw err;
   }
 }
 
 module.exports = {
-  optimizeImage
-}; 
+  optimizeImage,
+};

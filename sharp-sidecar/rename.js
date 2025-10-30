@@ -26,7 +26,7 @@ if (!fs.existsSync(targetDir)) {
 }
 
 // Map of possible source file names, prioritizing current platform
-let possibleSourceFiles = [];
+const possibleSourceFiles = [];
 
 // First add platform-specific files
 if (platform === "darwin") {
@@ -37,26 +37,23 @@ if (platform === "darwin") {
     possibleSourceFiles.push("sharp-sidecar-macos-x64");
   }
   possibleSourceFiles.push(
-    "sharp-sidecar-macos-arm64", 
-    "sharp-sidecar-macos-x64"
+    "sharp-sidecar-macos-arm64",
+    "sharp-sidecar-macos-x64",
   );
 } else if (platform === "win32") {
   // Windows specific
-  possibleSourceFiles.push(
-    "sharp-sidecar-win-x64.exe",
-    "sharp-sidecar.exe"
-  );
+  possibleSourceFiles.push("sharp-sidecar-win-x64.exe", "sharp-sidecar.exe");
 }
 
 // Then add generic names
 possibleSourceFiles.push(
   `sharp-sidecar-${platform}-${arch}${ext}`,
-  `sharp-sidecar${ext}`
+  `sharp-sidecar${ext}`,
 );
 
 // Display what files we're looking for
 console.log("Looking for files in priority order:", possibleSourceFiles);
-console.log("Directory contains:", fs.readdirSync('.'));
+console.log("Directory contains:", fs.readdirSync("."));
 
 // Find the first existing source file
 let sourcePath = null;
@@ -86,10 +83,10 @@ const filesToCleanup = [
   "sharp-sidecar-macos-arm64",
   "sharp-sidecar-macos-x64",
   "sharp-sidecar-win-x64.exe",
-  "sharp-sidecar.exe"
+  "sharp-sidecar.exe",
 ];
 
-filesToCleanup.forEach(file => {
+filesToCleanup.forEach((file) => {
   if (fs.existsSync(file)) {
     console.log(`Removing unused binary: ${file}`);
     fs.unlinkSync(file);

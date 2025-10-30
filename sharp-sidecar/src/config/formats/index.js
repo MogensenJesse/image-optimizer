@@ -3,8 +3,8 @@
  * @module config/formats
  */
 
-const defaults = require('./defaults');
-const { getLosslessSettings } = require('./lossless');
+const defaults = require("./defaults");
+const { getLosslessSettings } = require("./lossless");
 
 /**
  * Get format settings based on quality requirements
@@ -25,7 +25,7 @@ function getFormatSettings(format, quality = { global: 90 }) {
   }
 
   const formatOptions = { ...defaults[format] };
-  
+
   // Override quality settings if specified
   if (quality) {
     if (quality[format] !== null && quality[format] !== undefined) {
@@ -51,5 +51,5 @@ module.exports = {
   getFormatSettings,
   isFormatSupported,
   defaults,
-  getLosslessSettings
-}; 
+  getLosslessSettings,
+};

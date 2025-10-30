@@ -3,8 +3,8 @@
  * @module utils/files
  */
 
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
 /**
  * Ensure the output path has the correct extension for the format
@@ -44,12 +44,12 @@ function getFileSize(filePath) {
 function getCompressionStats(inputSize, outputSize) {
   const savedBytes = inputSize - outputSize;
   const compressionRatio = ((savedBytes / inputSize) * 100).toFixed(2);
-  
+
   return {
     original_size: inputSize,
     optimized_size: outputSize,
     saved_bytes: savedBytes,
-    compression_ratio: compressionRatio
+    compression_ratio: compressionRatio,
   };
 }
 
@@ -62,13 +62,19 @@ function getCompressionStats(inputSize, outputSize) {
  * @param {string|null} [error=null] - Error message if operation failed
  * @returns {Object} Standardized result object
  */
-function createResultObject(outputPath, stats, format, success = true, error = null) {
+function createResultObject(
+  outputPath,
+  stats,
+  format,
+  success = true,
+  error = null,
+) {
   return {
     path: outputPath,
     ...stats,
     format,
     success,
-    error
+    error,
   };
 }
 
@@ -76,5 +82,5 @@ module.exports = {
   ensureCorrectExtension,
   getFileSize,
   getCompressionStats,
-  createResultObject
-}; 
+  createResultObject,
+};

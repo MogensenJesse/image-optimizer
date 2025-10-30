@@ -1,4 +1,4 @@
-const { parentPort } = require('worker_threads');
+const { parentPort } = require("worker_threads");
 
 /**
  * Progress message handling utilities
@@ -10,10 +10,10 @@ const { parentPort } = require('worker_threads');
  * @enum {string}
  */
 const ProgressType = {
-  START: 'start',
-  PROGRESS: 'progress',
-  COMPLETE: 'complete',
-  ERROR: 'error'
+  START: "start",
+  PROGRESS: "progress",
+  COMPLETE: "complete",
+  ERROR: "error",
 };
 
 /**
@@ -24,9 +24,9 @@ const ProgressType = {
  */
 function createProgressMessage(type, data) {
   return {
-    type: 'progress',
+    type: "progress",
     progressType: type,
-    ...data
+    ...data,
   };
 }
 
@@ -40,7 +40,7 @@ function createStartMessage(taskId, metadata = {}) {
   return createProgressMessage(ProgressType.START, {
     taskId,
     workerId: metadata.workerId,
-    fileName: metadata.fileName || require('path').basename(taskId)
+    fileName: metadata.fileName || require("path").basename(taskId),
   });
 }
 
@@ -51,14 +51,16 @@ function createStartMessage(taskId, metadata = {}) {
  * @returns {Object} Completion progress message
  */
 function createCompleteMessage(taskId, result) {
-  const fileName = result.fileName || require('path').basename(taskId);
-  
+  const fileName = result.fileName || require("path").basename(taskId);
+
   return createProgressMessage(ProgressType.COMPLETE, {
     taskId,
     fileName,
     workerId: result.workerId,
     result,
-    optimizationMessage: result.optimizationMessage || `${fileName} optimized (${result.compression_ratio}% reduction)`
+    optimizationMessage:
+      result.optimizationMessage ||
+      `${fileName} optimized (${result.compression_ratio}% reduction)`,
   });
 }
 
@@ -72,8 +74,8 @@ function createCompleteMessage(taskId, result) {
 function createErrorMessage(taskId, error, metadata = {}) {
   return createProgressMessage(ProgressType.ERROR, {
     taskId,
-    fileName: metadata.fileName || require('path').basename(taskId),
-    error: error instanceof Error ? error.message : error
+    fileName: metadata.fileName || require("path").basename(taskId),
+    error: error instanceof Error ? error.message : error,
   });
 }
 
@@ -85,16 +87,21 @@ function createErrorMessage(taskId, error, metadata = {}) {
  * @param {Object} metadata - Additional metadata to include
  * @returns {Object} Unified progress update message
  */
-function createProgressUpdate(completedTasks, totalTasks, status, metadata = {}) {
+function createProgressUpdate(
+  completedTasks,
+  totalTasks,
+  status,
+  metadata = {},
+) {
   const progressPercentage = Math.floor((completedTasks / totalTasks) * 100);
-  
+
   return {
-    type: 'progress_update',
+    type: "progress_update",
     completedTasks,
     totalTasks,
     progressPercentage,
     status,
-    metadata
+    metadata,
   };
 }
 
@@ -106,9 +113,14 @@ function createProgressUpdate(completedTasks, totalTasks, status, metadata = {})
  * @param {Object} metrics - Overall batch progress metrics
  * @returns {Object} Detailed progress update with file-specific optimization metrics
  */
-function createDetailedProgressUpdate(fileName, taskId, optimizationResult, metrics) {
+function createDetailedProgressUpdate(
+  fileName,
+  taskId,
+  optimizationResult,
+  metrics,
+) {
   return {
-    type: 'detailed_progress',
+    type: "detailed_progress",
     fileName,
     taskId,
     optimizationMetrics: {
@@ -116,14 +128,16 @@ function createDetailedProgressUpdate(fileName, taskId, optimizationResult, metr
       optimizedSize: optimizationResult.optimized_size,
       savedBytes: optimizationResult.saved_bytes,
       compressionRatio: optimizationResult.compression_ratio,
-      format: optimizationResult.format || 'unknown'
+      format: optimizationResult.format || "unknown",
     },
     batchMetrics: {
       completedTasks: metrics.completedTasks,
       totalTasks: metrics.totalTasks,
-      progressPercentage: Math.floor((metrics.completedTasks / metrics.totalTasks) * 100)
+      progressPercentage: Math.floor(
+        (metrics.completedTasks / metrics.totalTasks) * 100,
+      ),
     },
-    formattedMessage: `${fileName} optimized (${formatBytes(optimizationResult.saved_bytes)} saved / ${optimizationResult.compression_ratio}% compression) - Progress: ${Math.floor((metrics.completedTasks / metrics.totalTasks) * 100)}% (${metrics.completedTasks}/${metrics.totalTasks})`
+    formattedMessage: `${fileName} optimized (${formatBytes(optimizationResult.saved_bytes)} saved / ${optimizationResult.compression_ratio}% compression) - Progress: ${Math.floor((metrics.completedTasks / metrics.totalTasks) * 100)}% (${metrics.completedTasks}/${metrics.totalTasks})`,
   };
 }
 
@@ -134,15 +148,15 @@ function createDetailedProgressUpdate(fileName, taskId, optimizationResult, metr
  * @returns {string} Formatted size string
  */
 function formatBytes(bytes, decimals = 2) {
-  if (bytes === 0) return '0 Bytes';
-  
+  if (bytes === 0) return "0 Bytes";
+
   const k = 1024;
   const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-  
+  const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+
+  return parseFloat((bytes / k ** i).toFixed(dm)) + " " + sizes[i];
 }
 
 /**
@@ -151,7 +165,7 @@ function formatBytes(bytes, decimals = 2) {
  */
 function sendProgressMessage(message) {
   // Ensure we're in a worker thread context
-  if (require('worker_threads').isMainThread) {
+  if (require("worker_threads").isMainThread) {
     console.log(JSON.stringify(message));
   } else if (parentPort) {
     parentPort.postMessage(message);
@@ -169,5 +183,5 @@ module.exports = {
   sendProgressMessage,
   createProgressUpdate,
   createDetailedProgressUpdate,
-  formatBytes
-}; 
+  formatBytes,
+};

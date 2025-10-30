@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import closeIcon from "../assets/icons/close.svg";
 
 function FloatingMenu({ settings, onSettingsChange, disabled, show, onClose }) {
@@ -45,11 +45,11 @@ function FloatingMenu({ settings, onSettingsChange, disabled, show, onClose }) {
 
       qualitySliderRef.current.style.setProperty(
         "--slider-value",
-        `${percentage}%`
+        `${percentage}%`,
       );
       qualitySliderRef.current.style.setProperty(
         "--slider-color",
-        currentColor
+        currentColor,
       );
     }
   }, [settings.quality.global]);
@@ -63,11 +63,11 @@ function FloatingMenu({ settings, onSettingsChange, disabled, show, onClose }) {
 
       qualitySliderRef.current.style.setProperty(
         "--slider-value",
-        `${qualityValue}%`
+        `${qualityValue}%`,
       );
       qualitySliderRef.current.style.setProperty(
         "--slider-color",
-        currentColor
+        currentColor,
       );
     }
 
@@ -110,7 +110,12 @@ function FloatingMenu({ settings, onSettingsChange, disabled, show, onClose }) {
             <div className="floating-menu__content floating-menu__content--column">
               <div className="header-row">
                 <span>Quality</span>
-                <span className="value"><span className="menu-control--label">{getQualityLabel(settings.quality.global)}</span> {settings.quality.global}%</span>
+                <span className="value">
+                  <span className="menu-control--label">
+                    {getQualityLabel(settings.quality.global)}
+                  </span>{" "}
+                  {settings.quality.global}%
+                </span>
               </div>
               <input
                 ref={qualitySliderRef}

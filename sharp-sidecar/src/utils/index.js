@@ -3,10 +3,10 @@
  * @module utils
  */
 
-const logger = require('./logger');
-const files = require('./files');
+const logger = require("./logger");
+const files = require("./files");
 
 module.exports = {
   ...logger,
-  ...files
-}; 
+  ...files,
+};
