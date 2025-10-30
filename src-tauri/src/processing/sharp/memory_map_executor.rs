@@ -5,7 +5,6 @@ use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::{CommandEvent, TerminatedPayload};
 use crate::utils::{OptimizerError, OptimizerResult};
 use crate::core::{ImageTask, OptimizationResult};
-use crate::core::{Progress, ProgressReporter};
 use super::types::{SharpResult, DetailedProgressUpdate};
 use super::progress_handler::ProgressHandler;
 #[cfg(feature = "benchmarking")]
@@ -390,11 +389,5 @@ impl MemoryMapExecutor {
         
         debug!("Batch processing completed, returning {} results", results.len());
         Ok(results)
-    }
-}
-
-impl ProgressReporter for MemoryMapExecutor {
-    fn report_progress(&self, progress: &Progress) {
-        self.progress_handler.report_progress(progress);
     }
 } 

@@ -60,48 +60,44 @@ fn main() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
-        .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
             optimize_image,
             optimize_images,
             get_active_tasks,
         ])
-        .setup(|_app| {
+        .setup(|app| {
+            // Initialize AppState with app handle
+            let app_handle = app.app_handle().clone();
+            app.manage(AppState::new(app_handle));
+            debug!("✓ AppState initialized");
+            
             #[cfg(target_os = "macos")]
             {
-                let window = _app.get_webview_window("main").unwrap();
+                let window = app.get_webview_window("main").unwrap();
                 info!("Applying vibrancy effect for macOS");
                 // Note: This requires macOSPrivateApi=true in tauri.conf.json
                 apply_vibrancy(&window, NSVisualEffectMaterial::HudWindow, None, None)
                     .expect("Failed to apply vibrancy effect on macOS");
             }
                 
+            // Start warmup in a separate task so it doesn't block app startup
+            let app_handle = app.app_handle().clone();
+            tauri::async_runtime::spawn(async move {
+                // Reduced delay to speed up first optimization
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                
+                let state = app_handle.state::<AppState>();
+                if let Err(e) = state.warmup_executor().await {
+                    debug!("Executor warmup failed: {}", e);
+                } else {
+                    debug!("Executor warmup completed in the background");
+                }
+            });
+            
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
-
-    // Initialize app handle in AppState
-    let app_handle = app.app_handle().clone();
-    let state = app.state::<AppState>();
-    tokio::runtime::Runtime::new().unwrap().block_on(async {
-        state.set_app_handle(app_handle).await;
-        debug!("✓ AppState initialized");
-    });
-
-    // Start warmup in a separate task so it doesn't block app startup
-    let app_handle = app.app_handle().clone();
-    tauri::async_runtime::spawn(async move {
-        // Reduced delay to speed up first optimization
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        
-        let state = app_handle.state::<AppState>();
-        if let Err(e) = state.warmup_executor().await {
-            debug!("Executor warmup failed: {}", e);
-        } else {
-            debug!("Executor warmup completed in the background");
-        }
-    });
 
     info!("Starting application event loop...");
     app.run(|_app_handle, event| {

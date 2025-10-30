@@ -33,16 +33,13 @@ pub async fn get_active_tasks(
 
 #[tauri::command]
 pub async fn optimize_image(
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
     state: State<'_, AppState>,
     input_path: String,
     output_path: String,
     settings: ImageSettings,
 ) -> OptimizerResult<OptimizationResult> {
     debug!("Received optimize_image command for: {}", input_path);
-    
-    // Ensure app handle is set
-    state.set_app_handle(app).await;
     
     let task = ImageTask {
         input_path,
@@ -54,7 +51,7 @@ pub async fn optimize_image(
     validate_task(&task).await?;
 
     // Create executor and process the image
-    let executor = state.create_executor().await?;
+    let executor = state.create_executor();
     
     debug!("Starting image optimization");
     let results = executor.execute_batch(&[task]).await?;
@@ -72,9 +69,6 @@ pub async fn optimize_images(
 ) -> OptimizerResult<Vec<OptimizationResult>> {
     let task_count = tasks.len();
     debug!("Received optimize_images command for {} images", task_count);
-    
-    // Ensure app handle is set
-    state.set_app_handle(app.clone()).await;
     
     let mut image_tasks = Vec::with_capacity(task_count);
     
@@ -101,7 +95,7 @@ pub async fn optimize_images(
     let mut all_results = Vec::with_capacity(image_tasks.len());
     
     // Create executor
-    let executor = state.create_executor().await?;
+    let executor = state.create_executor();
     
     // Track overall progress for the frontend
     let mut completed_tasks = 0;
