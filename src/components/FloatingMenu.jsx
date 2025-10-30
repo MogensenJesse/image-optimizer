@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import closeIcon from "../assets/icons/close.svg";
 
-function FloatingMenu({ settings, onSettingsChange, disabled, show, onClose }) {
+function FloatingMenu({
+  settings,
+  onSettingsChange,
+  disabled: _disabled,
+  show,
+  onClose,
+}) {
   const [resizeMode, setResizeMode] = useState(settings.resize.mode || "none"); // none, width, height, longest, shortest
   const qualitySliderRef = useRef(null);
 
@@ -52,10 +58,10 @@ function FloatingMenu({ settings, onSettingsChange, disabled, show, onClose }) {
         currentColor,
       );
     }
-  }, [settings.quality.global]);
+  }, [settings.quality.global, calculateGradientColor]);
 
   const handleQualityChange = (value) => {
-    const qualityValue = parseInt(value);
+    const qualityValue = parseInt(value, 10);
 
     // Update the CSS variables directly for immediate visual feedback
     if (qualitySliderRef.current) {
@@ -86,7 +92,7 @@ function FloatingMenu({ settings, onSettingsChange, disabled, show, onClose }) {
       height: null,
       maintainAspect: true,
       mode: mode,
-      size: value ? parseInt(value) : null,
+      size: value ? parseInt(value, 10) : null,
     };
 
     onSettingsChange({
@@ -97,11 +103,21 @@ function FloatingMenu({ settings, onSettingsChange, disabled, show, onClose }) {
 
   return (
     <>
+      {/* biome-ignore lint/a11y/useSemanticElements: Overlay needs to be a div for full-screen coverage styling */}
       <div
         className={`floating-menu__overlay ${
           show ? "floating-menu__overlay--active" : ""
         }`}
         onClick={onClose}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === "Escape") {
+            e.preventDefault();
+            onClose();
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        aria-label="Close menu"
       />
 
       <div className={`floating-menu ${show ? "floating-menu--open" : ""}`}>
@@ -192,7 +208,7 @@ function FloatingMenu({ settings, onSettingsChange, disabled, show, onClose }) {
             </div>
           </div>
 
-          <button onClick={onClose} aria-label="Close menu">
+          <button type="button" onClick={onClose} aria-label="Close menu">
             <img className="floating-menu__close" src={closeIcon} alt="Close" />
           </button>
         </div>

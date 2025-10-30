@@ -3,7 +3,7 @@
  * @module processing/batch
  */
 
-const { isMainThread } = require("worker_threads");
+const { isMainThread } = require("node:worker_threads");
 const SharpWorkerPool = require("../workers/worker-pool");
 const { error, debug, progress } = require("../utils");
 

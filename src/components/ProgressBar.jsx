@@ -11,7 +11,7 @@
  */
 function ProgressBar({
   completedTasks,
-  totalTasks,
+  totalTasks: _totalTasks,
   progressPercentage,
   savedSize = 0,
   savedPercentage = 0,
@@ -30,7 +30,7 @@ function ProgressBar({
   const gradientId = "progressGradient";
 
   // Format file size to human-readable format
-  const formatFileSize = (bytes) => {
+  const _formatFileSize = (bytes) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -51,7 +51,12 @@ function ProgressBar({
 
   return (
     <div className="progress-circle">
-      <svg className="progress-circle__svg" viewBox="0 0 250 150">
+      <svg
+        className="progress-circle__svg"
+        viewBox="0 0 250 150"
+        aria-label={`Progress: ${displayPercentage}%`}
+      >
+        <title>Progress indicator: {displayPercentage}% complete</title>
         {/* Define the gradient */}
         <defs>
           <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">

@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { basename, dirname, join } from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
 import { mkdir } from "@tauri-apps/plugin-fs";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import optionsIcon from "./assets/icons/options.svg";
 import plusIcon from "./assets/icons/plus.svg";
 import FloatingMenu from "./components/FloatingMenu";
@@ -94,7 +94,7 @@ function App() {
         clearTimeout(fadeOutTimer);
       }
     };
-  }, [appState]);
+  }, [appState, processingRef]);
 
   const handleSettingsChange = (newSettings) => {
     setSettings(newSettings);
@@ -105,58 +105,65 @@ function App() {
   };
 
   // Function to handle file processing (used for both drop and click)
-  const processFiles = async (filePaths) => {
-    if (processingRef.current || !filePaths || filePaths.length === 0) {
-      return;
-    }
+  const processFiles = useCallback(
+    async (filePaths) => {
+      if (processingRef.current || !filePaths || filePaths.length === 0) {
+        return;
+      }
 
-    initProgress(filePaths.length);
-    processingRef.current = true;
+      initProgress(filePaths.length);
+      processingRef.current = true;
 
-    try {
-      // Start UI animations immediately
-      setAppState(APP_STATE.FADE_IN);
+      try {
+        // Start UI animations immediately
+        setAppState(APP_STATE.FADE_IN);
 
-      // Start optimization process in parallel with UI animations
-      const optimizationPromise = (async () => {
-        // Create all required directories first
-        await Promise.all(
-          filePaths.map(async (path) => {
-            const parentDir = await dirname(path);
-            const optimizedPath = await join(parentDir, "optimized");
-            await mkdir(optimizedPath, { recursive: true });
-          }),
-        );
+        // Start optimization process in parallel with UI animations
+        const optimizationPromise = (async () => {
+          // Create all required directories first
+          await Promise.all(
+            filePaths.map(async (path) => {
+              const parentDir = await dirname(path);
+              const optimizedPath = await join(parentDir, "optimized");
+              await mkdir(optimizedPath, { recursive: true });
+            }),
+          );
 
-        // Create batch tasks
-        const tasks = await Promise.all(
-          filePaths.map(async (path) => {
-            const parentDir = await dirname(path);
-            const fileName = await basename(path);
-            const optimizedPath = await join(parentDir, "optimized", fileName);
-            return [path, optimizedPath, settings];
-          }),
-        );
+          // Create batch tasks
+          const tasks = await Promise.all(
+            filePaths.map(async (path) => {
+              const parentDir = await dirname(path);
+              const fileName = await basename(path);
+              const optimizedPath = await join(
+                parentDir,
+                "optimized",
+                fileName,
+              );
+              return [path, optimizedPath, settings];
+            }),
+          );
 
-        // Start the actual optimization
-        return invoke("optimize_images", { tasks });
-      })();
+          // Start the actual optimization
+          return invoke("optimize_images", { tasks });
+        })();
 
-      // Handle UI animations independently
-      const animationPromise = (async () => {
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        await new Promise((resolve) => setTimeout(resolve, 150));
-        setAppState(APP_STATE.PROCESSING);
-      })();
+        // Handle UI animations independently
+        const animationPromise = (async () => {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          await new Promise((resolve) => setTimeout(resolve, 150));
+          setAppState(APP_STATE.PROCESSING);
+        })();
 
-      // Wait for both to complete, but optimization can start before animations finish
-      await Promise.all([optimizationPromise, animationPromise]);
-    } catch (error) {
-      console.error("Error processing images:", error);
-      setAppState(APP_STATE.IDLE);
-      processingRef.current = false;
-    }
-  };
+        // Wait for both to complete, but optimization can start before animations finish
+        await Promise.all([optimizationPromise, animationPromise]);
+      } catch (error) {
+        console.error("Error processing images:", error);
+        setAppState(APP_STATE.IDLE);
+        processingRef.current = false;
+      }
+    },
+    [settings, initProgress, processingRef],
+  );
 
   // Handle click on dropzone to open file picker
   const handleDropzoneClick = async () => {
@@ -212,7 +219,7 @@ function App() {
       unsubscribeEnter.then((fn) => fn());
       unsubscribeLeave.then((fn) => fn());
     };
-  }, [settings, initProgress, appState]);
+  }, [appState, processFiles, processingRef.current]);
 
   // Determine if we should show the progress bar
   const showProgressBar = [
@@ -241,6 +248,7 @@ function App() {
     <div className="container">
       <TitleBar />
       <div className="app-content">
+        {/* biome-ignore lint/a11y/useSemanticElements: Dropzone needs to be a div for drag-and-drop styling */}
         <div
           className={`dropzone 
             ${appState === APP_STATE.DRAGGING ? "dropzone--dragging" : ""} 
@@ -248,6 +256,15 @@ function App() {
             ${appState === APP_STATE.FADE_OUT ? "dropzone--fading" : ""}
             ${appState === APP_STATE.FADE_IN ? "dropzone--fading-in" : ""}`}
           onClick={handleDropzoneClick}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              handleDropzoneClick();
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label="Drop images here or click to select files"
         >
           <div className="dropzone__content">
             {showProgressBar && (
@@ -280,6 +297,7 @@ function App() {
         </div>
 
         <button
+          type="button"
           className="options-button"
           onClick={toggleMenu}
           disabled={

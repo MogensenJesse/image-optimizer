@@ -1,6 +1,6 @@
-const { execSync } = require("child_process");
-const path = require("path");
-const fs = require("fs");
+const { execSync } = require("node:child_process");
+const path = require("node:path");
+const fs = require("node:fs");
 
 // Get path to the test script
 const testScriptPath = path.join(__dirname, "capture-sidecar-output.js");
@@ -14,7 +14,7 @@ function runTest() {
 
   try {
     // Use execSync to run the test script from the sidecar root directory
-    const output = execSync(`node "${testScriptPath}"`, {
+    const _output = execSync(`node "${testScriptPath}"`, {
       cwd: sidecarRootPath,
       stdio: "inherit",
       encoding: "utf8",

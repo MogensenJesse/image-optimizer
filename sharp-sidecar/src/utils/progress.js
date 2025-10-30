@@ -1,4 +1,4 @@
-const { parentPort } = require("worker_threads");
+const { parentPort } = require("node:worker_threads");
 
 /**
  * Progress message handling utilities
@@ -40,7 +40,7 @@ function createStartMessage(taskId, metadata = {}) {
   return createProgressMessage(ProgressType.START, {
     taskId,
     workerId: metadata.workerId,
-    fileName: metadata.fileName || require("path").basename(taskId),
+    fileName: metadata.fileName || require("node:path").basename(taskId),
   });
 }
 
@@ -51,7 +51,7 @@ function createStartMessage(taskId, metadata = {}) {
  * @returns {Object} Completion progress message
  */
 function createCompleteMessage(taskId, result) {
-  const fileName = result.fileName || require("path").basename(taskId);
+  const fileName = result.fileName || require("node:path").basename(taskId);
 
   return createProgressMessage(ProgressType.COMPLETE, {
     taskId,
@@ -74,7 +74,7 @@ function createCompleteMessage(taskId, result) {
 function createErrorMessage(taskId, error, metadata = {}) {
   return createProgressMessage(ProgressType.ERROR, {
     taskId,
-    fileName: metadata.fileName || require("path").basename(taskId),
+    fileName: metadata.fileName || require("node:path").basename(taskId),
     error: error instanceof Error ? error.message : error,
   });
 }
@@ -156,7 +156,7 @@ function formatBytes(bytes, decimals = 2) {
 
   const i = Math.floor(Math.log(bytes) / Math.log(k));
 
-  return parseFloat((bytes / k ** i).toFixed(dm)) + " " + sizes[i];
+  return `${parseFloat((bytes / k ** i).toFixed(dm))} ${sizes[i]}`;
 }
 
 /**
@@ -165,7 +165,7 @@ function formatBytes(bytes, decimals = 2) {
  */
 function sendProgressMessage(message) {
   // Ensure we're in a worker thread context
-  if (require("worker_threads").isMainThread) {
+  if (require("node:worker_threads").isMainThread) {
     console.log(JSON.stringify(message));
   } else if (parentPort) {
     parentPort.postMessage(message);

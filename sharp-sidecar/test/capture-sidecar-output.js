@@ -1,14 +1,14 @@
-const fs = require("fs");
-const path = require("path");
+const fs = require("node:fs");
+const path = require("node:path");
 const { optimizeBatch } = require("../src/processing/batch");
-const os = require("os");
+const os = require("node:os");
 
 // Configure logging
 const LOG_FILE = path.join(__dirname, "sidecar-output.log");
 
 // Redirect console.log to capture the messages sent to stdout
-const originalConsoleLog = console.log;
-const originalConsoleError = console.error;
+const _originalConsoleLog = console.log;
+const _originalConsoleError = console.error;
 
 // Setup logging to file
 const logStream = fs.createWriteStream(LOG_FILE, { flags: "w" });
@@ -30,7 +30,7 @@ const captureOutput = (message) => {
 
   // Write to log file (only if there's actual content)
   if (formattedMessage.length > timestamp.length + 3) {
-    logStream.write(formattedMessage + "\n");
+    logStream.write(`${formattedMessage}\n`);
   }
 
   return message;
@@ -38,7 +38,8 @@ const captureOutput = (message) => {
 
 // Capture process.stdout.write calls
 const originalStdoutWrite = process.stdout.write;
-process.stdout.write = (chunk) => {
+process.stdout.write = (...args) => {
+  const chunk = args[0];
   try {
     // If it's a Buffer, convert to string
     if (Buffer.isBuffer(chunk)) {
@@ -60,74 +61,68 @@ process.stdout.write = (chunk) => {
     } else {
       captureOutput(chunk);
     }
-  } catch (e) {
+  } catch (_e) {
     // If it's not valid JSON, just capture as is
     captureOutput(chunk);
   }
-  return originalStdoutWrite.apply(process.stdout, arguments);
+  return originalStdoutWrite.apply(process.stdout, args);
 };
 
 // Override console methods
-console.log = () => {
+console.log = (...args) => {
   // Properly handle multiple arguments
-  let message;
-  if (arguments.length === 1) {
+  if (args.length === 1) {
     // Handle a single argument
-    const arg = arguments[0];
+    const arg = args[0];
     if (typeof arg === "string") {
       // Split string by newlines and process each line
       arg.split("\n").forEach((line) => {
         if (line.trim()) captureOutput(line);
       });
-      message = arg;
     } else {
-      message = captureOutput(arg);
+      captureOutput(arg);
     }
   } else {
     // Combine multiple arguments
-    const args = Array.from(arguments)
+    const combinedArgs = args
       .map((arg) => (typeof arg === "object" ? JSON.stringify(arg) : arg))
       .join(" ");
 
     // Split by newlines and process each line
-    args.split("\n").forEach((line) => {
+    combinedArgs.split("\n").forEach((line) => {
       if (line.trim()) captureOutput(line);
     });
-    message = args;
   }
   // Don't call original console.log to avoid double logging
-  // originalConsoleLog.apply(console, arguments);
+  // _originalConsoleLog.apply(console, args);
 };
 
-console.error = () => {
+console.error = (...args) => {
   // Properly handle multiple arguments
-  let message;
-  if (arguments.length === 1) {
+  if (args.length === 1) {
     // Handle a single argument
-    const arg = arguments[0];
+    const arg = args[0];
     if (typeof arg === "string") {
       // Split string by newlines and process each line
       arg.split("\n").forEach((line) => {
         if (line.trim()) captureOutput(`ERROR: ${line}`);
       });
-      message = arg;
     } else {
-      message = captureOutput(`ERROR: ${arg}`);
+      captureOutput(`ERROR: ${arg}`);
     }
   } else {
     // Combine multiple arguments
-    const args = Array.from(arguments)
+    const combinedArgs = args
       .map((arg) => (typeof arg === "object" ? JSON.stringify(arg) : arg))
       .join(" ");
 
     // Split by newlines and process each line
-    args.split("\n").forEach((line) => {
+    combinedArgs.split("\n").forEach((line) => {
       if (line.trim()) captureOutput(`ERROR: ${line}`);
     });
-    message = args;
   }
   // Don't call original console.error to avoid double logging
-  // originalConsoleError.apply(console, arguments);
+  // _originalConsoleError.apply(console, args);
 };
 
 // Setup test images

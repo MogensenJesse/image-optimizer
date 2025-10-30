@@ -1,5 +1,4 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useEffect, useState } from "react";
 import closeIcon from "../assets/icons/close.svg";
 import minimizeIcon from "../assets/icons/minimize.svg";
 
@@ -21,6 +20,7 @@ function TitleBar() {
       </h1>
       <div className="window-controls">
         <button
+          type="button"
           onClick={handleMinimize}
           className="window-control-button"
           title="Minimize"
@@ -28,6 +28,7 @@ function TitleBar() {
           <img src={minimizeIcon} alt="Minimize" />
         </button>
         <button
+          type="button"
           onClick={handleClose}
           className="window-control-button window-control-close"
           title="Close"

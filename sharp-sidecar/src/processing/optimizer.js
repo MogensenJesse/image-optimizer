@@ -1,9 +1,5 @@
 const sharp = require("sharp");
-const {
-  getFormatSettings,
-  isFormatSupported,
-  getLosslessSettings,
-} = require("../config/formats");
+const { getFormatSettings, isFormatSupported } = require("../config/formats");
 const {
   debug,
   progress,
@@ -51,7 +47,7 @@ async function optimizeImage(input, output, settings) {
       throw new Error(errorMessage);
     }
 
-    const fileName = require("path").basename(input);
+    const fileName = require("node:path").basename(input);
 
     let image;
     try {
@@ -98,7 +94,7 @@ async function optimizeImage(input, output, settings) {
 
     // Apply resize if needed
     if (settings?.resize?.mode !== "none" && settings?.resize?.size) {
-      const size = parseInt(settings.resize.size);
+      const size = parseInt(settings.resize.size, 10);
       progress("Resize", `Mode: ${settings.resize.mode}, size: ${size}`);
 
       try {

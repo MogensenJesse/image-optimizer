@@ -1,6 +1,6 @@
-const { Worker } = require("worker_threads");
-const os = require("os");
-const path = require("path");
+const { Worker } = require("node:worker_threads");
+const os = require("node:os");
+const path = require("node:path");
 const { debug, error } = require("../utils");
 const {
   createProgressUpdate,
@@ -52,7 +52,7 @@ class SharpWorkerPool {
    */
   getMetrics() {
     const endTime = Date.now();
-    const duration = this.metrics.startTime
+    const _duration = this.metrics.startTime
       ? (endTime - this.metrics.startTime) / 1000
       : 0;
 
@@ -72,7 +72,7 @@ class SharpWorkerPool {
       this.metrics.completedTasks,
       this.metrics.totalTasks,
     );
-    const currentPercentage = Math.floor(
+    const _currentPercentage = Math.floor(
       (reportedCompletedTasks / this.metrics.totalTasks) * 100,
     );
 
@@ -212,7 +212,7 @@ class SharpWorkerPool {
 
               // Log completion for debugging, but don't emit to stdout for the backend
               debug(
-                `Worker ${workerIndex} completed ${message.taskId} - ${result ? result.compression_ratio + "% reduction" : "no result"}`,
+                `Worker ${workerIndex} completed ${message.taskId} - ${result ? `${result.compression_ratio}% reduction` : "no result"}`,
               );
             }
           } else if (message.type === "results") {

@@ -1,7 +1,7 @@
-const { execSync, spawnSync } = require("child_process");
-const fs = require("fs");
-const path = require("path");
-const os = require("os");
+const { execSync } = require("node:child_process");
+const fs = require("node:fs");
+const path = require("node:path");
+const os = require("node:os");
 
 // Determine the current platform
 const platform = os.platform();
@@ -22,8 +22,8 @@ console.log("Creating necessary directories...");
 });
 
 // Find the binary
-const ext = platform === "win32" ? ".exe" : "";
-const binPattern =
+const _ext = platform === "win32" ? ".exe" : "";
+const _binPattern =
   platform === "win32" ? "sharp-sidecar-*.exe" : "sharp-sidecar-*";
 
 let binaryPath = "";

@@ -1,6 +1,6 @@
 // Handle Sharp native modules path resolution
-const fs = require("fs");
-const path = require("path");
+const fs = require("node:fs");
+const path = require("node:path");
 
 // Check if we're running as a packaged executable
 const isPackaged =
@@ -33,7 +33,7 @@ if (isPackaged) {
 }
 
 // Now load worker_threads and continue with the rest of the code
-const { isMainThread, parentPort, workerData } = require("worker_threads");
+const { isMainThread, parentPort, workerData } = require("node:worker_threads");
 const { optimizeImage } = require("./src/processing/optimizer");
 const { optimizeBatch } = require("./src/processing/batch");
 const { error, debug } = require("./src/utils");
@@ -211,7 +211,7 @@ async function main() {
 
         try {
           // Read from the memory-mapped file
-          const fs = require("fs");
+          const fs = require("node:fs");
           debug(`Reading batch data from memory-mapped file: ${inputPath}`);
           const fileData = fs.readFileSync(inputPath, "utf8");
 
@@ -245,7 +245,7 @@ async function main() {
         throw new Error(errorMessage);
       }
     }
-  } catch (err) {
+  } catch (_err) {
     // Exit with error code 1 for command-line usage
     process.exit(1);
   }

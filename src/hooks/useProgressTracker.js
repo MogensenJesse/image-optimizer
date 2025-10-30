@@ -78,7 +78,7 @@ function useProgressTracker(isProcessing) {
         clearInterval(timer);
       }
     };
-  }, [isProcessing]);
+  }, []);
 
   useEffect(() => {
     // Listen for progress updates from backend
@@ -86,8 +86,7 @@ function useProgressTracker(isProcessing) {
       "image_optimization_progress",
       (event) => {
         // Check if this is a detailed update with file-specific metrics
-        const isDetailedUpdate =
-          event.payload.metadata && event.payload.metadata.detailedUpdate;
+        const isDetailedUpdate = event.payload.metadata?.detailedUpdate;
 
         // Use processingRef instead of isProcessing to avoid state timing issues
         if (processingRef.current) {
@@ -150,7 +149,7 @@ function useProgressTracker(isProcessing) {
               event.payload;
 
             // Check if the metadata contains a formatted message with saved bytes and compression ratio
-            if (metadata && metadata.formattedMessage) {
+            if (metadata?.formattedMessage) {
               const formattedMessage = metadata.formattedMessage;
 
               // Try to extract saved bytes and compression ratio from the message
@@ -187,9 +186,9 @@ function useProgressTracker(isProcessing) {
                 currentBatch.totalOriginalSize += estimatedOriginalSize;
 
                 // Calculate updated metrics
-                const savedSizeMB =
+                const _savedSizeMB =
                   currentBatch.totalSavedBytes / (1024 * 1024);
-                const savedPercentage =
+                const _savedPercentage =
                   currentBatch.totalOriginalSize > 0
                     ? Math.round(
                         (currentBatch.totalSavedBytes /
