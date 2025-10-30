@@ -258,6 +258,12 @@ impl MemoryMapExecutor {
             mmap.flush()
                 .map_err(|e| OptimizerError::processing(format!("Failed to flush memory map: {}", e)))?;
             
+            // Explicitly unmap and close file BEFORE spawning sidecar
+            // This ensures the file is readable on Windows (where file handles can block reads)
+            // and allows the sidecar to read the file without locking issues
+            drop(mmap);
+            drop(file);
+            
             // Create sidecar command
             debug!("Creating sidecar command for batch processing via memory-mapped file");
             let cmd = self.create_sidecar_command()?;
@@ -274,17 +280,11 @@ impl MemoryMapExecutor {
             // Handle sidecar events and return results
             let results = self.handle_sidecar_events(tasks, rx).await?;
             
-            // Explicitly unmap before dropping to ensure resources are released properly
-            drop(mmap);
-            
-            // Close file handle explicitly
-            drop(file);
-            
             results
         }; // End of block - all resources are dropped here
         
         // Clean up the temporary file
-        // Note: The sidecar should also try to clean up the file after reading
+        // Note: Cleanup is handled exclusively by Rust backend to avoid race conditions
         self.cleanup_temp_file(&temp_file_path);
         
         debug!("Batch processing completed, returning {} results", results.len());

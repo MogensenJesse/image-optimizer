@@ -55,7 +55,8 @@ function useProgressTracker(isProcessing) {
   useEffect(() => {
     let timer = null;
 
-    if (processingRef.current && batchProgressRef.current.startTime) {
+    // Only start timer if processing is active and startTime is set
+    if (isProcessing && batchProgressRef.current.startTime) {
       // Update processing time every 100ms for more precision
       timer = setInterval(() => {
         const currentTime = Date.now();
@@ -78,7 +79,7 @@ function useProgressTracker(isProcessing) {
         clearInterval(timer);
       }
     };
-  }, []);
+  }, [isProcessing]); // Re-run when isProcessing changes
 
   useEffect(() => {
     // Listen for progress updates from backend

@@ -222,16 +222,8 @@ async function main() {
           // Process the batch
           await optimizeBatch(fileData);
 
-          // Clean up the file - only if processing was successful
-          try {
-            fs.unlinkSync(inputPath);
-            debug(`Successfully removed temporary file: ${inputPath}`);
-          } catch (unlinkErr) {
-            // Just log the error, don't fail the whole process
-            error(
-              `Warning: Failed to remove temporary file: ${unlinkErr.message}`,
-            );
-          }
+          // Note: File cleanup is handled by the Rust backend
+          // This avoids race conditions and ensures proper cleanup
         } catch (err) {
           const errorMessage = `Error reading from memory-mapped file: ${err.message}`;
           error(errorMessage, err);
