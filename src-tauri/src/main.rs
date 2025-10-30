@@ -12,7 +12,7 @@ mod commands;
 use tracing::{info, debug};
 use tauri::Manager;
 use crate::core::AppState;
-use crate::commands::{optimize_image, optimize_images, get_active_tasks};
+use crate::commands::{optimize_image, optimize_images};
 
 // Import the window-vibrancy crate only on macOS
 #[cfg(target_os = "macos")]
@@ -43,7 +43,6 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             optimize_image,
             optimize_images,
-            get_active_tasks,
         ])
         .setup(|app| {
             // Initialize AppState with app handle

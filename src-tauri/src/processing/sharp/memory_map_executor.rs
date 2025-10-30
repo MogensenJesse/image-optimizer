@@ -30,9 +30,10 @@ pub struct MemoryMapExecutor {
 
 impl MemoryMapExecutor {
     pub fn new(app: AppHandle) -> Self {
+        let app_clone = app.clone();
         Self {
-            app: app.clone(),
-            progress_handler: ProgressHandler::new(app),
+            app: app_clone.clone(),
+            progress_handler: ProgressHandler::new(app_clone),
         }
     }
     
@@ -243,19 +244,6 @@ impl MemoryMapExecutor {
             
             file.set_len(data_len as u64)
                 .map_err(|e| OptimizerError::processing(format!("Failed to set memory map file size: {}", e)))?;
-            
-            // Apply platform-specific optimizations
-            #[cfg(target_os = "windows")]
-            {
-                debug!("Applying Windows-specific memory mapping optimizations");
-                // Windows-specific optimizations would go here if needed
-            }
-            
-            #[cfg(unix)]
-            {
-                debug!("Applying Unix-specific memory mapping optimizations");
-                // Unix-specific optimizations would go here if needed
-            }
             
             // Map the file into memory
             // SAFETY: We've properly created and sized the file, and it will remain valid

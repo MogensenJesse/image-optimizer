@@ -1,9 +1,9 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use crate::core::ImageSettings;
 use crate::core::types::{QualitySettings, ResizeSettings};
 use crate::utils::{OptimizerError, OptimizerResult};
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageTask {
     pub input_path: String,
     pub output_path: String,

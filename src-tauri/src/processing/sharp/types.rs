@@ -174,6 +174,7 @@ impl ProgressMessage {
             &status
         );
         
+        // Clone values once and reuse where possible
         progress.task_id = Some(self.task_id.clone());
         progress.worker_id = Some(self.worker_id);
         progress.result = self.result.clone();

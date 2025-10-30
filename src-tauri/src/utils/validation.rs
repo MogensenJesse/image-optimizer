@@ -4,6 +4,14 @@ use crate::utils::{OptimizerResult, format_from_extension};
 use crate::utils::error::ValidationError;
 use tokio::fs;
 
+/// Extract filename from a path
+pub fn extract_filename(path: &str) -> &str {
+    Path::new(path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or(path)
+}
+
 /// Validates an image processing task
 pub async fn validate_task(task: &ImageTask) -> OptimizerResult<()> {
     validate_input_path(&task.input_path).await?;
