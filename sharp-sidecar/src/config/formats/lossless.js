@@ -6,8 +6,8 @@
 const jpeg = {
   quality: 100,
   mozjpeg: true,
-  chromaSubsampling: '4:4:4',
-  optimiseCoding: true
+  chromaSubsampling: "4:4:4",
+  optimiseCoding: true,
 };
 
 const png = {
@@ -22,26 +22,26 @@ const webp = {
   lossless: true,
   quality: 100,
   effort: 6,
-  nearLossless: false
+  nearLossless: false,
 };
 
 const avif = {
   lossless: true,
   quality: 100,
   effort: 9,
-  chromaSubsampling: '4:4:4'
+  chromaSubsampling: "4:4:4",
 };
 
 const tiff = {
   quality: 100,
-  compression: 'deflate',
-  predictor: 'horizontal',
+  compression: "deflate",
+  predictor: "horizontal",
   pyramid: false,
   tile: true,
   tileWidth: 256,
   tileHeight: 256,
   squash: false,
-  preserveIccProfile: true
+  preserveIccProfile: true,
 };
 
 /**
@@ -55,9 +55,9 @@ function getLosslessSettings(format) {
     png,
     webp,
     avif,
-    tiff
+    tiff,
   };
-  
+
   return settings[format] || null;
 }
 
@@ -67,5 +67,5 @@ module.exports = {
   png,
   webp,
   avif,
-  tiff
-}; 
+  tiff,
+};

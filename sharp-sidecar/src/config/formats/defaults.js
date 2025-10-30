@@ -6,8 +6,8 @@
 const jpeg = {
   quality: 90,
   mozjpeg: true,
-  chromaSubsampling: '4:2:0',
-  optimiseCoding: true
+  chromaSubsampling: "4:2:0",
+  optimiseCoding: true,
 };
 
 const png = {
@@ -22,24 +22,24 @@ const webp = {
   alphaQuality: 90,
   effort: 4,
   lossless: false,
-  smartSubsample: false
+  smartSubsample: false,
 };
 
 const avif = {
   quality: 90,
   effort: 2,
-  chromaSubsampling: '4:2:0',
+  chromaSubsampling: "4:2:0",
   lossless: false,
 };
 
 const tiff = {
   quality: 100,
-  compression: 'deflate',
-  predictor: 'horizontal',
+  compression: "deflate",
+  predictor: "horizontal",
   pyramid: false,
   tile: true,
   tileWidth: 256,
-  tileHeight: 256
+  tileHeight: 256,
 };
 
 module.exports = {
@@ -47,5 +47,5 @@ module.exports = {
   png,
   webp,
   avif,
-  tiff
-}; 
+  tiff,
+};

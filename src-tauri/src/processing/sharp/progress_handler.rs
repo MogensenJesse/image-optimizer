@@ -1,10 +1,10 @@
 use tauri::AppHandle;
 use crate::core::{Progress, ProgressType};
+use crate::utils::extract_filename;
 use super::types::{ProgressMessage, ProgressUpdate, DetailedProgressUpdate, SharpResult};
 use tracing::{debug, warn};
 use tauri::Emitter;
 use serde_json;
-use std::path::Path;
 
 /// Handles progress reporting and message processing from the Sharp sidecar
 pub struct ProgressHandler {
@@ -16,14 +16,6 @@ impl ProgressHandler {
         Self { app }
     }
     
-    /// Extract filename from a path
-    pub fn extract_filename<'b>(&self, path: &'b str) -> &'b str {
-        Path::new(path)
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or(path)
-    }
-    
     /// Handles a progress message from the sidecar
     pub fn handle_progress(&self, message: ProgressMessage) {
         // Convert from the processing-specific type to the core progress type
@@ -31,7 +23,7 @@ impl ProgressHandler {
         
         // Add metadata for optimization statistics if a result is available
         if let Some(result) = &progress.result {
-            let file_name = self.extract_filename(&result.path);
+            let file_name = extract_filename(&result.path);
             let saved_kb = result.saved_bytes as f64 / 1024.0;
             
             let formatted_msg = format!(
@@ -83,17 +75,18 @@ impl ProgressHandler {
             "complete"
         );
         
-        // Set task ID
-        progress.task_id = Some(update.task_id.clone());
-        
         // Calculate saved bytes and retrieve other metrics
         let saved_bytes = update.optimization_metrics.saved_bytes;
         let compression_ratio = update.optimization_metrics.compression_ratio.clone();
-        let file_name = self.extract_filename(&update.task_id);
+        let task_id = update.task_id.clone();
+        let file_name = extract_filename(&task_id);
         
-        // Create a result object
+        // Set task ID (reuse cloned value)
+        progress.task_id = Some(task_id.clone());
+        
+        // Create a result object (reuse cloned values - need to clone again for path)
         let result = SharpResult {
-            path: update.task_id.clone(),
+            path: task_id.clone(),
             original_size: update.optimization_metrics.original_size,
             optimized_size: update.optimization_metrics.optimized_size,
             saved_bytes: saved_bytes as i64,
@@ -105,7 +98,7 @@ impl ProgressHandler {
         
         progress.result = Some(result);
         
-        // Create formatted message and metadata for the frontend
+        // Create formatted message and metadata for the frontend (reuse cloned compression_ratio)
         let saved_kb = saved_bytes as f64 / 1024.0;
         let formatted_msg = format!(
             "{} optimized ({:.2} KB saved / {}% compression) - Progress: {}% ({}/{})",
@@ -148,19 +141,12 @@ impl ProgressHandler {
             }
         }
         
-        match progress.progress_type {
-            ProgressType::Start => {
-                // Emit event without logging
-                let _ = self.app.emit("image_optimization_progress", progress_update);
-            }
-            ProgressType::Error => {
-                warn!("Optimization error: {}", progress.status);
-                let _ = self.app.emit("image_optimization_progress", progress_update);
-            }
-            _ => {
-                // Emit event without logging progress status
-                let _ = self.app.emit("image_optimization_progress", progress_update);
-            }
+        // Log error if needed
+        if matches!(progress.progress_type, ProgressType::Error) {
+            warn!("Optimization error: {}", progress.status);
         }
+        
+        // Emit event (same for all types)
+        let _ = self.app.emit("image_optimization_progress", progress_update);
     }
 } 

@@ -11,11 +11,11 @@
  */
 function ProgressBar({
   completedTasks,
-  totalTasks,
+  totalTasks: _totalTasks,
   progressPercentage,
   savedSize = 0,
   savedPercentage = 0,
-  processingTime = 0
+  processingTime = 0,
 }) {
   // Calculate saved percentage for display
   const displayPercentage = Math.round(progressPercentage);
@@ -30,19 +30,19 @@ function ProgressBar({
   const gradientId = "progressGradient";
 
   // Format file size to human-readable format
-  const formatFileSize = (bytes) => {
+  const _formatFileSize = (bytes) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
-  
+
   // Format processing time to a readable format with one decimal place for seconds
   const formatTime = (seconds) => {
     // For seconds less than 60, show with one decimal place
     if (seconds < 60) {
       return `${seconds.toFixed(1)}s`;
     }
-    
+
     // For minutes + seconds format
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = (seconds % 60).toFixed(1);
@@ -51,7 +51,12 @@ function ProgressBar({
 
   return (
     <div className="progress-circle">
-      <svg className="progress-circle__svg" viewBox="0 0 250 150">
+      <svg
+        className="progress-circle__svg"
+        viewBox="0 0 250 150"
+        aria-label={`Progress: ${displayPercentage}%`}
+      >
+        <title>Progress indicator: {displayPercentage}% complete</title>
         {/* Define the gradient */}
         <defs>
           <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
@@ -85,13 +90,15 @@ function ProgressBar({
 
       {/* Percentage display in the center */}
       <div className="progress-circle__percentage">
-        <h2 className={`progress-circle__percentage-value ${isComplete ? 'complete' : ''}`}>
+        <h2
+          className={`progress-circle__percentage-value ${isComplete ? "complete" : ""}`}
+        >
           {isComplete ? "Optimization complete" : `${displayPercentage}%`}
         </h2>
         <p className="progress-circle__percentage-label">
           {savedSize.toFixed(2)} MB / {savedPercentage}% saved
         </p>
-        
+
         <p className="progress-circle__percentage-label">
           {completedTasks} images optimized in {formatTime(processingTime)}
         </p>

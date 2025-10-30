@@ -1,7 +1,6 @@
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import { useState, useEffect } from 'react';
-import closeIcon from '../assets/icons/close.svg';
-import minimizeIcon from '../assets/icons/minimize.svg';
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import closeIcon from "../assets/icons/close.svg";
+import minimizeIcon from "../assets/icons/minimize.svg";
 
 function TitleBar() {
   const appWindow = getCurrentWindow();
@@ -16,17 +15,21 @@ function TitleBar() {
 
   return (
     <div className="title-bar" data-tauri-drag-region>
-      <h1 className="title-bar-title" data-tauri-drag-region>Image optimizer</h1>
+      <h1 className="title-bar-title" data-tauri-drag-region>
+        Image optimizer
+      </h1>
       <div className="window-controls">
-        <button 
-          onClick={handleMinimize} 
+        <button
+          type="button"
+          onClick={handleMinimize}
           className="window-control-button"
           title="Minimize"
         >
           <img src={minimizeIcon} alt="Minimize" />
         </button>
-        <button 
-          onClick={handleClose} 
+        <button
+          type="button"
+          onClick={handleClose}
           className="window-control-button window-control-close"
           title="Close"
         >
@@ -37,4 +40,4 @@ function TitleBar() {
   );
 }
 
-export default TitleBar; 
+export default TitleBar;

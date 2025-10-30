@@ -5,11 +5,8 @@ use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::{CommandEvent, TerminatedPayload};
 use crate::utils::{OptimizerError, OptimizerResult};
 use crate::core::{ImageTask, OptimizationResult};
-use crate::core::{Progress, ProgressReporter};
 use super::types::{SharpResult, DetailedProgressUpdate};
 use super::progress_handler::ProgressHandler;
-#[cfg(feature = "benchmarking")]
-use crate::benchmarking::metrics::WorkerPoolMetrics;
 use tracing::{debug, warn};
 use serde_json;
 use serde::Deserialize;
@@ -19,8 +16,10 @@ use tauri::async_runtime::Receiver;
 #[derive(Debug, Deserialize)]
 pub struct BatchOutput {
     pub results: Vec<SharpResult>,
-    #[cfg(feature = "benchmarking")]
-    pub metrics: Option<WorkerPoolMetrics>,
+    // Ignore metrics field from sidecar (not used by backend, kept for deserialization compatibility)
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub metrics: Option<serde_json::Value>,
 }
 
 /// Memory-mapped file executor that uses shared memory for batch data transfer
@@ -31,9 +30,10 @@ pub struct MemoryMapExecutor {
 
 impl MemoryMapExecutor {
     pub fn new(app: AppHandle) -> Self {
+        let app_clone = app.clone();
         Self {
-            app: app.clone(),
-            progress_handler: ProgressHandler::new(app),
+            app: app_clone.clone(),
+            progress_handler: ProgressHandler::new(app_clone),
         }
     }
     
@@ -79,10 +79,7 @@ impl MemoryMapExecutor {
         tasks: &[ImageTask],
         mut rx: Receiver<CommandEvent>,
     ) -> OptimizerResult<Vec<OptimizationResult>> {
-        // Use the same implementation as DirectExecutor
         let mut results = Vec::new();
-        #[cfg(feature = "benchmarking")]
-        let mut final_metrics = None;
         let mut batch_json_buffer = String::new();
         let mut capturing_batch_result = false;
         
@@ -93,28 +90,13 @@ impl MemoryMapExecutor {
             match event {
                 CommandEvent::Stdout(line) | CommandEvent::Stderr(line) => {
                     if let Some(line_str) = Self::process_line(&line) {
-                        #[cfg(feature = "benchmarking")]
-                        {
-                            capturing_batch_result = self.process_output_line(
-                                &line_str,
-                                &mut batch_json_buffer,
-                                capturing_batch_result,
-                                tasks,
-                                &mut results,
-                                &mut final_metrics,
-                            );
-                        }
-                        
-                        #[cfg(not(feature = "benchmarking"))]
-                        {
-                            capturing_batch_result = self.process_output_line(
-                                &line_str,
-                                &mut batch_json_buffer,
-                                capturing_batch_result,
-                                tasks,
-                                &mut results,
-                            );
-                        }
+                        capturing_batch_result = self.process_output_line(
+                            &line_str,
+                            &mut batch_json_buffer,
+                            capturing_batch_result,
+                            tasks,
+                            &mut results,
+                        );
                     }
                 }
                 CommandEvent::Terminated(payload) => {
@@ -142,76 +124,7 @@ impl MemoryMapExecutor {
         from_utf8(line).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
     }
     
-    /// Process a line of output from the sidecar (benchmarking version)
-    #[cfg(feature = "benchmarking")]
-    fn process_output_line(
-        &self, 
-        line_str: &str, 
-        batch_json_buffer: &mut String,
-        capturing_batch_result: bool,
-        tasks: &[ImageTask],
-        results: &mut Vec<OptimizationResult>,
-        final_metrics: &mut Option<crate::benchmarking::metrics::WorkerPoolMetrics>,
-    ) -> bool {
-        // Copied from DirectExecutor
-        // Return value indicates if we're capturing batch result
-        let mut is_capturing = capturing_batch_result;
-        
-        // Check for batch result markers
-        if line_str == "BATCH_RESULT_START" {
-            debug!("Received BATCH_RESULT_START marker");
-            is_capturing = true;
-            batch_json_buffer.clear();
-        } else if line_str == "BATCH_RESULT_END" {
-            debug!("Received BATCH_RESULT_END marker");
-            is_capturing = false;
-            
-            // Parse the batch result JSON
-            debug!("Parsing batch result JSON (buffer size: {} bytes)", batch_json_buffer.len());
-            if let Ok(batch_output) = serde_json::from_str::<BatchOutput>(&batch_json_buffer) {
-                debug!("Received batch output from sidecar - results count: {}", batch_output.results.len());
-                
-                // Convert results - reuse conversion method from DirectExecutor
-                let optimization_results = self.convert_to_optimization_results(tasks, batch_output.results);
-                results.extend(optimization_results);
-                
-                // Store metrics in benchmark mode
-                *final_metrics = batch_output.metrics;
-            } else {
-                warn!("Failed to parse batch result JSON");
-            }
-        } else if is_capturing {
-            // If we're capturing batch result JSON, add to buffer
-            batch_json_buffer.push_str(line_str);
-            batch_json_buffer.push('\n');
-        } else {
-            // Try to parse as various progress message types
-            if let Ok(progress) = serde_json::from_str::<super::types::ProgressMessage>(line_str) {
-                self.progress_handler.handle_progress(progress);
-            } else if let Ok(update) = serde_json::from_str::<super::types::ProgressUpdate>(line_str) {
-                self.progress_handler.handle_progress_update(update);
-            } else if let Ok(detailed) = serde_json::from_str::<DetailedProgressUpdate>(line_str) {
-                self.progress_handler.handle_detailed_progress_update(detailed);
-            } else {
-                // Try to parse as batch output (old format - kept for backward compatibility)
-                if let Ok(batch_output) = serde_json::from_str::<BatchOutput>(line_str) {
-                    debug!("Received batch output from sidecar (old format) - results count: {}", batch_output.results.len());
-                    
-                    // Convert and add results
-                    let optimization_results = self.convert_to_optimization_results(tasks, batch_output.results);
-                    results.extend(optimization_results);
-                    
-                    // Store metrics in benchmark mode
-                    *final_metrics = batch_output.metrics;
-                }
-            }
-        }
-        
-        is_capturing
-    }
-    
-    /// Process a line of output from the sidecar (non-benchmarking version)
-    #[cfg(not(feature = "benchmarking"))]
+    /// Process a line of output from the sidecar
     fn process_output_line(
         &self, 
         line_str: &str, 
@@ -220,7 +133,6 @@ impl MemoryMapExecutor {
         tasks: &[ImageTask],
         results: &mut Vec<OptimizationResult>,
     ) -> bool {
-        // Copied from DirectExecutor
         // Return value indicates if we're capturing batch result
         let mut is_capturing = capturing_batch_result;
         
@@ -333,19 +245,6 @@ impl MemoryMapExecutor {
             file.set_len(data_len as u64)
                 .map_err(|e| OptimizerError::processing(format!("Failed to set memory map file size: {}", e)))?;
             
-            // Apply platform-specific optimizations
-            #[cfg(target_os = "windows")]
-            {
-                debug!("Applying Windows-specific memory mapping optimizations");
-                // Windows-specific optimizations would go here if needed
-            }
-            
-            #[cfg(unix)]
-            {
-                debug!("Applying Unix-specific memory mapping optimizations");
-                // Unix-specific optimizations would go here if needed
-            }
-            
             // Map the file into memory
             // SAFETY: We've properly created and sized the file, and it will remain valid
             // for the lifetime of the mmap. We also ensure exclusive access.
@@ -358,6 +257,12 @@ impl MemoryMapExecutor {
             mmap.copy_from_slice(batch_json.as_bytes());
             mmap.flush()
                 .map_err(|e| OptimizerError::processing(format!("Failed to flush memory map: {}", e)))?;
+            
+            // Explicitly unmap and close file BEFORE spawning sidecar
+            // This ensures the file is readable on Windows (where file handles can block reads)
+            // and allows the sidecar to read the file without locking issues
+            drop(mmap);
+            drop(file);
             
             // Create sidecar command
             debug!("Creating sidecar command for batch processing via memory-mapped file");
@@ -375,26 +280,14 @@ impl MemoryMapExecutor {
             // Handle sidecar events and return results
             let results = self.handle_sidecar_events(tasks, rx).await?;
             
-            // Explicitly unmap before dropping to ensure resources are released properly
-            drop(mmap);
-            
-            // Close file handle explicitly
-            drop(file);
-            
             results
         }; // End of block - all resources are dropped here
         
         // Clean up the temporary file
-        // Note: The sidecar should also try to clean up the file after reading
+        // Note: Cleanup is handled exclusively by Rust backend to avoid race conditions
         self.cleanup_temp_file(&temp_file_path);
         
         debug!("Batch processing completed, returning {} results", results.len());
         Ok(results)
-    }
-}
-
-impl ProgressReporter for MemoryMapExecutor {
-    fn report_progress(&self, progress: &Progress) {
-        self.progress_handler.report_progress(progress);
     }
 } 

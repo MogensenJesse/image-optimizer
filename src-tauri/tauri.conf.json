@@ -30,9 +30,7 @@
     }
   },
   "bundle": {
-    "externalBin": [
-      "binaries/sharp-sidecar"
-    ],
+    "externalBin": ["binaries/sharp-sidecar"],
     "active": true,
     "targets": "all",
     "icon": [

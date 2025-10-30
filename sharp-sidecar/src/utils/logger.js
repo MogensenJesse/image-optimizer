@@ -42,5 +42,5 @@ function progress(stage, message, data = null) {
 module.exports = {
   error,
   debug,
-  progress
-}; 
+  progress,
+};
