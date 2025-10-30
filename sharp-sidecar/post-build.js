@@ -118,6 +118,42 @@ if (platform === "darwin") {
   } catch (error) {
     console.error(`Error during Windows post-build: ${error.message}`);
   }
+} else if (platform === "linux") {
+  console.log("Running Linux-specific post-build operations...");
+
+  try {
+    // Copy Sharp native modules to distribution directory
+    console.log("Copying Sharp native modules...");
+    const sharpModulePath = path.join(__dirname, "node_modules/sharp");
+    const releaseSource = path.join(sharpModulePath, "build/Release");
+    const vendorSource = path.join(sharpModulePath, "vendor/lib");
+
+    if (fs.existsSync(releaseSource)) {
+      execSync(`cp -R "${releaseSource}/" "${sharpReleaseDir}/"`);
+      console.log("Copied Release directory");
+    }
+
+    if (fs.existsSync(vendorSource)) {
+      execSync(`cp -R "${vendorSource}/" "${sharpVendorDir}/"`);
+      console.log("Copied vendor/lib directory");
+
+      // Copy libvips libraries to libs directory
+      console.log("Copying libvips libraries...");
+      execSync(
+        `find "${vendorSource}" -name "libvips*.so*" -exec cp {} "${libsDir}/" \\;`,
+      );
+    }
+
+    // Set executable permissions
+    if (binaryPath && fs.existsSync(binaryPath)) {
+      console.log("Setting executable permissions...");
+      fs.chmodSync(binaryPath, 0o755);
+    }
+
+    console.log("Linux post-build operations completed successfully");
+  } catch (error) {
+    console.error(`Error during Linux post-build: ${error.message}`);
+  }
 } else {
   console.log(`No specific post-build operations for platform: ${platform}`);
 }

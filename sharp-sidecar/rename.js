@@ -43,6 +43,9 @@ if (platform === "darwin") {
 } else if (platform === "win32") {
   // Windows specific
   possibleSourceFiles.push("sharp-sidecar-win-x64.exe", "sharp-sidecar.exe");
+} else if (platform === "linux") {
+  // Linux specific
+  possibleSourceFiles.push("sharp-sidecar-linux-x64", "sharp-sidecar");
 }
 
 // Then add generic names
@@ -83,7 +86,9 @@ const filesToCleanup = [
   "sharp-sidecar-macos-arm64",
   "sharp-sidecar-macos-x64",
   "sharp-sidecar-win-x64.exe",
+  "sharp-sidecar-linux-x64",
   "sharp-sidecar.exe",
+  "sharp-sidecar",
 ];
 
 filesToCleanup.forEach((file) => {

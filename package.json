@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "build:sharp": "cd sharp-sidecar && npm run build:rename",
-    "tauri": "npm run build:sharp && tauri",
+    "tauri": "tauri",
     "tauri:dev": "npm run build:sharp && tauri dev",
     "tauri:build": "npm run build:sharp && tauri build",
     "lint": "biome check .",
