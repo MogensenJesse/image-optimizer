@@ -11,10 +11,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@img/sharp-libvips-darwin-x64": "^1.0.6",
     "sharp": "^0.33.5"
   },
   "optionalDependencies": {
+    "@img/sharp-libvips-darwin-x64": "^1.0.6",
     "@img/sharp-darwin-arm64": "latest",
     "@img/sharp-darwin-x64": "latest",
     "@img/sharp-win32-x64": "latest"
