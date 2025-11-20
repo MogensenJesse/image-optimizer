@@ -1,3 +1,4 @@
+// sharp-sidecar/post-build.js
 const { execSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -9,12 +10,13 @@ const platform = os.platform();
 // Create necessary directories for all platforms
 const targetDir = path.resolve(__dirname, "../src-tauri/binaries");
 const sharpReleaseDir = path.join(targetDir, "sharp/build/Release");
-const sharpVendorDir = path.join(targetDir, "sharp/vendor/lib");
+const sharpVendorRoot = path.join(targetDir, "sharp/vendor");
+const sharpVendorLibDir = path.join(sharpVendorRoot, "lib");
 const libsDir = path.join(targetDir, "libs");
 
 // Ensure directories exist
 console.log("Creating necessary directories...");
-[sharpReleaseDir, sharpVendorDir, libsDir].forEach((dir) => {
+[sharpReleaseDir, sharpVendorRoot, sharpVendorLibDir, libsDir].forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
     console.log(`Created directory: ${dir}`);
@@ -61,7 +63,7 @@ if (platform === "darwin") {
     }
 
     if (fs.existsSync(vendorSource)) {
-      execSync(`cp -R "${vendorSource}/" "${sharpVendorDir}/"`);
+      execSync(`cp -R "${vendorSource}/" "${sharpVendorLibDir}/"`);
       console.log("Copied vendor/lib directory");
 
       // Copy libvips libraries to libs directory
@@ -100,7 +102,7 @@ if (platform === "darwin") {
     }
 
     if (fs.existsSync(vendorSource)) {
-      copyDirRecursiveSync(vendorSource, sharpVendorDir);
+      copyDirRecursiveSync(vendorSource, sharpVendorLibDir);
       console.log("Copied vendor/lib directory");
 
       // Copy libvips DLLs to libs directory
@@ -127,6 +129,7 @@ if (platform === "darwin") {
     const sharpModulePath = path.join(__dirname, "node_modules/sharp");
     const releaseSource = path.join(sharpModulePath, "build/Release");
     const vendorSource = path.join(sharpModulePath, "vendor/lib");
+    const vendorRoot = path.join(sharpModulePath, "vendor");
 
     if (fs.existsSync(releaseSource)) {
       execSync(`cp -R "${releaseSource}/" "${sharpReleaseDir}/"`);
@@ -134,14 +137,24 @@ if (platform === "darwin") {
     }
 
     if (fs.existsSync(vendorSource)) {
-      execSync(`cp -R "${vendorSource}/" "${sharpVendorDir}/"`);
+      execSync(`cp -R "${vendorSource}/" "${sharpVendorLibDir}/"`);
       console.log("Copied vendor/lib directory");
 
-      // Copy libvips libraries to libs directory
       console.log("Copying libvips libraries...");
       execSync(
         `find "${vendorSource}" -name "libvips*.so*" -exec cp {} "${libsDir}/" \\;`,
       );
+    } else if (fs.existsSync(vendorRoot)) {
+      console.log("Copying full Sharp vendor tree (new layout)...");
+      execSync(`cp -R "${vendorRoot}/" "${sharpVendorRoot}/"`);
+
+      const vendorLibSearchPath = path.join(sharpVendorRoot);
+      console.log("Copying libvips libraries from vendor tree...");
+      execSync(
+        `find "${vendorLibSearchPath}" -name "libvips*.so*" -exec cp {} "${libsDir}/" \\;`,
+      );
+    } else {
+      console.error("Sharp vendor directory not found for Linux build");
     }
 
     // Set executable permissions

@@ -38,6 +38,7 @@ tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-process = "2"
 tauri-plugin-opener = "2"
+tauri-plugin-os = "2"
 tokio = { version = "1.42.0", features = ["full", "time"] }
 futures = "0.3.31"
 tracing = "0.1.41"
