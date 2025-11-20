@@ -4,13 +4,14 @@
   "version": "0.1.1",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "npm run build:sharp && vite",
+    "build": "npm run build:sharp && vite build",
     "preview": "vite preview",
     "build:sharp": "cd sharp-sidecar && npm run build:rename",
     "tauri": "tauri",
-    "tauri:dev": "npm run build:sharp && tauri dev",
-    "tauri:build": "npm run build:sharp && tauri build",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "postinstall": "cd sharp-sidecar && npm install",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write ."
