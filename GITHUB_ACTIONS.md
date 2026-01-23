@@ -13,7 +13,7 @@ The workflow (`.github/workflows/build.yml`) builds the app for:
 
 1. **Checkout** repository code
 2. **Setup** Node.js 20 and Rust toolchain
-3. **Install Linux dependencies** (for Linux builds only: `libvips-dev`, `pkg-config`)
+3. **Install Linux dependencies** (for Linux builds only: `libvips-dev`, `pkg-config`, `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf`)
 4. **Install npm dependencies** (root and sidecar)
 5. **Build sidecar** binary using `pkg` (creates platform-specific executables)
 6. **Build frontend** (Vite)
@@ -51,7 +51,10 @@ Built artifacts are automatically uploaded to GitHub Releases as draft releases.
 
 ### Linux
 - Builds AppImage (default) or other formats based on Tauri config
-- Requires `libvips-dev` system dependency (installed automatically in CI)
+- Requires system dependencies (installed automatically in CI):
+  - `libvips-dev` - Image processing for Sharp sidecar
+  - `libgtk-3-dev`, `libwebkit2gtk-4.1-dev` - GTK3/WebKit for Tauri
+  - `libappindicator3-dev`, `librsvg2-dev`, `patchelf` - Additional Tauri requirements
 - Sidecar binary: `sharp-sidecar-x86_64-unknown-linux-gnu`
 
 ## Troubleshooting
@@ -62,8 +65,12 @@ Built artifacts are automatically uploaded to GitHub Releases as draft releases.
 - Verify platform-specific handling in `rename.js`
 
 ### Linux Build Failures
-- Ensure `libvips-dev` is installed (handled automatically in CI)
+- Ensure all Linux dependencies are installed (handled automatically in CI):
+  - `libvips-dev`, `pkg-config` for Sharp
+  - `libgtk-3-dev`, `libwebkit2gtk-4.1-dev` for Tauri GTK/WebKit
+  - `libappindicator3-dev`, `librsvg2-dev`, `patchelf` for Tauri
 - Check that Sharp's Linux binaries are available
+- If `gdk-3.0` or `gtk-3.0` errors occur, ensure GTK3 dev packages are installed
 
 ### Release Upload Issues
 - Ensure `GITHUB_TOKEN` has `contents: write` permission (handled automatically)
