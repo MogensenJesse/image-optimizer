@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { basename, dirname, join } from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
 import { mkdir } from "@tauri-apps/plugin-fs";
+import { platform as getPlatform } from "@tauri-apps/plugin-os";
 import { useCallback, useEffect, useState } from "react";
 import optionsIcon from "./assets/icons/options.svg";
 import plusIcon from "./assets/icons/plus.svg";
@@ -25,6 +26,7 @@ function App() {
   // Main application state
   const [appState, setAppState] = useState(APP_STATE.IDLE);
   const [showMenu, setShowMenu] = useState(false);
+  const [platformName, setPlatformName] = useState(null);
 
   // Use our custom hook for progress tracking
   const { progress, initProgress, processingRef } = useProgressTracker(
@@ -103,6 +105,41 @@ function App() {
   const toggleMenu = () => {
     setShowMenu(!showMenu);
   };
+
+  const isLinuxPlatform = platformName === "linux";
+
+  // Detect platform once on mount
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const detectedPlatform = await getPlatform();
+        if (isMounted) {
+          setPlatformName(detectedPlatform);
+        }
+      } catch (error) {
+        console.error("Failed to detect platform:", error);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Toggle Linux-specific body class for styling fallbacks
+  useEffect(() => {
+    const className = "platform-linux";
+    if (isLinuxPlatform) {
+      document.body.classList.add(className);
+    } else {
+      document.body.classList.remove(className);
+    }
+
+    return () => {
+      document.body.classList.remove(className);
+    };
+  }, [isLinuxPlatform]);
 
   // Function to handle file processing (used for both drop and click)
   const processFiles = useCallback(
@@ -245,12 +282,13 @@ function App() {
   };
 
   return (
-    <div className="container">
+    <div className={`container ${isLinuxPlatform ? "container--solid" : ""}`}>
       <TitleBar />
       <div className="app-content">
         {/* biome-ignore lint/a11y/useSemanticElements: Dropzone needs to be a div for drag-and-drop styling */}
         <div
           className={`dropzone 
+            ${isLinuxPlatform ? "dropzone--solid" : ""} 
             ${appState === APP_STATE.DRAGGING ? "dropzone--dragging" : ""} 
             ${showProgressBar ? "dropzone--processing" : ""}
             ${appState === APP_STATE.FADE_OUT ? "dropzone--fading" : ""}

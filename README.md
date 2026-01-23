@@ -53,10 +53,12 @@ For detailed technical information about the architecture, components, and imple
 - [ ] Add additional performance optimizations
 - [ ] Add unsupported image format detection
 - [x] Add macOS support
+- [ ] Add Linux support
 - [ ] Add updating mechanism
 - [ ] Redesign the product website
 - [ ] Design product logo & icons
 - [ ] Implement code signing for Windows and macOS builds
+- [ ] Add multi-language support
 
 ## License
 This project is licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). Please review the license terms before using or distributing this software.

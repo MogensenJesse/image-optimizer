@@ -113,69 +113,81 @@
     }
   }
   
+  // Slider container - wraps input for cross-browser pseudo-element support
+  // WebKitGTK (Linux) doesn't support ::before/::after on input elements
+  .slider-container {
+    --slider-value: 0%;
+    --slider-color: #d7bb21;
+    position: relative;
+    width: 100%;
+    height: 10px;
+    
+    // Custom colored track (gradient fill)
+    &::before {
+      content: '';
+      position: absolute;
+      height: 3px;
+      width: var(--slider-value);
+      background: linear-gradient(
+        to right,
+        #d7bb21 0%,
+        var(--slider-color) 100%
+      );
+      top: 50%;
+      transform: translateY(-50%);
+      left: 0;
+      border-radius: 10px;
+      z-index: 1;
+      pointer-events: none;
+    }
+    
+    // Background track
+    &::after {
+      content: '';
+      position: absolute;
+      height: 3px;
+      width: 100%;
+      background: rgba(v.$light, 0.2);
+      top: 50%;
+      transform: translateY(-50%);
+      left: 0;
+      border-radius: 10px;
+      pointer-events: none;
+    }
+  }
+
   // Form controls - consolidated inside floating-menu
   .menu-control {
     // width: 100%;
     color: v.$light;
     
-    // Range slider
+    // Range slider input
     &--range {
-      --slider-value: 0%;
-      --slider-color: #d7bb21;
       appearance: none;
-      -webkit-appearance: none; // Required for WebKit on macOS
+      -webkit-appearance: none;
       width: 100%;
-      height: 10px;
+      height: 11px;
       border-radius: 10px;
       cursor: pointer;
       position: relative;
+      background: transparent;
+      z-index: 2; // Above the container's pseudo-elements
       
-      // Create a custom track with rounded cap
-      &::before {
-        content: '';
-        position: absolute;
-        height: 3px;
-        width: var(--slider-value);
-        background: linear-gradient(
-          to right,
-          #d7bb21 0%,
-          var(--slider-color) 100%
-        );
-        top: 50%;
-        transform: translateY(-50%);
-        left: 0;
-        border-radius: 10px; // This creates the rounded cap
-        z-index: 1;
-      }
-      
-      // Background track
-      &::after {
-        content: '';
-        position: absolute;
-        height: 3px;
-        width: 100%;
-        background: rgba(v.$light, 0.2);
-        top: 50%;
-        transform: translateY(-50%);
-        left: 0;
-        border-radius: 10px;
-      }
-      
-      // Colored gradient fill - WebKit (macOS)
+      // WebKit track (macOS, Linux WebKitGTK)
       &::-webkit-slider-runnable-track {
-        background: transparent; // Make transparent to show our custom track
+        background: transparent;
         height: 3px;
         border-radius: 10px;
       }
       
       // Standard track for Chromium (Windows)
       &::-ms-track {
-        background: transparent; // Make transparent to show our custom track
+        background: transparent;
         height: 3px;
         border-radius: 10px;
       }
 
-      // Hide thumb by default - WebKit (macOS)
+      // Hide thumb by default - WebKit (macOS, Linux)
       &::-webkit-slider-thumb {
         appearance: none;
         -webkit-appearance: none;
@@ -185,10 +197,10 @@
         background: v.$light;
         cursor: pointer;
         transition: all 0.2s ease;
-        margin-top: -3px;
+        margin-top: -11px;
         opacity: 0;
         position: relative;
-        z-index: 2; // Ensure thumb appears above our custom track
+        z-index: 3;
       }
       
       // Standard thumb for Chromium (Windows)
@@ -201,7 +213,7 @@
         transition: all 0.2s ease;
         opacity: 0;
         position: relative;
-        z-index: 2; // Ensure thumb appears above our custom track
+        z-index: 3;
       }
       
       // Show thumb on hover

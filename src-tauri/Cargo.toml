@@ -1,6 +1,6 @@
 [package]
 name = "image-optimizer"
-version = "0.1.0"
+version = "0.2.0"
 description = "A Tauri-based Image Optimization App"
 authors = ["you"]
 edition = "2021"
@@ -28,6 +28,13 @@ strip = true    # Strip debug symbols
 # Speed up debug builds
 [profile.dev]
 incremental = true
+opt-level = 0
+debug = true
+
+# Optimize dependencies in dev builds (faster linking)
+[profile.dev.package."*"]
+opt-level = 1
+debug = false
 
 [dependencies]
 tauri = { version = "2", features = ["macos-private-api"] }
@@ -38,6 +45,7 @@ tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-process = "2"
 tauri-plugin-opener = "2"
+tauri-plugin-os = "2"
 tokio = { version = "1.42.0", features = ["full", "time"] }
 futures = "0.3.31"
 tracing = "0.1.41"

@@ -20,7 +20,7 @@ use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
 fn main() {
     let subscriber = tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
+        .with_max_level(tracing::Level::DEBUG)
         .with_file(false)         // Remove file path
         .with_line_number(false)  // Remove line numbers
         .with_thread_ids(false)   // Remove thread IDs
@@ -39,6 +39,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             optimize_image,
