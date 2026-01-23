@@ -9,7 +9,6 @@ function FloatingMenu({
   onClose,
 }) {
   const [resizeMode, setResizeMode] = useState(settings.resize.mode || "none"); // none, width, height, longest, shortest
-  const qualitySliderRef = useRef(null);
 
   // Memoized function to calculate gradient color based on percentage
   const calculateGradientColor = useMemo(() => {
@@ -43,17 +42,19 @@ function FloatingMenu({
     return "Broken beyond repair";
   };
 
+  const sliderContainerRef = useRef(null);
+
   // Update the CSS variables when the quality value changes
   useEffect(() => {
-    if (qualitySliderRef.current) {
+    if (sliderContainerRef.current) {
       const percentage = settings.quality.global;
       const currentColor = calculateGradientColor(percentage);
 
-      qualitySliderRef.current.style.setProperty(
+      sliderContainerRef.current.style.setProperty(
         "--slider-value",
         `${percentage}%`,
       );
-      qualitySliderRef.current.style.setProperty(
+      sliderContainerRef.current.style.setProperty(
         "--slider-color",
         currentColor,
       );
@@ -64,14 +65,14 @@ function FloatingMenu({
     const qualityValue = parseInt(value, 10);
 
     // Update the CSS variables directly for immediate visual feedback
-    if (qualitySliderRef.current) {
+    if (sliderContainerRef.current) {
       const currentColor = calculateGradientColor(qualityValue);
 
-      qualitySliderRef.current.style.setProperty(
+      sliderContainerRef.current.style.setProperty(
         "--slider-value",
         `${qualityValue}%`,
       );
-      qualitySliderRef.current.style.setProperty(
+      sliderContainerRef.current.style.setProperty(
         "--slider-color",
         currentColor,
       );
@@ -133,15 +134,16 @@ function FloatingMenu({
                   {settings.quality.global}%
                 </span>
               </div>
-              <input
-                ref={qualitySliderRef}
-                className="menu-control--range"
-                type="range"
-                min="0"
-                max="100"
-                value={settings.quality.global}
-                onChange={(e) => handleQualityChange(e.target.value)}
-              />
+              <div ref={sliderContainerRef} className="slider-container">
+                <input
+                  className="menu-control--range"
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={settings.quality.global}
+                  onChange={(e) => handleQualityChange(e.target.value)}
+                />
+              </div>
             </div>
           </div>
 

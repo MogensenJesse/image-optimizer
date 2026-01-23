@@ -1,6 +1,7 @@
 // Handle Sharp native modules path resolution
 const fs = require("node:fs");
 const path = require("node:path");
+const Module = require("node:module");
 
 // Check if we're running as a packaged executable
 const isPackaged =
@@ -13,22 +14,72 @@ if (isPackaged) {
 
   // Get the executable directory
   const execDir = path.dirname(process.execPath);
+  const platform = process.platform;
+  const arch = process.arch;
 
-  // Set environment variables for Sharp to find native modules
-  process.env.SHARP_DIST_DIR = path.join(execDir, "sharp");
+  // Set up LD_LIBRARY_PATH for Linux to find libvips shared libraries
+  if (platform === "linux") {
+    const libsDir = path.join(execDir, "libs");
+    const sharpVendorLib = path.join(execDir, "sharp", "vendor", "lib");
+    const existingPath = process.env.LD_LIBRARY_PATH || "";
+    const newPaths = [libsDir, sharpVendorLib].filter((p) =>
+      fs.existsSync(p),
+    );
+    if (newPaths.length > 0) {
+      process.env.LD_LIBRARY_PATH = [...newPaths, existingPath]
+        .filter(Boolean)
+        .join(":");
+      console.log(`Set LD_LIBRARY_PATH to: ${process.env.LD_LIBRARY_PATH}`);
+    }
+  }
 
-  // Log for debugging
-  console.log(`Set SHARP_DIST_DIR to: ${process.env.SHARP_DIST_DIR}`);
+  // Intercept module resolution to redirect Sharp native module requests
+  // to our external location (pkg can't bundle native .node files in snapshot)
+  const originalResolveFilename = Module._resolveFilename;
+  const platformArch = `${platform}-${arch}`;
+  const nativeModuleName = `sharp-${platformArch}.node`;
+  const nativeModulePath = path.join(
+    execDir,
+    "sharp",
+    "build",
+    "Release",
+    nativeModuleName,
+  );
+
+  Module._resolveFilename = function (request, parent, isMain, options) {
+    // Intercept requests for the sharp native module
+    if (
+      request.includes(nativeModuleName) ||
+      request.includes(`@img/sharp-${platformArch}`)
+    ) {
+      if (fs.existsSync(nativeModulePath)) {
+        console.log(`Redirecting Sharp native module to: ${nativeModulePath}`);
+        return nativeModulePath;
+      }
+    }
+    return originalResolveFilename.call(this, request, parent, isMain, options);
+  };
 
   // Verify directories exist
   if (fs.existsSync(path.join(execDir, "sharp", "build", "Release"))) {
     console.log("Found Sharp native modules directory");
+    const releaseFiles = fs.readdirSync(
+      path.join(execDir, "sharp", "build", "Release"),
+    );
+    console.log(`Native modules available: ${releaseFiles.join(", ")}`);
   } else {
     console.error(
       "ERROR: Sharp native modules directory not found at:",
       path.join(execDir, "sharp", "build", "Release"),
     );
     console.log("Available directories:", fs.readdirSync(execDir));
+  }
+
+  // Check for libvips
+  const libsDir = path.join(execDir, "libs");
+  if (fs.existsSync(libsDir)) {
+    const libFiles = fs.readdirSync(libsDir);
+    console.log(`Libs directory contents: ${libFiles.join(", ")}`);
   }
 }
 

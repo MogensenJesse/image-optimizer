@@ -17,7 +17,9 @@
     "@img/sharp-darwin-arm64": "latest",
     "@img/sharp-darwin-x64": "latest",
     "@img/sharp-libvips-darwin-x64": "^1.2.4",
-    "@img/sharp-win32-x64": "latest"
+    "@img/sharp-win32-x64": "latest",
+    "@img/sharp-linux-x64": "latest",
+    "@img/sharp-libvips-linux-x64": "latest"
   },
   "devDependencies": {
     "@yao-pkg/pkg": "^6.12.0"
@@ -29,6 +31,8 @@
       "node_modules/@img/sharp-win32-x64/**/*",
       "node_modules/@img/sharp-darwin-x64/**/*",
       "node_modules/@img/sharp-darwin-arm64/**/*",
+      "node_modules/@img/sharp-linux-x64/**/*",
+      "node_modules/@img/sharp-libvips-linux-x64/**/*",
       "optimizationDefaults.js"
     ],
     "targets": [

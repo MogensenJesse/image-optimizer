@@ -68,9 +68,80 @@ impl MemoryMapExecutor {
     
     /// Creates the sidecar command for execution
     fn create_sidecar_command(&self) -> OptimizerResult<tauri_plugin_shell::process::Command> {
-        self.app.shell()
+        let mut cmd = self.app.shell()
             .sidecar("sharp-sidecar")
-            .map_err(|e| OptimizerError::sidecar(format!("Sidecar spawn failed: {}", e)))
+            .map_err(|e| OptimizerError::sidecar(format!("Sidecar spawn failed: {}", e)))?;
+        
+        // On Linux, set LD_LIBRARY_PATH so the native module can find libvips
+        #[cfg(target_os = "linux")]
+        {
+            cmd = Self::configure_linux_library_path(cmd, &self.app);
+        }
+        
+        Ok(cmd)
+    }
+    
+    /// Configure LD_LIBRARY_PATH for Linux to find libvips shared libraries
+    #[cfg(target_os = "linux")]
+    fn configure_linux_library_path(
+        cmd: tauri_plugin_shell::process::Command,
+        app: &AppHandle,
+    ) -> tauri_plugin_shell::process::Command {
+        use tauri::Manager;
+        
+        // Try to find the binaries directory in multiple locations:
+        // 1. In dev mode: CARGO_MANIFEST_DIR/binaries or src-tauri/binaries
+        // 2. In production: resource_dir/binaries
+        
+        let mut search_paths: Vec<std::path::PathBuf> = Vec::new();
+        
+        // Dev mode: check CARGO_MANIFEST_DIR (set during cargo build/run)
+        if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
+            let dev_binaries = std::path::PathBuf::from(&manifest_dir).join("binaries");
+            if dev_binaries.exists() {
+                search_paths.push(dev_binaries);
+            }
+        }
+        
+        // Production mode: check resource directory
+        if let Ok(resource_dir) = app.path().resource_dir() {
+            // In production, binaries are usually in the resource dir or a subdirectory
+            let prod_binaries = resource_dir.join("binaries");
+            if prod_binaries.exists() {
+                search_paths.push(prod_binaries);
+            }
+            // Also check resource_dir directly (some builds put files there)
+            if resource_dir.exists() {
+                search_paths.push(resource_dir);
+            }
+        }
+        
+        // Find the first path that contains our libs
+        let mut lib_paths: Vec<String> = Vec::new();
+        for base_path in search_paths {
+            let libs_dir = base_path.join("libs");
+            let vendor_lib_dir = base_path.join("sharp").join("vendor").join("lib");
+            
+            if libs_dir.exists() {
+                lib_paths.push(libs_dir.to_string_lossy().to_string());
+            }
+            if vendor_lib_dir.exists() {
+                lib_paths.push(vendor_lib_dir.to_string_lossy().to_string());
+            }
+        }
+        
+        if lib_paths.is_empty() {
+            debug!("No library paths found for LD_LIBRARY_PATH");
+            return cmd;
+        }
+        
+        // Build LD_LIBRARY_PATH from existing value plus our directories
+        let existing_path = std::env::var("LD_LIBRARY_PATH").unwrap_or_default();
+        lib_paths.push(existing_path);
+        let new_path = lib_paths.into_iter().filter(|p| !p.is_empty()).collect::<Vec<_>>().join(":");
+        
+        debug!("Setting LD_LIBRARY_PATH for sidecar: {}", new_path);
+        cmd.env("LD_LIBRARY_PATH", &new_path)
     }
     
     /// Handles command events from the sidecar process - reuse from DirectExecutor
