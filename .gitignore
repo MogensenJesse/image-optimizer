@@ -17,6 +17,7 @@ dist
 dist-ssr
 *.local
 src-tauri/binaries/
+src-tauri/target/analyzer/
 sharp-sidecar/sharp-sidecar*
 
 # Editor directories and files

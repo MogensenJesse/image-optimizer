@@ -28,6 +28,13 @@ strip = true    # Strip debug symbols
 # Speed up debug builds
 [profile.dev]
 incremental = true
+opt-level = 0
+debug = true
+
+# Optimize dependencies in dev builds (faster linking)
+[profile.dev.package."*"]
+opt-level = 1
+debug = false
 
 [dependencies]
 tauri = { version = "2", features = ["macos-private-api"] }
