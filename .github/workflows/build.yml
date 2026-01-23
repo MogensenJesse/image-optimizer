@@ -19,16 +19,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Temporarily testing Linux only - uncomment others for full build
-          # - platform: 'macos-latest'
-          #   args: ''
-          # - platform: 'windows-latest'
-          #   args: ''
+          - platform: 'macos-latest'
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
           - platform: 'ubuntu-latest'
             args: ''
-          # - platform: 'macos-latest'
-          #   args: '--target aarch64-apple-darwin'
-          #   arch: 'arm64'
+          - platform: 'macos-latest'
+            args: '--target aarch64-apple-darwin'
+            arch: 'arm64'
 
     runs-on: ${{ matrix.platform }}
     steps:
