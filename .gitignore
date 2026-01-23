@@ -22,6 +22,7 @@ sharp-sidecar/sharp-sidecar*
 # Editor directories and files
 .cursor/*
 .vscode/*
+.agents/*
 !.vscode/extensions.json
 !.vscode/settings.json
 .idea

@@ -11,16 +11,16 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "sharp": "^0.32.6"
+    "sharp": "^0.34.5"
   },
   "optionalDependencies": {
     "@img/sharp-darwin-arm64": "latest",
     "@img/sharp-darwin-x64": "latest",
-    "@img/sharp-libvips-darwin-x64": "^1.0.6",
+    "@img/sharp-libvips-darwin-x64": "^1.2.4",
     "@img/sharp-win32-x64": "latest"
   },
   "devDependencies": {
-    "@yao-pkg/pkg": "^6.1.1"
+    "@yao-pkg/pkg": "^6.12.0"
   },
   "bin": "index.js",
   "pkg": {
