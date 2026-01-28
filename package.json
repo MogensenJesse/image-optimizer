@@ -14,7 +14,9 @@
     "postinstall": "cd sharp-sidecar && npm install",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "format": "biome format --write ."
+    "format": "biome format --write .",
+    "version": "node scripts/sync-version.js && git add src-tauri/Cargo.toml src-tauri/tauri.conf.json",
+    "version:sync": "node scripts/sync-version.js"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
