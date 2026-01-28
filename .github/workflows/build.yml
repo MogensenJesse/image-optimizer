@@ -23,7 +23,9 @@ jobs:
             args: ''
           - platform: 'windows-latest'
             args: ''
-          - platform: 'ubuntu-latest'
+          # Use Ubuntu 22.04 for broader Linux compatibility (glibc 2.35)
+          # This supports Debian 12+, Ubuntu 22.04+, Fedora 36+, etc.
+          - platform: 'ubuntu-22.04'
             args: ''
           - platform: 'macos-latest'
             args: '--target aarch64-apple-darwin'
@@ -45,7 +47,7 @@ jobs:
           targets: ${{ matrix.args == '--target aarch64-apple-darwin' && 'aarch64-apple-darwin' || '' }}
 
       - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-latest'
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libvips-dev pkg-config \
