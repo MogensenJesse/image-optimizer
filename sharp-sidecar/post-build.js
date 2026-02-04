@@ -16,12 +16,14 @@ const libsDir = path.join(targetDir, "libs");
 
 // Ensure directories exist
 console.log("Creating necessary directories...");
-[sharpReleaseDir, sharpVendorRoot, sharpVendorLibDir, libsDir].forEach((dir) => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-    console.log(`Created directory: ${dir}`);
-  }
-});
+[sharpReleaseDir, sharpVendorRoot, sharpVendorLibDir, libsDir].forEach(
+  (dir) => {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+      console.log(`Created directory: ${dir}`);
+    }
+  },
+);
 
 // Find the binary
 const _ext = platform === "win32" ? ".exe" : "";
@@ -131,13 +133,20 @@ if (platform === "darwin") {
     // Determine architecture suffix
     const arch = process.arch; // x64, arm64, etc.
     const sharpNativePackage = path.join(imgModulesPath, `sharp-linux-${arch}`);
-    const libvipsPackage = path.join(imgModulesPath, `sharp-libvips-linux-${arch}`);
+    const libvipsPackage = path.join(
+      imgModulesPath,
+      `sharp-libvips-linux-${arch}`,
+    );
 
     console.log("Copying Sharp native modules from @img/ packages...");
 
     // Copy the native .node file from @img/sharp-linux-x64
     if (fs.existsSync(sharpNativePackage)) {
-      const nodeFile = path.join(sharpNativePackage, "lib", `sharp-linux-${arch}.node`);
+      const nodeFile = path.join(
+        sharpNativePackage,
+        "lib",
+        `sharp-linux-${arch}.node`,
+      );
       if (fs.existsSync(nodeFile)) {
         const destFile = path.join(sharpReleaseDir, `sharp-linux-${arch}.node`);
         fs.copyFileSync(nodeFile, destFile);
@@ -167,9 +176,11 @@ if (platform === "darwin") {
             const destFile = path.join(libsDir, file);
             // Use cp to follow symlinks and copy actual files
             try {
-              execSync(`cp -L "${srcFile}" "${destFile}" 2>/dev/null || cp "${srcFile}" "${destFile}"`);
+              execSync(
+                `cp -L "${srcFile}" "${destFile}" 2>/dev/null || cp "${srcFile}" "${destFile}"`,
+              );
               console.log(`Copied libvips library: ${file}`);
-            } catch (e) {
+            } catch {
               // If it's a directory or special file, skip
               console.log(`Skipping: ${file}`);
             }
@@ -177,7 +188,9 @@ if (platform === "darwin") {
         }
 
         // Also copy to vendor/lib for compatibility
-        execSync(`cp -rL "${libvipsLibDir}/"* "${sharpVendorLibDir}/" 2>/dev/null || true`);
+        execSync(
+          `cp -rL "${libvipsLibDir}/"* "${sharpVendorLibDir}/" 2>/dev/null || true`,
+        );
         console.log("Copied libvips to vendor/lib directory");
       } else {
         console.error(`libvips lib directory not found: ${libvipsLibDir}`);
@@ -202,7 +215,10 @@ if (platform === "darwin") {
     }
 
     // Set executable permissions on the .node file as well
-    const nodeModulePath = path.join(sharpReleaseDir, `sharp-linux-${arch}.node`);
+    const nodeModulePath = path.join(
+      sharpReleaseDir,
+      `sharp-linux-${arch}.node`,
+    );
     if (fs.existsSync(nodeModulePath)) {
       fs.chmodSync(nodeModulePath, 0o755);
       console.log("Set executable permissions on native module");
@@ -212,7 +228,10 @@ if (platform === "darwin") {
     console.log("Creating libvips symlinks...");
     const libFiles = fs.readdirSync(libsDir);
     for (const file of libFiles) {
-      if (file.startsWith("libvips-cpp.so.") && !fs.lstatSync(path.join(libsDir, file)).isSymbolicLink()) {
+      if (
+        file.startsWith("libvips-cpp.so.") &&
+        !fs.lstatSync(path.join(libsDir, file)).isSymbolicLink()
+      ) {
         // Extract version info and create symlinks
         // e.g., libvips-cpp.so.8.17.3 -> libvips-cpp.so.8.17, libvips-cpp.so.8, libvips-cpp.so
         const parts = file.replace("libvips-cpp.so.", "").split(".");
@@ -220,7 +239,7 @@ if (platform === "darwin") {
           const majorMinor = `libvips-cpp.so.${parts[0]}.${parts[1]}`;
           const major = `libvips-cpp.so.${parts[0]}`;
           const base = "libvips-cpp.so";
-          
+
           try {
             // Create symlinks (remove existing if any)
             for (const linkName of [majorMinor, major, base]) {

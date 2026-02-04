@@ -1,15 +1,25 @@
 const sharp = require("sharp");
+const path = require("node:path");
 const { getFormatSettings, isFormatSupported } = require("../config/formats");
 const {
   debug,
   progress,
   error,
   getFileSize,
+  getFileSizeAsync,
   getCompressionStats,
   createResultObject,
   ensureCorrectExtension,
 } = require("../utils");
 const { formatBytes } = require("../utils/progress");
+
+// Configure Sharp for optimal performance in worker context
+// Each worker should have limited concurrency since we have N workers already
+// This prevents thread oversubscription (N workers × M threads per image)
+sharp.concurrency(1); // Single thread per image since parallelism is at worker level
+
+// Configure cache for repeated format settings (useful for batch with same settings)
+sharp.cache({ memory: 50, files: 10, items: 100 });
 
 /**
  * Optimize a single image with the given settings
@@ -47,7 +57,7 @@ async function optimizeImage(input, output, settings) {
       throw new Error(errorMessage);
     }
 
-    const fileName = require("node:path").basename(input);
+    const fileName = path.basename(input);
 
     let image;
     try {
@@ -143,12 +153,8 @@ async function optimizeImage(input, output, settings) {
             throw new Error(errorMessage);
           }
         }
-
-        const resizedMetadata = await image.metadata();
-        progress(
-          "Resize",
-          `New dimensions: ${resizedMetadata.width}x${resizedMetadata.height}`,
-        );
+        // Note: Removed post-resize metadata() call for performance
+        // The resize dimensions can be inferred from settings if needed
       } catch (err) {
         const errorMessage = `Error resizing image ${fileName}: ${err.message}`;
         error(errorMessage, err);
@@ -186,7 +192,7 @@ async function optimizeImage(input, output, settings) {
 
     let outputSize;
     try {
-      outputSize = getFileSize(outputPath);
+      outputSize = await getFileSizeAsync(outputPath);
     } catch (err) {
       const errorMessage = `Error getting file size for ${outputPath}: ${err.message}`;
       error(errorMessage, err);
