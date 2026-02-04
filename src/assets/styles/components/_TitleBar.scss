@@ -17,6 +17,13 @@
     color: v.$light;
     pointer-events: none;
   }
+
+  &-version {
+    font-size: 0.7em;
+    font-weight: 400;
+    opacity: 0.5;
+    margin-left: 0.25em;
+  }
 }
 
 .window-controls {
