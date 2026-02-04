@@ -11,7 +11,7 @@ Image Optimizer is a high-performance desktop application designed to streamline
 - **Intelligent Resizing**: Multiple resize modes including width, height, longest and shortest side and aspect ratio preservation
 - **Quality Control**: Fine-tune compression levels with format-specific quality settings
 - **Batch Processing**: Process multiple images in parallel for maximum efficiency
-- **Cross-Platform**: Available for Windows and macOS
+- **Cross-Platform**: Available for Windows, macOS and Linux
 
 ## Use Cases
 
