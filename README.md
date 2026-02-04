@@ -35,7 +35,7 @@ Image Optimizer is a high-performance desktop application designed to streamline
 
 ## Documentation
 
-For detailed technical information about the architecture, components, and implementation details, please refer to the [Technical Documentation](./DOCUMENTATION.md).
+For detailed technical information about the architecture, components, and implementation details, please refer to the [Architecture Documentation](./ARCHITECTURE.md).
 
 ## Security
 
@@ -50,10 +50,10 @@ For detailed technical information about the architecture, components, and imple
 ## Roadmap
 
 - [ ] Add SVG support
-- [ ] Add additional performance optimizations
+- [x] Add additional performance optimizations
 - [ ] Add unsupported image format detection
 - [x] Add macOS support
-- [ ] Add Linux support
+- [x] Add Linux support
 - [ ] Add updating mechanism
 - [ ] Redesign the product website
 - [ ] Design product logo & icons
