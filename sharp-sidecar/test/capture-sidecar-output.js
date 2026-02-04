@@ -5,7 +5,7 @@ const os = require("node:os");
 // Store original console methods BEFORE any module loading (for error reporting)
 const _originalStderr = process.stderr.write.bind(process.stderr);
 const _realConsoleError = (...args) => {
-  _originalStderr(args.join(" ") + "\n");
+  _originalStderr(`${args.join(" ")}\n`);
 };
 
 // Early error handler to catch module loading issues
