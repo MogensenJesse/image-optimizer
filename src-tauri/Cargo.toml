@@ -1,6 +1,6 @@
 [package]
 name = "image-optimizer"
-version = "0.2.1"
+version = "0.2.3"
 description = "A Tauri-based Image Optimization App"
 authors = ["you"]
 edition = "2021"

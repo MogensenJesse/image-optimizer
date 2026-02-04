@@ -1,17 +1,28 @@
+//! Image task definition and creation.
+
 use serde::{Deserialize, Serialize};
 use crate::core::ImageSettings;
 use crate::core::types::{QualitySettings, ResizeSettings};
 use crate::utils::{OptimizerError, OptimizerResult};
 
+/// Represents a single image optimization task.
+///
+/// Contains the input/output paths and settings for processing one image.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageTask {
+    /// Path to the source image file
     pub input_path: String,
+    /// Path where the optimized image will be written
     pub output_path: String,
+    /// Optimization settings (quality, resize, format)
     pub settings: ImageSettings,
 }
 
 impl ImageTask {
-    /// Creates a minimal task suitable for warming up the executor
+    /// Creates a minimal task suitable for warming up the executor.
+    ///
+    /// Uses a bundled tiny JPEG image to initialize the Sharp sidecar
+    /// without requiring user input.
     pub fn create_warmup_task() -> OptimizerResult<Self> {
         // Get the path to a temporary directory
         let temp_dir = std::env::temp_dir();

@@ -8,23 +8,39 @@ const {
   formatBytes,
 } = require("../utils/progress");
 
+// Optimize UV_THREADPOOL_SIZE for systems with > 4 cores
+// This affects libuv's thread pool used by Sharp for async I/O
+// Default is 4, but should match or exceed CPU count for optimal parallelism
+const cpuCount = os.cpus().length;
+if (!process.env.UV_THREADPOOL_SIZE && cpuCount > 4) {
+  // Note: This must be set before any async I/O operations
+  // Since this file is loaded early, we set it here
+  process.env.UV_THREADPOOL_SIZE = String(Math.min(cpuCount, 128));
+  debug(`Set UV_THREADPOOL_SIZE to ${process.env.UV_THREADPOOL_SIZE}`);
+}
+
 /**
- * Manages a pool of Sharp worker threads for parallel image processing
+ * Manages a pool of Sharp worker threads for parallel image processing.
+ *
+ * Note: This pool is designed for single-use per batch. Event listeners are
+ * attached in processBatch() and the pool should be terminated after use
+ * to clean up workers and listeners. Create a new pool for each batch.
  */
 class SharpWorkerPool {
   /**
    * Creates a new worker pool
-   * @param {number} maxWorkers - Maximum number of workers to create (defaults to CPU count)
+   * @param {number} taskCount - Number of tasks to process (used to limit worker count)
    */
-  constructor(maxWorkers = os.cpus().length) {
-    this.maxWorkers = maxWorkers;
+  constructor(taskCount = os.cpus().length) {
+    // Don't create more workers than tasks or CPU cores
+    this.maxWorkers = Math.min(taskCount, os.cpus().length);
     this.workers = [];
     this.metrics = {
       startTime: 0,
       completedTasks: 0,
       totalTasks: 0,
       queueLength: 0,
-      worker_count: maxWorkers,
+      worker_count: this.maxWorkers,
       active_workers: 0,
       tasks_per_worker: [],
     };
@@ -304,8 +320,12 @@ class SharpWorkerPool {
         });
 
         worker.on("exit", (code) => {
-          if (code !== 0) {
-            error(`Worker ${workerIndex} exited with code ${code}`);
+          // Code 1 is expected when worker.terminate() is called
+          // Only log unexpected exit codes (not 0 or 1)
+          if (code !== 0 && code !== 1) {
+            error(
+              `Worker ${workerIndex} exited unexpectedly with code ${code}`,
+            );
           }
         });
       });
@@ -317,7 +337,7 @@ class SharpWorkerPool {
    * @returns {Promise<void>}
    */
   terminate() {
-    error("Terminating worker pool");
+    debug("Terminating worker pool");
     return Promise.all(this.workers.map((worker) => worker.terminate()));
   }
 }

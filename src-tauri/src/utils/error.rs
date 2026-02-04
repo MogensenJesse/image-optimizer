@@ -1,45 +1,65 @@
+//! Error types for the image optimizer.
+//!
+//! Provides a hierarchy of error types using `thiserror` for ergonomic error handling.
+
 use std::io;
 use std::path::PathBuf;
 use thiserror::Error;
 use serde::Serialize;
 
+/// Validation errors for input tasks and settings.
 #[derive(Error, Debug, Serialize)]
 pub enum ValidationError {
+    /// Path-related validation error
     #[error("Path error: {0}")]
     Path(#[from] PathError),
+    /// Invalid settings error
     #[error("Settings error: {0}")]
     Settings(String),
 }
 
+/// File path errors.
 #[derive(Error, Debug, Serialize)]
 pub enum PathError {
+    /// File does not exist
     #[error("File not found: {0}")]
     NotFound(PathBuf),
+    /// Path exists but is not a file
     #[error("Not a file: {0}")]
     NotFile(PathBuf),
+    /// IO error accessing the path
     #[error("IO error: {0}")]
     IO(String),
 }
 
+/// Main error type for the optimizer application.
+///
+/// All errors in the application are converted to this type before being
+/// returned to the frontend.
 #[derive(Error, Debug, Serialize)]
 pub enum OptimizerError {
+    /// Task or input validation failed
     #[error("Validation error: {0}")]
     Validation(#[from] ValidationError),
 
+    /// Image processing failed
     #[error("Processing error: {0}")]
     Processing(String),
 
+    /// File IO error
     #[error("IO error: {0}")]
     IO(String),
 
+    /// Unsupported or invalid image format
     #[error("Format error: {0}")]
     Format(String),
 
+    /// Sharp sidecar process error
     #[error("Sidecar error: {0}")]
     Sidecar(String),
 }
 
-// Common result type for the optimizer
+/// Convenience result type for optimizer operations.
 pub type OptimizerResult<T> = Result<T, OptimizerError>;
 
 // Helper methods for error creation

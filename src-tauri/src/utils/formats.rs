@@ -1,13 +1,21 @@
+//! Image format detection and parsing.
+
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use crate::utils::OptimizerError;
 
+/// Supported image formats for optimization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[allow(clippy::upper_case_acronyms)] // Standard naming for image formats
 pub enum ImageFormat {
+    /// JPEG format (lossy compression)
     JPEG,
+    /// PNG format (lossless compression)
     PNG,
+    /// WebP format (modern, efficient)
     WebP,
+    /// AVIF format (next-gen, best compression)
     AVIF,
 }
 
@@ -28,7 +36,13 @@ impl FromStr for ImageFormat {
     }
 }
 
-/// Get format from file extension
+/// Determines the image format from a file path's extension.
+///
+/// # Arguments
+/// * `path` - File path to check
+///
+/// # Returns
+/// The detected [`ImageFormat`] or an error if unsupported.
 pub fn format_from_extension(path: &str) -> Result<ImageFormat, OptimizerError> {
     let ext = std::path::Path::new(path)
         .extension()

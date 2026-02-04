@@ -4,7 +4,7 @@
  */
 
 const fs = require("node:fs");
-const _path = require("node:path");
+const fsPromises = require("node:fs/promises");
 
 /**
  * Ensure the output path has the correct extension for the format
@@ -26,12 +26,22 @@ function ensureCorrectExtension(outputPath, inputFormat, outputFormat) {
 }
 
 /**
- * Get file size information
+ * Get file size information (synchronous - use for input validation)
  * @param {string} filePath - Path to the file
- * @returns {Object} Object containing file size in bytes
+ * @returns {number} File size in bytes
  */
 function getFileSize(filePath) {
   const stats = fs.statSync(filePath);
+  return stats.size;
+}
+
+/**
+ * Get file size information (async - use for non-blocking operations)
+ * @param {string} filePath - Path to the file
+ * @returns {Promise<number>} File size in bytes
+ */
+async function getFileSizeAsync(filePath) {
+  const stats = await fsPromises.stat(filePath);
   return stats.size;
 }
 
@@ -81,6 +91,7 @@ function createResultObject(
 module.exports = {
   ensureCorrectExtension,
   getFileSize,
+  getFileSizeAsync,
   getCompressionStats,
   createResultObject,
 };

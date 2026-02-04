@@ -49,7 +49,8 @@ async function optimizeBatch(batchJson) {
 
     progress("Batch", `Processing ${batch.length} images`);
 
-    const pool = new SharpWorkerPool();
+    // Create pool with worker count limited to task count (no point having more workers than tasks)
+    const pool = new SharpWorkerPool(batch.length);
     try {
       let results, metrics;
       try {

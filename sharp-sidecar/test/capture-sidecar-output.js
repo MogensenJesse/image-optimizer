@@ -1,7 +1,34 @@
 const fs = require("node:fs");
 const path = require("node:path");
-const { optimizeBatch } = require("../src/processing/batch");
 const os = require("node:os");
+
+// Store original console methods BEFORE any module loading (for error reporting)
+const _originalStderr = process.stderr.write.bind(process.stderr);
+const _realConsoleError = (...args) => {
+  _originalStderr(args.join(" ") + "\n");
+};
+
+// Early error handler to catch module loading issues
+process.on("uncaughtException", (err) => {
+  _realConsoleError("Uncaught exception:", err.message);
+  _realConsoleError(err.stack);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  _realConsoleError("Unhandled rejection at:", promise, "reason:", reason);
+  process.exit(1);
+});
+
+// Load Sharp and clear cache to release file handles from previous runs
+const sharp = require("sharp");
+// Clear Sharp's cache to release any file handles from previous runs
+// This helps avoid Windows file locking issues on repeated test runs
+sharp.cache(false);
+sharp.cache({ memory: 50, files: 10, items: 100 });
+
+// Load batch processor
+const { optimizeBatch } = require("../src/processing/batch");
 
 // Configure logging
 const LOG_FILE = path.join(__dirname, "sidecar-output.log");
@@ -135,9 +162,28 @@ async function setupBatchTask() {
     fs.mkdirSync(testImagesDir, { recursive: true });
   }
 
-  // Ensure the optimized directory exists
+  // Ensure the optimized directory exists and clean up any previous output
   const optimizedDir = path.join(testImagesDir, "optimized");
-  if (!fs.existsSync(optimizedDir)) {
+  if (fs.existsSync(optimizedDir)) {
+    // Clean up previous output files to avoid Windows file locking issues
+    const existingFiles = fs.readdirSync(optimizedDir);
+    for (const file of existingFiles) {
+      try {
+        fs.unlinkSync(path.join(optimizedDir, file));
+      } catch (err) {
+        // If file is locked, wait a bit and retry
+        if (err.code === "EBUSY" || err.code === "EPERM") {
+          console.log(`File locked, waiting to retry: ${file}`);
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          try {
+            fs.unlinkSync(path.join(optimizedDir, file));
+          } catch {
+            console.log(`Could not delete ${file}, will overwrite`);
+          }
+        }
+      }
+    }
+  } else {
     console.log(`Creating optimized output directory: ${optimizedDir}`);
     fs.mkdirSync(optimizedDir, { recursive: true });
   }
@@ -199,6 +245,9 @@ async function runTest() {
 
     return 0;
   } catch (error) {
+    // Log to both real stderr and captured log
+    _realConsoleError("Error in test:", error.message);
+    _realConsoleError(error.stack);
     console.error(`Error in test: ${error.message}`);
     console.error(error.stack);
 
@@ -215,6 +264,7 @@ runTest()
     process.exit(exitCode);
   })
   .catch((error) => {
-    console.error(`Unhandled error: ${error.message}`);
+    _realConsoleError("Unhandled error:", error.message);
+    _realConsoleError(error.stack);
     process.exit(1);
   });

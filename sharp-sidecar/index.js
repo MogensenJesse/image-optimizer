@@ -3,9 +3,15 @@ const fs = require("node:fs");
 const path = require("node:path");
 const Module = require("node:module");
 
-// Check if we're running as a packaged executable
-const isPackaged =
-  !process.argv[0].endsWith("node") && !process.argv[0].endsWith("nodejs");
+// Check if we're running as a packaged executable (built with pkg)
+// pkg executables have process.pkg defined and the executable is not node/nodejs
+const execName = path.basename(process.execPath).toLowerCase();
+const isNodeRuntime =
+  execName === "node" ||
+  execName === "node.exe" ||
+  execName === "nodejs" ||
+  execName === "nodejs.exe";
+const isPackaged = !isNodeRuntime && !process.versions.electron;
 
 if (isPackaged) {
   console.log(
@@ -22,9 +28,7 @@ if (isPackaged) {
     const libsDir = path.join(execDir, "libs");
     const sharpVendorLib = path.join(execDir, "sharp", "vendor", "lib");
     const existingPath = process.env.LD_LIBRARY_PATH || "";
-    const newPaths = [libsDir, sharpVendorLib].filter((p) =>
-      fs.existsSync(p),
-    );
+    const newPaths = [libsDir, sharpVendorLib].filter((p) => fs.existsSync(p));
     if (newPaths.length > 0) {
       process.env.LD_LIBRARY_PATH = [...newPaths, existingPath]
         .filter(Boolean)
