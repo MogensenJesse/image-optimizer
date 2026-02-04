@@ -40,11 +40,28 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.args == '--target aarch64-apple-darwin' && 'aarch64-apple-darwin' || '' }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+          # Include target arch in cache key for cross-compilation
+          shared-key: ${{ matrix.args == '--target aarch64-apple-darwin' && 'macos-arm64' || '' }}
+
+      - name: Cache sidecar dependencies
+        id: sidecar-cache
+        uses: actions/cache@v4
+        with:
+          path: sharp-sidecar/node_modules
+          key: ${{ runner.os }}-sidecar-${{ hashFiles('sharp-sidecar/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-sidecar-
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -58,6 +75,7 @@ jobs:
         run: npm ci
 
       - name: Install dependencies (sidecar)
+        if: steps.sidecar-cache.outputs.cache-hit != 'true'
         run: |
           cd sharp-sidecar
           npm ci

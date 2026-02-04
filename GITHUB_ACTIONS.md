@@ -12,12 +12,25 @@ The workflow (`.github/workflows/build.yml`) builds the app for:
 ## Build Process
 
 1. **Checkout** repository code
-2. **Setup** Node.js 20 and Rust toolchain
-3. **Install Linux dependencies** (for Linux builds only: `libvips-dev`, `pkg-config`, `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf`)
-4. **Install npm dependencies** (root and sidecar)
-5. **Build sidecar** binary using `pkg` (creates platform-specific executables)
-6. **Build frontend** (Vite)
-7. **Build Tauri app** using `tauri-action` (which handles bundling)
+2. **Setup** Node.js 20 (with npm cache) and Rust toolchain
+3. **Restore caches** (Rust dependencies, sidecar node_modules)
+4. **Install Linux dependencies** (for Linux builds only: `libvips-dev`, `pkg-config`, `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf`)
+5. **Install npm dependencies** (root and sidecar - skipped if cached)
+6. **Build sidecar** binary using `pkg` (creates platform-specific executables)
+7. **Build frontend** (Vite)
+8. **Build Tauri app** using `tauri-action` (which handles bundling)
+
+## Caching Strategy
+
+The workflow uses caching to significantly reduce build times:
+
+| Cache | Action | Key Based On |
+|-------|--------|--------------|
+| **npm (root)** | `setup-node` built-in | `package-lock.json` |
+| **Rust/Cargo** | `Swatinem/rust-cache@v2` | `Cargo.lock` + rustc version |
+| **Sidecar npm** | `actions/cache@v4` | `sharp-sidecar/package-lock.json` |
+
+**Expected savings**: 60-70% reduction in build time on cache hits.
 
 ## Triggering Builds
 
