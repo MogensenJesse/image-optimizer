@@ -1,27 +1,21 @@
 use serde::{Deserialize, Serialize};
 use crate::processing::SharpResult;
 
-/// Progress message type
+/// Progress message type.
 #[derive(Debug, Deserialize, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum ProgressType {
+    /// Task is starting
     Start,
+    /// Task is in progress
     Progress,
+    /// Task completed successfully
     Complete,
+    /// Task encountered an error
     Error,
 }
 
-/// Metrics included in progress messages
-#[derive(Debug, Deserialize, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProgressMetrics {
-    /// Number of completed tasks
-    pub completed_tasks: usize,
-    /// Total number of tasks in the batch
-    pub total_tasks: usize,
-}
-
-/// Unified progress struct for tracking progress throughout the application
+/// Unified progress struct for tracking progress throughout the application.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Progress {

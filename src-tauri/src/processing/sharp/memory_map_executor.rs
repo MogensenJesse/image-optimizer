@@ -29,11 +29,12 @@ pub struct MemoryMapExecutor {
 }
 
 impl MemoryMapExecutor {
+    /// Creates a new executor with the given app handle
     pub fn new(app: AppHandle) -> Self {
-        let app_clone = app.clone();
+        let progress_handler = ProgressHandler::new(app.clone());
         Self {
-            app: app_clone.clone(),
-            progress_handler: ProgressHandler::new(app_clone),
+            app,
+            progress_handler,
         }
     }
     
@@ -68,6 +69,7 @@ impl MemoryMapExecutor {
     
     /// Creates the sidecar command for execution
     fn create_sidecar_command(&self) -> OptimizerResult<tauri_plugin_shell::process::Command> {
+        #[allow(unused_mut)] // mut needed on Linux for configure_linux_library_path
         let mut cmd = self.app.shell()
             .sidecar("sharp-sidecar")
             .map_err(|e| OptimizerError::sidecar(format!("Sidecar spawn failed: {}", e)))?;
@@ -218,7 +220,7 @@ impl MemoryMapExecutor {
             
             // Parse the batch result JSON
             debug!("Parsing batch result JSON (buffer size: {} bytes)", batch_json_buffer.len());
-            if let Ok(batch_output) = serde_json::from_str::<BatchOutput>(&batch_json_buffer) {
+            if let Ok(batch_output) = serde_json::from_str::<BatchOutput>(batch_json_buffer) {
                 debug!("Received batch output from sidecar - results count: {}", batch_output.results.len());
                 
                 // Convert results
@@ -305,11 +307,12 @@ impl MemoryMapExecutor {
         
         // Use a block to ensure resources are properly dropped
         let results = {
-            // Create and size the file
+            // Create and size the file (truncate to overwrite any existing content)
             let file = OpenOptions::new()
                 .read(true)
                 .write(true)
                 .create(true)
+                .truncate(true)
                 .open(&temp_file_path)
                 .map_err(|e| OptimizerError::processing(format!("Failed to create memory map file: {}", e)))?;
             
@@ -342,7 +345,7 @@ impl MemoryMapExecutor {
             // Run the command with the memory-mapped file path
             debug!("Spawning Sharp sidecar process with memory-mapped file");
             let (rx, _child) = cmd
-                .args(&["optimize-batch-mmap", &temp_file_path.to_string_lossy()])
+                .args(["optimize-batch-mmap", &temp_file_path.to_string_lossy()])
                 .spawn()
                 .map_err(|e| OptimizerError::sidecar(format!("Failed to spawn Sharp process: {}", e)))?;
             

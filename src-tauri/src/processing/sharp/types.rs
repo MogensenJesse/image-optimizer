@@ -1,7 +1,13 @@
+//! Types for Sharp sidecar communication.
+//!
+//! These types mirror the JSON structures used by the Node.js Sharp sidecar
+//! for serialization/deserialization of messages.
+
 use serde::Deserialize;
 use serde::Serialize;
 use crate::core::{Progress as CoreProgress, ProgressType as CoreProgressType};
 
+/// Result of a single image optimization from the Sharp sidecar.
 #[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct SharpResult {
     pub path: String,

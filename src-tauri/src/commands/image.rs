@@ -1,3 +1,5 @@
+//! Tauri command handlers for image optimization.
+
 use tauri::State;
 use tauri::Emitter;
 use tracing::debug;
@@ -5,6 +7,19 @@ use crate::core::{AppState, ImageSettings, OptimizationResult};
 use crate::core::ImageTask;
 use crate::utils::{OptimizerResult, validate_task};
 
+/// Optimizes a single image with the given settings.
+///
+/// This is a convenience wrapper around [`optimize_images`] for single-image operations.
+///
+/// # Arguments
+/// * `app` - Tauri app handle for event emission
+/// * `state` - Application state containing the executor
+/// * `input_path` - Path to the source image
+/// * `output_path` - Path for the optimized output
+/// * `settings` - Optimization settings (quality, resize, format)
+///
+/// # Returns
+/// The optimization result with file sizes and compression statistics.
 #[tauri::command]
 pub async fn optimize_image(
     app: tauri::AppHandle,
@@ -28,6 +43,22 @@ pub async fn optimize_image(
     }))
 }
 
+/// Optimizes multiple images in batch with progress tracking.
+///
+/// Images are processed in chunks of 500 to avoid overwhelming the system.
+/// Progress events are emitted to the frontend via Tauri events.
+///
+/// # Arguments
+/// * `app` - Tauri app handle for event emission
+/// * `state` - Application state containing the executor
+/// * `tasks` - Vector of image tasks to process
+///
+/// # Returns
+/// Vector of optimization results, one per input task.
+///
+/// # Events Emitted
+/// * `batch-progress` - Overall batch progress updates
+/// * `image_optimization_progress` - Per-image progress updates
 #[tauri::command]
 pub async fn optimize_images(
     app: tauri::AppHandle,

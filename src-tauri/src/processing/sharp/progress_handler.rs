@@ -64,41 +64,22 @@ impl ProgressHandler {
     /// Handles a detailed progress update from the sidecar
     pub fn handle_detailed_progress_update(&self, update: DetailedProgressUpdate) {
         // Create a progress object from the detailed update
-        let progress_type = ProgressType::Complete;
         let completed_tasks = update.batch_metrics.completed_tasks;
         let total_tasks = update.batch_metrics.total_tasks;
         
         let mut progress = Progress::new(
-            progress_type,
+            ProgressType::Complete,
             completed_tasks,
             total_tasks,
             "complete"
         );
         
-        // Calculate saved bytes and retrieve other metrics
+        // Extract metrics - use references where possible to avoid redundant clones
         let saved_bytes = update.optimization_metrics.saved_bytes;
-        let compression_ratio = update.optimization_metrics.compression_ratio.clone();
-        let task_id = update.task_id.clone();
-        let file_name = extract_filename(&task_id);
+        let compression_ratio = &update.optimization_metrics.compression_ratio;
+        let file_name = extract_filename(&update.task_id);
         
-        // Set task ID (reuse cloned value)
-        progress.task_id = Some(task_id.clone());
-        
-        // Create a result object (reuse cloned values - need to clone again for path)
-        let result = SharpResult {
-            path: task_id.clone(),
-            original_size: update.optimization_metrics.original_size,
-            optimized_size: update.optimization_metrics.optimized_size,
-            saved_bytes: saved_bytes as i64,
-            compression_ratio: compression_ratio.clone(),
-            format: update.optimization_metrics.format.clone(),
-            success: true,
-            error: None,
-        };
-        
-        progress.result = Some(result);
-        
-        // Create formatted message and metadata for the frontend (reuse cloned compression_ratio)
+        // Create formatted message first (before moving values)
         let saved_kb = saved_bytes as f64 / 1024.0;
         let formatted_msg = format!(
             "{} optimized ({:.2} KB saved / {}% compression) - Progress: {}% ({}/{})",
@@ -106,11 +87,11 @@ impl ProgressHandler {
             saved_kb,
             compression_ratio,
             update.batch_metrics.progress_percentage,
-            update.batch_metrics.completed_tasks,
-            update.batch_metrics.total_tasks
+            completed_tasks,
+            total_tasks
         );
         
-        // Add detailed metadata for the frontend
+        // Build metadata using references where json! macro allows
         let metadata = serde_json::json!({
             "formattedMessage": formatted_msg,
             "fileName": file_name,
@@ -120,6 +101,21 @@ impl ProgressHandler {
             "compressionRatio": compression_ratio
         });
         
+        // Create result object - clone only when storing into owned fields
+        let result = SharpResult {
+            path: update.task_id.clone(),
+            original_size: update.optimization_metrics.original_size,
+            optimized_size: update.optimization_metrics.optimized_size,
+            saved_bytes: saved_bytes as i64,
+            compression_ratio: update.optimization_metrics.compression_ratio.clone(),
+            format: update.optimization_metrics.format.clone(),
+            success: true,
+            error: None,
+        };
+        
+        // Set progress fields - task_id clone needed for owned Option<String>
+        progress.task_id = Some(update.task_id);
+        progress.result = Some(result);
         progress.metadata = Some(metadata);
         
         // Report progress
