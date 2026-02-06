@@ -54,7 +54,7 @@ For detailed technical information about the architecture, components, and imple
 - [ ] Add unsupported image format detection
 - [x] Add macOS support
 - [x] Add Linux support
-- [ ] Add updating mechanism
+- [x] Add updating mechanism
 - [ ] Redesign the product website
 - [ ] Design product logo & icons
 - [ ] Implement code signing for Windows and macOS builds

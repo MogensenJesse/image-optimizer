@@ -73,3 +73,7 @@ This application is a Tauri-based desktop image optimizer with three main compon
 - **Batch Processing**: Images processed in chunks (500 per batch) for scalability
 - **Worker Threads**: Sidecar uses Node.js worker threads for parallel processing
 
+## Useful CLI commands
+
+- npm version major/minor/patch
+- git push origin Development && git push origin vx.x.x (push to Development branch and tag the version)
