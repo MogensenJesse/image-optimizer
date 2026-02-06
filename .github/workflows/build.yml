@@ -5,11 +5,6 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Release tag (e.g. v0.3.1 or v0.3.1-beta.1). Defaults to branch name if empty.'
-        required: false
-        type: string
 
 jobs:
   build-tauri:
@@ -98,10 +93,10 @@ jobs:
           projectPath: .
           args: ${{ matrix.args }}
           includeDebug: false
-          tagName: ${{ github.event.inputs.version || github.ref_name }}
+          tagName: v__VERSION__
           releaseName: 'Image Optimizer v__VERSION__'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
-          prerelease: ${{ contains(github.event.inputs.version || github.ref_name, '-') }}
+          prerelease: false
 
 
