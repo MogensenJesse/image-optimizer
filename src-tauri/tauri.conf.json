@@ -51,7 +51,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEIwRkFERDcxQzEzODMzNzkKUldSNU16akJjZDM2c045ZmZzUmkzcXJ5ckJ2Wm1sZEpFMVpScTlwUERiSVJKL0dmVDFTMGVSeGIK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdFODg4MTBBM0MxNDdEQzMKUldURGZSUThDb0dJZnMzeEM1SXB3V0xiZUhVVWNLUmovSEJ6YTM4czIzWFJrY3FnVlNWU3A5RTUK",
       "endpoints": [
         "https://github.com/MogensenJesse/image-optimizer/releases/latest/download/latest.json"
       ]
