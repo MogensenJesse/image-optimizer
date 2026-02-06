@@ -24,6 +24,7 @@ sharp-sidecar/sharp-sidecar*
 .cursor/*
 .vscode/*
 .agents/*
+.tauri/*
 !.vscode/extensions.json
 !.vscode/settings.json
 .idea
