@@ -41,6 +41,7 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_store::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             optimize_image,
             optimize_images,
@@ -50,6 +51,15 @@ fn main() {
             let app_handle = app.app_handle().clone();
             app.manage(AppState::new(app_handle));
             debug!("✓ AppState initialized");
+
+            // Register updater plugin (desktop only)
+            #[cfg(desktop)]
+            {
+                app.handle()
+                    .plugin(tauri_plugin_updater::Builder::new().build())
+                    .expect("Failed to initialize updater plugin");
+                debug!("✓ Updater plugin initialized");
+            }
             
             #[cfg(target_os = "macos")]
             {

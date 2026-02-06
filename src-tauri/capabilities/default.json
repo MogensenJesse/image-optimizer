@@ -50,6 +50,8 @@
     "process:default",
     "shell:default",
     "fs:default",
-    "dialog:default"
+    "dialog:default",
+    "updater:default",
+    "store:default"
   ]
 }

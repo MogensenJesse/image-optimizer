@@ -43,6 +43,7 @@
   outline: none;
   cursor: pointer;
   transition: background-color 0.2s;
+  position: relative;
   
   img {
     width: 10px;
@@ -58,5 +59,22 @@
   }
 }
 
-.window-control-close {
-} 
+// Settings button - slightly larger icon for the cog
+.window-control-settings {
+  img {
+    width: 13px;
+    height: 13px;
+  }
+}
+
+// Update notification badge
+.window-control-badge {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 6px;
+  height: 6px;
+  background: #62cd20;
+  border-radius: 50%;
+  pointer-events: none;
+}

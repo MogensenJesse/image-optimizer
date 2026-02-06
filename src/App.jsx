@@ -4,13 +4,16 @@ import { basename, dirname, join } from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
 import { mkdir } from "@tauri-apps/plugin-fs";
 import { platform as getPlatform } from "@tauri-apps/plugin-os";
+import { load } from "@tauri-apps/plugin-store";
 import { useCallback, useEffect, useState } from "react";
 import optionsIcon from "./assets/icons/options.svg";
 import plusIcon from "./assets/icons/plus.svg";
 import FloatingMenu from "./components/FloatingMenu";
 import ProgressBar from "./components/ProgressBar";
+import SettingsPanel from "./components/SettingsPanel";
 import TitleBar from "./components/TitleBar";
 import useProgressTracker from "./hooks/useProgressTracker";
+import { checkForUpdate } from "./utils/updater";
 
 // Define app states as constants
 const APP_STATE = {
@@ -26,6 +29,8 @@ function App() {
   // Main application state
   const [appState, setAppState] = useState(APP_STATE.IDLE);
   const [showMenu, setShowMenu] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [hasUpdate, setHasUpdate] = useState(false);
   const [platformName, setPlatformName] = useState(null);
 
   // Use our custom hook for progress tracking
@@ -106,6 +111,10 @@ function App() {
     setShowMenu(!showMenu);
   };
 
+  const toggleSettings = () => {
+    setShowSettings((prev) => !prev);
+  };
+
   const isLinuxPlatform = platformName === "linux";
 
   // Detect platform once on mount
@@ -124,6 +133,33 @@ function App() {
 
     return () => {
       isMounted = false;
+    };
+  }, []);
+
+  // Auto-check for updates on startup (if enabled in settings)
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const store = await load("settings.json", { autoSave: true });
+        const autoCheckEnabled = await store.get("autoCheckUpdates");
+
+        // Default to true if the key doesn't exist yet
+        if (cancelled || autoCheckEnabled === false) return;
+
+        const update = await checkForUpdate();
+        if (!cancelled && update) {
+          setHasUpdate(true);
+        }
+      } catch (error) {
+        // Silently fail -- startup check is non-critical
+        console.error("Auto update check failed:", error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -283,7 +319,7 @@ function App() {
 
   return (
     <div className={`container ${isLinuxPlatform ? "container--solid" : ""}`}>
-      <TitleBar />
+      <TitleBar onSettingsToggle={toggleSettings} hasUpdate={hasUpdate} />
       <div className="app-content">
         {/* biome-ignore lint/a11y/useSemanticElements: Dropzone needs to be a div for drag-and-drop styling */}
         <div
@@ -353,6 +389,11 @@ function App() {
           }
           show={showMenu}
           onClose={() => setShowMenu(false)}
+        />
+
+        <SettingsPanel
+          show={showSettings}
+          onClose={() => setShowSettings(false)}
         />
       </div>
     </div>

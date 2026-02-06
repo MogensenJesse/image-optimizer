@@ -1,10 +1,12 @@
+// src/components/TitleBar.jsx
 import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState } from "react";
 import closeIcon from "../assets/icons/close.svg";
 import minimizeIcon from "../assets/icons/minimize.svg";
+import settingsIcon from "../assets/icons/settings.svg";
 
-function TitleBar() {
+function TitleBar({ onSettingsToggle, hasUpdate }) {
   const appWindow = getCurrentWindow();
   const [version, setVersion] = useState("");
 
@@ -27,6 +29,15 @@ function TitleBar() {
         {version && <span className="title-bar-version">v{version}</span>}
       </h1>
       <div className="window-controls">
+        <button
+          type="button"
+          onClick={onSettingsToggle}
+          className="window-control-button window-control-settings"
+          title="Settings"
+        >
+          <img src={settingsIcon} alt="Settings" />
+          {hasUpdate && <span className="window-control-badge" />}
+        </button>
         <button
           type="button"
           onClick={handleMinimize}

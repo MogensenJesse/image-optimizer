@@ -1,0 +1,198 @@
+// SettingsPanel Component
+@use '../base/variables' as v;
+
+.settings-panel {
+  position: fixed;
+  top: 60px;
+  right: 10px;
+  z-index: 950;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: all 0.25s cubic-bezier(.16,.7,.35,1);
+  background-color: v.$night;
+  border-radius: 10px;
+  padding: 24px 28px;
+  min-width: 280px;
+
+  // Overlay
+  &__overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 900;
+
+    &--active {
+      pointer-events: auto;
+    }
+  }
+
+  // Open state
+  &--open {
+    pointer-events: auto;
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  // Header
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(v.$light, 0.1);
+    font-weight: 500;
+    color: v.$light;
+  }
+
+  &__close {
+    background: none;
+    height: 24px;
+    width: 24px;
+    padding: 6px;
+    cursor: pointer;
+    color: v.$light;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  // Body
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-top: 16px;
+  }
+
+  // Item rows
+  &__item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: v.$light;
+    font-size: 0.9rem;
+
+    &--column {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+    }
+  }
+
+  &__item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  &__divider {
+    width: 100%;
+    height: 1px;
+    background-color: rgba(v.$light, 0.1);
+  }
+
+  // Toggle switch
+  &__toggle {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    background: rgba(v.$light, 0.15);
+    border: none;
+    border-radius: 11px;
+    cursor: pointer;
+    padding: 0;
+    transition: background-color 0.25s ease;
+
+    &--on {
+      background: #62cd20;
+    }
+  }
+
+  &__toggle-thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    background: v.$light;
+    border-radius: 50%;
+    transition: transform 0.25s ease;
+
+    .settings-panel__toggle--on & {
+      transform: translateX(18px);
+    }
+  }
+
+  // Check button
+  &__check-btn {
+    background: rgba(v.$light, 0.1);
+    color: v.$light;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+
+    &:hover:not(:disabled) {
+      background: rgba(v.$light, 0.18);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  // Status text
+  &__status {
+    font-size: 0.8rem;
+    opacity: 0.6;
+
+    &--success {
+      color: #62cd20;
+      opacity: 1;
+    }
+
+    &--available {
+      color: #d7bb21;
+      opacity: 1;
+    }
+
+    &--error {
+      color: #cd3120;
+      opacity: 1;
+    }
+  }
+
+  // Update available row
+  &__update-available {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  // Install button
+  &__install-btn {
+    background: #62cd20;
+    color: v.$night;
+    border: none;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+
+    &:hover {
+      opacity: 0.9;
+    }
+  }
+}
