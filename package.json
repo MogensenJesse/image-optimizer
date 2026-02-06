@@ -1,7 +1,7 @@
 {
   "name": "image-optimizer",
   "private": true,
-  "version": "0.2.5",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "npm run build:sharp && vite",
@@ -26,6 +26,8 @@
     "@tauri-apps/plugin-os": "^2.3.2",
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-shell": "^2.3.4",
+    "@tauri-apps/plugin-store": "^2.4.2",
+    "@tauri-apps/plugin-updater": "^2.10.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "sass": "^1.97.3"
