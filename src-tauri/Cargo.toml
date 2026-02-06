@@ -1,6 +1,6 @@
 [package]
 name = "image-optimizer"
-version = "0.3.0"
+version = "0.4.0"
 description = "A Tauri-based Image Optimization App"
 authors = ["you"]
 edition = "2021"
@@ -60,7 +60,7 @@ window-vibrancy = "0.6.0"
 tauri-plugin-log = "2"
 
 # Auto-update and persistent settings
-tauri-plugin-updater = "2"
+tauri-plugin-updater = "2.10.0"
 tauri-plugin-store = "2"
 
 # The following dependencies were unused and have been removed:
