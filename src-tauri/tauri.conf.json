@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Image Optimizer",
-  "version": "0.3.5",
+  "version": "0.4.0",
   "identifier": "com.image-optimizer.app",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -20,7 +20,9 @@
         "decorations": false,
         "dragDropEnabled": true,
         "windowEffects": {
-          "effects": ["acrylic"],
+          "effects": [
+            "acrylic"
+          ],
           "radius": 10
         }
       }
@@ -31,7 +33,9 @@
   },
   "bundle": {
     "createUpdaterArtifacts": true,
-    "externalBin": ["binaries/sharp-sidecar"],
+    "externalBin": [
+      "binaries/sharp-sidecar"
+    ],
     "active": true,
     "targets": "all",
     "macOS": {
