@@ -12,11 +12,13 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "postinstall": "cd sharp-sidecar && npm install",
-    "lint": "biome check .",
-    "lint:fix": "biome check --write .",
+    "lint": "biome format --write . && biome check . && npm run lint:rust",
+    "lint:fix": "biome format --write . && biome check --write . && npm run lint:rust",
+    "lint:rust": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
     "format": "biome format --write .",
     "version": "node scripts/sync-version.js && git add src-tauri/Cargo.toml src-tauri/tauri.conf.json",
-    "version:sync": "node scripts/sync-version.js"
+    "version:sync": "node scripts/sync-version.js",
+    "sync": "npm run lint:fix && npm run version:sync"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

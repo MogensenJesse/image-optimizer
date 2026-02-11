@@ -20,9 +20,7 @@
         "decorations": false,
         "dragDropEnabled": true,
         "windowEffects": {
-          "effects": [
-            "acrylic"
-          ],
+          "effects": ["acrylic"],
           "radius": 10
         }
       }
@@ -33,9 +31,7 @@
   },
   "bundle": {
     "createUpdaterArtifacts": true,
-    "externalBin": [
-      "binaries/sharp-sidecar"
-    ],
+    "externalBin": ["binaries/sharp-sidecar"],
     "active": true,
     "targets": "all",
     "macOS": {
