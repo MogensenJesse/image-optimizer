@@ -4,7 +4,7 @@
 // Progress circle - the semi-circular progress visualization
 .progress-circle {
   position: relative;
-  width: 100%;
+  width: 500px;
   height: auto;
   aspect-ratio: 1.67 / 1; // Maintains the approximate 250/150 ratio
   margin: 0 auto;
@@ -13,7 +13,6 @@
   align-items: center;
   justify-content: center;
   gap: 16px;
-  width: 500px;
   
   &__svg {
     position: absolute;
@@ -60,32 +59,3 @@
     }
   }
 }
-
-// Progress options - button below the progress visualization
-.progress-options {
-  margin-top: 1rem;
-  
-  &__button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: #333;
-    color: #fff;
-    border: none;
-    border-radius: 2rem;
-    padding: 0.6rem 1.5rem;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    
-    &:hover {
-      background-color: #444;
-    }
-  }
-  
-  &__icon {
-    margin-right: 0.5rem;
-    font-size: 1.2rem;
-    line-height: 1;
-  }
-} 

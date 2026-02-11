@@ -1,6 +1,14 @@
 // Colors
-$progress-bar-color: linear-gradient(to right, #d7b221, #cd3120);
-$quality-slider: linear-gradient(to right, #d7bb21, #62cd20);
 $light: #e0e0e0;
 $night: #0E0E0F;
 $onyx: #121314;
+$green: #62cd20;
+$yellow: #d7bb21;
+$red: #cd3120;
+
+// Shared easing curve
+$ease-out: cubic-bezier(.16, .7, .35, 1);
+
+// Border radius
+$radius-sm: 7px;
+$radius-lg: 12px;

@@ -319,7 +319,7 @@ function App() {
   };
 
   return (
-    <div className={`container ${isLinuxPlatform ? "container--solid" : ""}`}>
+    <div className="container">
       <TitleBar onSettingsToggle={toggleSettings} hasUpdate={hasUpdate} />
       <div className="app-content">
         <div className="workspace">
@@ -327,7 +327,6 @@ function App() {
             {/* biome-ignore lint/a11y/useSemanticElements: Dropzone needs to be a div for drag-and-drop styling */}
             <div
               className={`dropzone 
-                ${isLinuxPlatform ? "dropzone--solid" : ""} 
                 ${appState === APP_STATE.DRAGGING ? "dropzone--dragging" : ""} 
                 ${showProgressBar ? "dropzone--processing" : ""}
                 ${appState === APP_STATE.FADE_OUT ? "dropzone--fading" : ""}
@@ -383,6 +382,16 @@ function App() {
             >
               <img src={optionsIcon} alt="Options" />
             </button>
+
+            <FloatingMenu
+              settings={settings}
+              onSettingsChange={handleSettingsChange}
+              disabled={
+                appState !== APP_STATE.IDLE && appState !== APP_STATE.DRAGGING
+              }
+              show={showMenu}
+              onClose={() => setShowMenu(false)}
+            />
           </div>
 
           <SettingsPanel
@@ -390,16 +399,6 @@ function App() {
             onClose={() => setShowSettings(false)}
           />
         </div>
-
-        <FloatingMenu
-          settings={settings}
-          onSettingsChange={handleSettingsChange}
-          disabled={
-            appState !== APP_STATE.IDLE && appState !== APP_STATE.DRAGGING
-          }
-          show={showMenu}
-          onClose={() => setShowMenu(false)}
-        />
       </div>
     </div>
   );

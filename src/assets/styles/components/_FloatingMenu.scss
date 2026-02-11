@@ -1,8 +1,7 @@
 @use '../base/variables' as v;
 
 .floating-menu {
-  position: fixed;
-  bottom: 20px;
+  position: absolute;
   left: 50%;
   z-index: 950;
 
@@ -31,29 +30,25 @@
     bottom: 100%;
     margin-bottom: 20px;
     background-color: v.$night;
-    border-radius: 12px;
+    border-radius: v.$radius-lg;
     padding: 38px 45px 28px;
     width: 400px;
     pointer-events: none;
     opacity: 0;
     transform: translateX(-50%) translateY(10px);
-    transition: all 0.3s cubic-bezier(.16,.7,.35,1);
+    transition:
+      opacity 0.3s v.$ease-out,
+      transform 0.3s v.$ease-out;
   }
 
   // Menu item container
   &__item {
     width: 100%;
-    
-    &:last-child {
-      margin-bottom: 0;
-    }
   }
 
   // Menu item content
   &__content {
     width: 100%;
-    border: none;
-    background: none;
     color: v.$light;
 
     // Default layout for resize and convert options
@@ -97,7 +92,7 @@
     cursor: pointer;
     color: v.$light;
     opacity: 0.7;
-    transition: all 0.3s cubic-bezier(.16,.7,.35,1);
+    transition: opacity 0.3s v.$ease-out;
     
     &:hover {
       opacity: 1;
@@ -117,7 +112,7 @@
   // WebKitGTK (Linux) doesn't support ::before/::after on input elements
   .slider-container {
     --slider-value: 0%;
-    --slider-color: #d7bb21;
+    --slider-color: #{v.$yellow};
     position: relative;
     width: 100%;
     height: 10px;
@@ -130,7 +125,7 @@
       width: var(--slider-value);
       background: linear-gradient(
         to right,
-        #d7bb21 0%,
+        #{v.$yellow} 0%,
         var(--slider-color) 100%
       );
       top: 50%;
@@ -196,7 +191,7 @@
         border-radius: 50%;
         background: v.$light;
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: opacity 0.2s ease, transform 0.2s ease;
         margin-top: -11px;
         opacity: 0;
         position: relative;
@@ -210,7 +205,7 @@
         border-radius: 50%;
         background: v.$light;
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: opacity 0.2s ease, transform 0.2s ease;
         opacity: 0;
         position: relative;
         z-index: 3;
@@ -247,7 +242,7 @@
       padding: 4px 0;
       padding-bottom: 1px; // Ensure consistent height with border
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: opacity 0.2s ease;
       position: relative;
       
       &:focus {

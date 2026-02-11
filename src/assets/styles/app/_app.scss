@@ -35,19 +35,12 @@ body.platform-linux {
   width: 100%;
   height: calc(100vh - 80px);
   display: flex;
-  gap: 0;
-  // align-items: stretch;
 }
 
 .dropzone-area {
   position: relative;
   flex: 1;
   min-width: 0;
-}
-
-/* Additional styles for making the app draggable via the titlebar */
-.title-bar-drag-region {
-  -webkit-app-region: drag;
 }
 
 .dropzone {
@@ -57,14 +50,14 @@ body.platform-linux {
   align-items: center;
   justify-content: center;
   background-color: rgba(v.$night, 0.4);
-  border-radius: 7px;
-  transition: 0.6s cubic-bezier(.16,.7,.35,1);
+  border-radius: v.$radius-sm;
+  transition: background-color 0.6s v.$ease-out;
   cursor: pointer;
 
   // Only apply hover effects when not in processing state
   &:not(.dropzone--processing):hover {
     background-color: rgba(v.$night, 0.6);
-    transition: 0.3s cubic-bezier(.16,.7,.35,1);
+    transition: background-color 0.3s v.$ease-out;
     
     .dropzone__icon {
       transform: scale(1.2);
@@ -83,7 +76,7 @@ body.platform-linux {
 
   &__icon {
     margin-bottom: 10px;
-    transition: transform 0.3s cubic-bezier(.16,.7,.35,1);
+    transition: transform 0.3s v.$ease-out;
     display: block;
   }
 
@@ -109,7 +102,7 @@ body.platform-linux {
 
   &--dragging {
     background-color: rgba(v.$night, 0.8);
-    transition: 0.3s cubic-bezier(.16,.7,.35,1);
+    transition: background-color 0.3s v.$ease-out;
     
     .dropzone__icon {
       transform: scale(1.3);
@@ -183,24 +176,9 @@ body.platform-linux {
   }
 }
 
-// Processing and progress related styles have been moved to _ProgressBar.scss
-
-.completion-info {
-  text-align: center;
-
-  &__title {
-    font-size: 1.5rem;
-    margin-bottom: 16px;
-  }
-
-  p {
-    color: rgba(v.$light, 0.7);
-  }
-}
-
 .options-button {
   position: absolute;
-  bottom: 120px;
+  bottom: 40px;
   left: 50%;
   transform: translateX(-50%);
   width: 138px;
@@ -213,7 +191,7 @@ body.platform-linux {
   border-radius: 100px;
   padding: 0 16px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease;
   gap: 8px;
   
   &:hover {
