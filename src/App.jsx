@@ -1,3 +1,4 @@
+// src/App.jsx
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { basename, dirname, join } from "@tauri-apps/api/path";
@@ -321,65 +322,74 @@ function App() {
     <div className={`container ${isLinuxPlatform ? "container--solid" : ""}`}>
       <TitleBar onSettingsToggle={toggleSettings} hasUpdate={hasUpdate} />
       <div className="app-content">
-        {/* biome-ignore lint/a11y/useSemanticElements: Dropzone needs to be a div for drag-and-drop styling */}
-        <div
-          className={`dropzone 
-            ${isLinuxPlatform ? "dropzone--solid" : ""} 
-            ${appState === APP_STATE.DRAGGING ? "dropzone--dragging" : ""} 
-            ${showProgressBar ? "dropzone--processing" : ""}
-            ${appState === APP_STATE.FADE_OUT ? "dropzone--fading" : ""}
-            ${appState === APP_STATE.FADE_IN ? "dropzone--fading-in" : ""}`}
-          onClick={handleDropzoneClick}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              handleDropzoneClick();
-            }
-          }}
-          role="button"
-          tabIndex={0}
-          aria-label="Drop images here or click to select files"
-        >
-          <div className="dropzone__content">
-            {showProgressBar && (
-              <div className={`progress-container ${getProgressClasses()}`}>
-                <ProgressBar
-                  completedTasks={progress.completedTasks}
-                  totalTasks={progress.totalTasks}
-                  progressPercentage={progress.progressPercentage}
-                  savedSize={progress.savedSize}
-                  savedPercentage={progress.savedPercentage}
-                  processingTime={progress.processingTime}
-                />
-              </div>
-            )}
+        <div className="workspace">
+          <div className="dropzone-area">
+            {/* biome-ignore lint/a11y/useSemanticElements: Dropzone needs to be a div for drag-and-drop styling */}
+            <div
+              className={`dropzone 
+                ${isLinuxPlatform ? "dropzone--solid" : ""} 
+                ${appState === APP_STATE.DRAGGING ? "dropzone--dragging" : ""} 
+                ${showProgressBar ? "dropzone--processing" : ""}
+                ${appState === APP_STATE.FADE_OUT ? "dropzone--fading" : ""}
+                ${appState === APP_STATE.FADE_IN ? "dropzone--fading-in" : ""}`}
+              onClick={handleDropzoneClick}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  handleDropzoneClick();
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              aria-label="Drop images here or click to select files"
+            >
+              <div className="dropzone__content">
+                {showProgressBar && (
+                  <div className={`progress-container ${getProgressClasses()}`}>
+                    <ProgressBar
+                      completedTasks={progress.completedTasks}
+                      totalTasks={progress.totalTasks}
+                      progressPercentage={progress.progressPercentage}
+                      savedSize={progress.savedSize}
+                      savedPercentage={progress.savedPercentage}
+                      processingTime={progress.processingTime}
+                    />
+                  </div>
+                )}
 
-            {showDropzone && (
-              <div
-                className={`dropzone__message ${appState === APP_STATE.FADE_OUT ? "fade-in-delayed" : ""}`}
-              >
-                <img
-                  src={plusIcon}
-                  alt="Drop here"
-                  className="dropzone__icon"
-                />
-                <h2>Drop images here</h2>
-                <p>Optimized images will be saved in their source folder</p>
+                {showDropzone && (
+                  <div
+                    className={`dropzone__message ${appState === APP_STATE.FADE_OUT ? "fade-in-delayed" : ""}`}
+                  >
+                    <img
+                      src={plusIcon}
+                      alt="Drop here"
+                      className="dropzone__icon"
+                    />
+                    <h2>Drop images here</h2>
+                    <p>Optimized images will be saved in their source folder</p>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
+
+            <button
+              type="button"
+              className="options-button"
+              onClick={toggleMenu}
+              disabled={
+                appState !== APP_STATE.IDLE && appState !== APP_STATE.DRAGGING
+              }
+            >
+              <img src={optionsIcon} alt="Options" />
+            </button>
           </div>
-        </div>
 
-        <button
-          type="button"
-          className="options-button"
-          onClick={toggleMenu}
-          disabled={
-            appState !== APP_STATE.IDLE && appState !== APP_STATE.DRAGGING
-          }
-        >
-          <img src={optionsIcon} alt="Options" />
-        </button>
+          <SettingsPanel
+            show={showSettings}
+            onClose={() => setShowSettings(false)}
+          />
+        </div>
 
         <FloatingMenu
           settings={settings}
@@ -389,11 +399,6 @@ function App() {
           }
           show={showMenu}
           onClose={() => setShowMenu(false)}
-        />
-
-        <SettingsPanel
-          show={showSettings}
-          onClose={() => setShowSettings(false)}
         />
       </div>
     </div>

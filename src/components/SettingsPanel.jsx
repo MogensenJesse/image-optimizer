@@ -99,8 +99,6 @@ function SettingsPanel({ show, onClose }) {
 
   const renderUpdateStatus = () => {
     switch (updateState) {
-      case UPDATE_STATE.CHECKING:
-        return <span className="settings-panel__status">Checking...</span>;
       case UPDATE_STATE.UP_TO_DATE:
         return (
           <span className="settings-panel__status settings-panel__status--success">
@@ -109,18 +107,9 @@ function SettingsPanel({ show, onClose }) {
         );
       case UPDATE_STATE.AVAILABLE:
         return (
-          <div className="settings-panel__update-available">
-            <span className="settings-panel__status settings-panel__status--available">
-              v{updateInfo?.version} available
-            </span>
-            <button
-              type="button"
-              className="settings-panel__install-btn"
-              onClick={handleInstallUpdate}
-            >
-              Install & restart
-            </button>
-          </div>
+          <span className="settings-panel__status settings-panel__status--available">
+            v{updateInfo?.version} available
+          </span>
         );
       case UPDATE_STATE.DOWNLOADING:
         return (
@@ -139,29 +128,53 @@ function SettingsPanel({ show, onClose }) {
     }
   };
 
-  return (
-    <>
-      {/* biome-ignore lint/a11y/useSemanticElements: Overlay needs full-screen coverage */}
-      <div
-        className={`settings-panel__overlay ${show ? "settings-panel__overlay--active" : ""}`}
-        onClick={onClose}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.preventDefault();
-            onClose();
-          }
-        }}
-        role="button"
-        tabIndex={0}
-        aria-label="Close settings"
-      />
+  const getPrimaryAction = () => {
+    if (updateState === UPDATE_STATE.AVAILABLE) {
+      return {
+        label: "Install update",
+        onClick: handleInstallUpdate,
+        disabled: false,
+      };
+    }
 
-      <div className={`settings-panel ${show ? "settings-panel--open" : ""}`}>
+    if (updateState === UPDATE_STATE.CHECKING) {
+      return {
+        label: "Checking...",
+        onClick: handleCheckForUpdates,
+        disabled: true,
+      };
+    }
+
+    if (updateState === UPDATE_STATE.DOWNLOADING) {
+      return {
+        label: `Installing... ${downloadProgress}%`,
+        onClick: handleInstallUpdate,
+        disabled: true,
+      };
+    }
+
+    return {
+      label: "Check for updates",
+      onClick: handleCheckForUpdates,
+      disabled: false,
+    };
+  };
+
+  const primaryAction = getPrimaryAction();
+
+  return (
+    <div className={`settings-panel ${show ? "settings-panel--open" : ""}`}>
+      <div className="settings-panel__surface" aria-hidden={!show}>
         <div className="settings-panel__header">
-          <span>Settings</span>
-          <button type="button" onClick={onClose} aria-label="Close settings">
+          <span className="settings-panel__title">Settings</span>
+          <button
+            type="button"
+            className="settings-panel__close-btn"
+            onClick={onClose}
+            aria-label="Close settings"
+          >
             <img
-              className="settings-panel__close"
+              className="settings-panel__close-icon"
               src={closeIcon}
               alt="Close"
             />
@@ -169,8 +182,10 @@ function SettingsPanel({ show, onClose }) {
         </div>
 
         <div className="settings-panel__body">
-          <div className="settings-panel__item">
-            <span>Auto-check for updates</span>
+          <p className="settings-panel__section-label">App updates</p>
+          <div className="settings-panel__divider" />
+
+          <div className="settings-panel__item settings-panel__item--toggle">
             <button
               type="button"
               className={`settings-panel__toggle ${autoCheck ? "settings-panel__toggle--on" : ""}`}
@@ -181,30 +196,24 @@ function SettingsPanel({ show, onClose }) {
             >
               <span className="settings-panel__toggle-thumb" />
             </button>
+            <span className="settings-panel__toggle-label">
+              Check for updates on startup
+            </span>
           </div>
 
-          <div className="settings-panel__divider" />
+          <button
+            type="button"
+            className="settings-panel__check-btn"
+            onClick={primaryAction.onClick}
+            disabled={primaryAction.disabled}
+          >
+            {primaryAction.label}
+          </button>
 
-          <div className="settings-panel__item settings-panel__item--column">
-            <div className="settings-panel__item-row">
-              <span>Updates</span>
-              <button
-                type="button"
-                className="settings-panel__check-btn"
-                onClick={handleCheckForUpdates}
-                disabled={
-                  updateState === UPDATE_STATE.CHECKING ||
-                  updateState === UPDATE_STATE.DOWNLOADING
-                }
-              >
-                Check now
-              </button>
-            </div>
-            {renderUpdateStatus()}
-          </div>
+          <div className="settings-panel__status-row">{renderUpdateStatus()}</div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 

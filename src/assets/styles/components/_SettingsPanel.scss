@@ -1,95 +1,95 @@
+// src/assets/styles/components/_SettingsPanel.scss
 // SettingsPanel Component
 @use '../base/variables' as v;
 
 .settings-panel {
-  position: fixed;
-  top: 60px;
-  right: 10px;
-  z-index: 950;
+  $panel-width: 267px;
+  $panel-gap: 10px;
+
+  position: relative;
+  height: 100%;
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
   pointer-events: none;
-  opacity: 0;
-  transform: translateY(-8px);
-  transition: all 0.25s cubic-bezier(.16,.7,.35,1);
-  background-color: v.$night;
-  border-radius: 10px;
-  padding: 24px 28px;
-  min-width: 280px;
+  transition: width 0.35s cubic-bezier(.16,.7,.35,1);
 
-  // Overlay
-  &__overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    pointer-events: none;
-    z-index: 900;
-
-    &--active {
-      pointer-events: auto;
-    }
-  }
-
-  // Open state
   &--open {
+    width: calc(#{$panel-width} + #{$panel-gap});
     pointer-events: auto;
-    opacity: 1;
-    transform: translateY(0);
   }
 
-  // Header
+  // Fixed-width inner panel — the outer wrapper clips it via overflow:hidden.
+  // No opacity/transform here; the width animation on the wrapper acts as a
+  // sliding clipping mask that progressively reveals/hides this surface.
+  &__surface {
+    position: absolute;
+    top: 0;
+    left: $panel-gap;
+    height: 100%;
+    width: $panel-width;
+    box-sizing: border-box;
+    border-radius: 7px;
+    background-color: rgba(v.$night, 0.4);
+    padding: 20px;
+  }
+
   &__header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding-bottom: 16px;
-    border-bottom: 1px solid rgba(v.$light, 0.1);
-    font-weight: 500;
-    color: v.$light;
   }
 
-  &__close {
-    background: none;
-    height: 24px;
-    width: 24px;
+  &__title {
+    font-weight: 500;
+    color: v.$light;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  &__close-btn {
+    border: none;
+    background: transparent;
+    width: 20px;
+    height: 20px;
     padding: 6px;
     cursor: pointer;
-    color: v.$light;
-    opacity: 0.7;
+    opacity: 0.8;
     transition: opacity 0.2s ease;
 
     &:hover {
       opacity: 1;
     }
-  }
 
-  // Body
-  &__body {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    padding-top: 16px;
-  }
-
-  // Item rows
-  &__item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    color: v.$light;
-    font-size: 0.9rem;
-
-    &--column {
-      flex-direction: column;
-      align-items: stretch;
-      gap: 10px;
+    &:focus-visible {
+      outline: 1px solid rgba(v.$light, 0.35);
+      outline-offset: 2px;
+      border-radius: 4px;
     }
   }
 
-  &__item-row {
+  &__close-icon {
+    width: 8px;
+    height: 8px;
+    display: block;
+  }
+
+  &__body {
+    margin-top: 30px;
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  &__section-label {
+    margin: 0;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: v.$light;
+    opacity: 0.5;
   }
 
   &__divider {
@@ -98,17 +98,38 @@
     background-color: rgba(v.$light, 0.1);
   }
 
-  // Toggle switch
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  &__item--toggle {
+    align-items: center;
+  }
+
+  &__toggle-label {
+    font-size: 12px;
+    color: v.$light;
+    opacity: 0.5;
+  }
+
   &__toggle {
     position: relative;
-    width: 40px;
-    height: 22px;
+    width: 29px;
+    height: 17px;
     background: rgba(v.$light, 0.15);
     border: none;
-    border-radius: 11px;
+    border-radius: 50px;
     cursor: pointer;
     padding: 0;
     transition: background-color 0.25s ease;
+    flex-shrink: 0;
+
+    &:focus-visible {
+      outline: 1px solid rgba(v.$light, 0.35);
+      outline-offset: 2px;
+    }
 
     &--on {
       background: #62cd20;
@@ -117,43 +138,60 @@
 
   &__toggle-thumb {
     position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 16px;
-    height: 16px;
+    top: 2px;
+    left: 2px;
+    width: 13px;
+    height: 13px;
     background: v.$light;
     border-radius: 50%;
     transition: transform 0.25s ease;
 
     .settings-panel__toggle--on & {
-      transform: translateX(18px);
+      transform: translateX(12px);
     }
   }
 
-  // Check button
   &__check-btn {
-    background: rgba(v.$light, 0.1);
+    width: 100%;
+    margin-top: 8px;
+    background: transparent;
     color: v.$light;
-    border: none;
-    border-radius: 6px;
-    padding: 6px 14px;
-    font-size: 0.8rem;
+    border: 1px solid rgba(v.$light, 0.1);
+    border-radius: 5px;
+    padding: 16px 12px;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    text-align: center;
+    opacity: 0.5;
     cursor: pointer;
-    transition: background-color 0.2s ease;
+    transition:
+      opacity 0.2s ease,
+      border-color 0.2s ease;
 
     &:hover:not(:disabled) {
-      background: rgba(v.$light, 0.18);
+      opacity: 0.8;
+      border-color: rgba(v.$light, 0.2);
+    }
+
+    &:focus-visible {
+      outline: 1px solid rgba(v.$light, 0.35);
+      outline-offset: 2px;
     }
 
     &:disabled {
-      opacity: 0.5;
+      opacity: 0.35;
       cursor: not-allowed;
     }
   }
 
-  // Status text
+  &__status-row {
+    min-height: 16px;
+    margin-top: -6px;
+  }
+
   &__status {
-    font-size: 0.8rem;
+    font-size: 10px;
     opacity: 0.6;
 
     &--success {
@@ -169,30 +207,6 @@
     &--error {
       color: #cd3120;
       opacity: 1;
-    }
-  }
-
-  // Update available row
-  &__update-available {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  // Install button
-  &__install-btn {
-    background: #62cd20;
-    color: v.$night;
-    border: none;
-    border-radius: 6px;
-    padding: 5px 12px;
-    font-size: 0.8rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: opacity 0.2s ease;
-
-    &:hover {
-      opacity: 0.9;
     }
   }
 }
