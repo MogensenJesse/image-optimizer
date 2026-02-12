@@ -18,9 +18,9 @@ const UPDATE_STATE = {
 };
 
 // DEV ONLY — mock update data so the changelog UI is visible during development
-const DEV_MOCK_UPDATE = {
+const _DEV_MOCK_UPDATE = {
   version: "0.3.5",
-  body: "### Auto-Update System\n- Added in-app update checking and installation via tauri-plugin-updater\n- App checks for updates automatically on startup (configurable)\n- Manual \"Check now\" button in settings for on-demand update checks\n- Updates are downloaded, verified against a signed public key, and installed with a single click\n- Signed release artifacts (.sig files) for update authenticity verification\n\n### Settings Panel\n- New settings panel accessible via the cog icon in the title bar\n- Toggle for enabling/disabling automatic update checks on startup\n- Update status display with download progress\n- Preference persistence via tauri-plugin-store\n\n### Title Bar\n- Added settings button with cog icon\n- Green notification badge appears when an update is available\n\n### Build & Release\n- Streamlined version management: npm version patch now syncs package.json, Cargo.toml, Cargo.lock, and tauri.conf.json automatically\n- Release tags always match the built app version\n- Signed builds via TAURI_SIGNING_PRIVATE_KEY in CI",
+  body: '### Auto-Update System\n- Added in-app update checking and installation via tauri-plugin-updater\n- App checks for updates automatically on startup (configurable)\n- Manual "Check now" button in settings for on-demand update checks\n- Updates are downloaded, verified against a signed public key, and installed with a single click\n- Signed release artifacts (.sig files) for update authenticity verification\n\n### Settings Panel\n- New settings panel accessible via the cog icon in the title bar\n- Toggle for enabling/disabling automatic update checks on startup\n- Update status display with download progress\n- Preference persistence via tauri-plugin-store\n\n### Title Bar\n- Added settings button with cog icon\n- Green notification badge appears when an update is available\n\n### Build & Release\n- Streamlined version management: npm version patch now syncs package.json, Cargo.toml, Cargo.lock, and tauri.conf.json automatically\n- Release tags always match the built app version\n- Signed builds via TAURI_SIGNING_PRIVATE_KEY in CI',
   date: null,
   _update: null,
 };
@@ -182,14 +182,20 @@ function SettingsPanel({ show, onClose }) {
       if (trimmed.startsWith("###")) {
         // Section header — strip the ### prefix
         elements.push(
-          <p key={`s${sectionIndex++}`} className="settings-panel__changelog-section">
+          <p
+            key={`s${sectionIndex++}`}
+            className="settings-panel__changelog-section"
+          >
             {trimmed.replace(/^#{1,4}\s*/, "")}
           </p>,
         );
       } else if (trimmed.startsWith("- ")) {
         // List item — strip the "- " prefix
         elements.push(
-          <p key={`i${elements.length}`} className="settings-panel__changelog-item">
+          <p
+            key={`i${elements.length}`}
+            className="settings-panel__changelog-item"
+          >
             {trimmed.slice(2)}
           </p>,
         );

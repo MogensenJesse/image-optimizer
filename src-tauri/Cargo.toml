@@ -3,7 +3,7 @@ name = "image-optimizer"
 version = "0.4.0"
 description = "A Tauri-based Image Optimization App"
 authors = ["you"]
-edition = "2021"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -46,25 +46,19 @@ tauri-plugin-dialog = "2"
 tauri-plugin-process = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-os = "2"
-tokio = { version = "1.42.0", features = ["full", "time"] }
-futures = "0.3.31"
-tracing = "0.1.41"
-tracing-subscriber = "0.3.19"
-lazy_static = "1.5.0"
-thiserror = "2.0.11"
-anyhow = "1.0.95"
-memmap2 = "0.9.5"
-window-vibrancy = "0.6.0"
+tokio = { version = "1.42", features = ["full", "time"] }
+futures = "0.3"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+lazy_static = "1.5"
+thiserror = "2.0"
+anyhow = "1.0"
+memmap2 = "0.9"
+window-vibrancy = "0.7"
 
 # Optional: Add logging for better debugging
 tauri-plugin-log = "2"
 
 # Auto-update and persistent settings
-tauri-plugin-updater = "2.10.0"
+tauri-plugin-updater = "2"
 tauri-plugin-store = "2"
-
-# The following dependencies were unused and have been removed:
-# crossbeam-channel = "0.5.14"
-# parking_lot = "0.12.3"
-# sysinfo = "0.33.1"
-# enum-map = { version = "2.7.3", features = [], optional = true }

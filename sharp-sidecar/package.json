@@ -11,18 +11,18 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "sharp": "^0.34.5"
+    "sharp": "^0.34"
   },
   "optionalDependencies": {
-    "@img/sharp-darwin-arm64": "latest",
-    "@img/sharp-darwin-x64": "latest",
-    "@img/sharp-libvips-darwin-x64": "^1.2.4",
-    "@img/sharp-win32-x64": "latest",
-    "@img/sharp-linux-x64": "latest",
-    "@img/sharp-libvips-linux-x64": "latest"
+    "@img/sharp-darwin-arm64": "^0.34",
+    "@img/sharp-darwin-x64": "^0.34",
+    "@img/sharp-libvips-darwin-x64": "^1.2",
+    "@img/sharp-win32-x64": "^0.34",
+    "@img/sharp-linux-x64": "^0.34",
+    "@img/sharp-libvips-linux-x64": "^1.2"
   },
   "devDependencies": {
-    "@yao-pkg/pkg": "^6.12.0"
+    "@yao-pkg/pkg": "^6.12"
   },
   "bin": "index.js",
   "pkg": {
