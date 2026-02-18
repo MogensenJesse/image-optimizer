@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use crate::processing::SharpResult;
 
 /// Progress message type.
 #[derive(Debug, Deserialize, Clone, Serialize, PartialEq)]
@@ -35,9 +34,9 @@ pub struct Progress {
     /// Optional worker ID that processed the task
     #[serde(default)]
     pub worker_id: Option<usize>,
-    /// Optional result for completed tasks
+    /// Optional per-image result for completed tasks
     #[serde(default)]
-    pub result: Option<SharpResult>,
+    pub result: Option<serde_json::Value>,
     /// Optional error message
     #[serde(default)]
     pub error: Option<String>,

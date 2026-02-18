@@ -1,22 +1,20 @@
 //! Image Optimizer Library
 //!
-//! A high-performance image optimization library built with Tauri.
+//! A high-performance image optimization library built with Tauri and native libvips.
 //!
 //! This crate provides the core functionality for the Image Optimizer desktop application,
 //! including:
 //!
-//! - Image optimization via Sharp/libvips sidecar process
-//! - Batch processing with progress tracking
-//! - Support for JPEG, PNG, WebP, and AVIF formats
-//! - Memory-mapped file transfer for efficient large batch processing
+//! - Native image optimization via libvips (no subprocess)
+//! - Batch processing with real-time progress tracking
+//! - Support for JPEG, PNG, WebP, AVIF, and TIFF formats
+//! - Benchmarking command to measure optimization throughput
 //!
 //! # Architecture
 //!
-//! The library is organized into the following modules:
-//!
 //! - [`commands`]: Tauri command handlers for frontend invocation
 //! - [`core`]: Application state, types, and task definitions
-//! - [`processing`]: Sharp sidecar communication and execution
+//! - [`processing`]: Native libvips executor
 //! - [`utils`]: Error handling, validation, and format utilities
 //!
 //! # Example
@@ -43,6 +41,6 @@ pub mod processing;
 pub mod utils;
 
 // Public exports for external consumers
-pub use core::{AppState, ImageTask, ImageSettings, OptimizationResult};
+pub use core::{AppState, ImageTask, ImageSettings, OptimizationResult, BenchmarkResult};
 pub use utils::{OptimizerError, OptimizerResult};
 pub use commands::*;

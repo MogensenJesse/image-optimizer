@@ -9,31 +9,6 @@
     "core:window:allow-start-dragging",
     "core:window:allow-minimize",
     "core:window:allow-close",
-    {
-      "identifier": "shell:allow-execute",
-      "allow": [
-        {
-          "name": "binaries/sharp-sidecar",
-          "sidecar": true,
-          "args": [
-            "optimize",
-            {
-              "validator": "\\S+"
-            },
-            {
-              "validator": "\\S+"
-            },
-            {
-              "validator": ".*"
-            }
-          ]
-        }
-      ]
-    },
-    "shell:allow-kill",
-    "shell:allow-open",
-    "shell:allow-spawn",
-    "shell:allow-stdin-write",
     "dialog:allow-open",
     {
       "identifier": "fs:scope",
@@ -48,7 +23,6 @@
     "core:path:default",
     "fs:allow-mkdir",
     "process:default",
-    "shell:default",
     "fs:default",
     "dialog:default",
     "updater:default",

@@ -1,8 +1,6 @@
-//! Image processing via the Sharp sidecar.
+//! Image processing modules.
 //!
-//! This module handles communication with the Node.js Sharp sidecar process
-//! that performs the actual image optimization using libvips.
+//! - [`libvips`]: Native Rust-to-libvips executor (primary).
+//! - [`sharp`]: Legacy Node.js sidecar integration (kept during transition only).
 
-pub mod sharp;
-
-pub use sharp::types::SharpResult; 
+pub mod libvips;

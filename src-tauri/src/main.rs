@@ -12,7 +12,7 @@ mod commands;
 use tracing::{info, debug};
 use tauri::Manager;
 use crate::core::AppState;
-use crate::commands::{optimize_image, optimize_images};
+use crate::commands::{optimize_image, optimize_images, benchmark_optimization};
 
 // Import the window-vibrancy crate only on macOS
 #[cfg(target_os = "macos")]
@@ -38,13 +38,13 @@ fn main() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             optimize_image,
             optimize_images,
+            benchmark_optimization,
         ])
         .setup(|app| {
             // Initialize AppState with app handle
@@ -70,20 +70,6 @@ fn main() {
                     .expect("Failed to apply vibrancy effect on macOS");
             }
                 
-            // Start warmup in a separate task so it doesn't block app startup
-            let app_handle = app.app_handle().clone();
-            tauri::async_runtime::spawn(async move {
-                // Reduced delay to speed up first optimization
-                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                
-                let state = app_handle.state::<AppState>();
-                if let Err(e) = state.warmup_executor().await {
-                    debug!("Executor warmup failed: {}", e);
-                } else {
-                    debug!("Executor warmup completed in the background");
-                }
-            });
-            
             Ok(())
         })
         .build(tauri::generate_context!())

@@ -20,6 +20,9 @@ src-tauri/binaries/
 src-tauri/target/analyzer/
 sharp-sidecar/sharp-sidecar*
 
+# Vendored native libraries (platform-specific, not committed)
+vendor/libvips-native/
+
 # Editor directories and files
 .cursor/*
 .vscode/*

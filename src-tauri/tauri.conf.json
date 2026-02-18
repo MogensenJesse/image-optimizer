@@ -33,9 +33,6 @@
   },
   "bundle": {
     "createUpdaterArtifacts": true,
-    "externalBin": [
-      "binaries/sharp-sidecar"
-    ],
     "active": true,
     "targets": "all",
     "macOS": {

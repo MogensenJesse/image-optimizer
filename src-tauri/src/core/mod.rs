@@ -13,6 +13,5 @@ mod task;
 mod progress;
 
 pub use state::AppState;
-pub use types::{ImageSettings, OptimizationResult};
+pub use types::{ImageSettings, QualitySettings, ResizeSettings, OptimizationResult, BenchmarkResult};
 pub use task::ImageTask;
-pub use progress::{Progress, ProgressType}; 

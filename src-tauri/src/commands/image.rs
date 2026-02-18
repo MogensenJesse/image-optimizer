@@ -1,11 +1,12 @@
 //! Tauri command handlers for image optimization.
 
+use std::path::Path;
 use tauri::State;
 use tauri::Emitter;
 use tracing::debug;
-use crate::core::{AppState, ImageSettings, OptimizationResult};
+use crate::core::{AppState, ImageSettings, OptimizationResult, BenchmarkResult};
 use crate::core::ImageTask;
-use crate::utils::{OptimizerResult, validate_task};
+use crate::utils::{OptimizerResult, OptimizerError, validate_task, validate_input_path};
 
 /// Optimizes a single image with the given settings.
 ///
@@ -73,9 +74,8 @@ pub async fn optimize_images(
         validate_task(task).await?;
     }
 
-    // Process in chunks to avoid overwhelming the system
-    // Increased from 75 to 500 now that we're using memory-mapped files
-    // and no longer limited by command line length
+    // Process in chunks so the frontend receives batch-progress events
+    // between chunks, keeping the UI responsive for very large batches.
     const CHUNK_SIZE: usize = 500;
     let chunks: Vec<_> = tasks.chunks(CHUNK_SIZE).collect();
     debug!("Processing {} images in {} chunks of size {}", task_count, chunks.len(), CHUNK_SIZE);
@@ -129,4 +129,95 @@ pub async fn optimize_images(
     
     debug!("All chunks processed, returning {} results", all_results.len());
     Ok(all_results)
+}
+
+/// Benchmarks optimization performance on a set of images.
+///
+/// Runs the same optimization pipeline as [`optimize_images`] but redirects
+/// all output to a temporary directory, times the entire batch, and returns
+/// throughput statistics without touching the original output paths.
+///
+/// # Arguments
+/// * `state` - Application state containing the executor
+/// * `tasks` - Vector of image tasks whose input files will be benchmarked
+///
+/// # Returns
+/// A [`BenchmarkResult`] with total time, per-image average, throughput, and byte counts.
+#[tauri::command]
+pub async fn benchmark_optimization(
+    state: State<'_, AppState>,
+    tasks: Vec<ImageTask>,
+) -> OptimizerResult<BenchmarkResult> {
+    if tasks.is_empty() {
+        return Err(OptimizerError::processing("No tasks provided for benchmark"));
+    }
+
+    let task_count = tasks.len();
+    debug!("Starting benchmark for {} images", task_count);
+
+    // Temp directory scoped to this benchmark run
+    let bench_id = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let temp_dir = std::env::temp_dir().join(format!("image-optimizer-benchmark-{bench_id}"));
+    tokio::fs::create_dir_all(&temp_dir).await?;
+
+    // Validate inputs and remap outputs to temp paths
+    let mut bench_tasks: Vec<ImageTask> = Vec::with_capacity(task_count);
+    for task in &tasks {
+        validate_input_path(&task.input_path).await?;
+
+        let filename = Path::new(&task.input_path)
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+
+        bench_tasks.push(ImageTask {
+            input_path: task.input_path.clone(),
+            output_path: temp_dir.join(&filename).to_string_lossy().to_string(),
+            settings: task.settings.clone(),
+        });
+    }
+
+    // Measure total input size before processing
+    let total_input_bytes: u64 = bench_tasks
+        .iter()
+        .filter_map(|t| std::fs::metadata(&t.input_path).ok())
+        .map(|m| m.len())
+        .sum();
+
+    // Time the full batch execution (single executor call, matching real-world usage)
+    let executor = state.create_executor();
+    let start = std::time::Instant::now();
+    let results = executor.execute_batch(&bench_tasks).await?;
+    let elapsed_ms = start.elapsed().as_millis() as u64;
+
+    // Collect output sizes from results
+    let total_output_bytes: u64 = results.iter().map(|r| r.optimized_size).sum();
+
+    // Clean up temp directory (best effort)
+    let _ = tokio::fs::remove_dir_all(&temp_dir).await;
+
+    let avg_per_image_ms = elapsed_ms as f64 / task_count as f64;
+    let throughput_images_per_sec = if elapsed_ms > 0 {
+        task_count as f64 / (elapsed_ms as f64 / 1000.0)
+    } else {
+        f64::INFINITY
+    };
+
+    debug!(
+        "Benchmark complete: {} images in {}ms ({:.2} img/s, {:.1} ms/img)",
+        task_count, elapsed_ms, throughput_images_per_sec, avg_per_image_ms
+    );
+
+    Ok(BenchmarkResult {
+        total_time_ms: elapsed_ms,
+        avg_per_image_ms,
+        throughput_images_per_sec,
+        image_count: task_count,
+        total_input_bytes,
+        total_output_bytes,
+    })
 }
