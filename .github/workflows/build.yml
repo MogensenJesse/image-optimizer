@@ -49,15 +49,6 @@ jobs:
           # Include target arch in cache key for cross-compilation
           shared-key: ${{ matrix.args == '--target aarch64-apple-darwin' && 'macos-arm64' || '' }}
 
-      - name: Cache sidecar dependencies
-        id: sidecar-cache
-        uses: actions/cache@v4
-        with:
-          path: sharp-sidecar/node_modules
-          key: ${{ runner.os }}-sidecar-${{ hashFiles('sharp-sidecar/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-sidecar-
-
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
@@ -68,17 +59,6 @@ jobs:
 
       - name: Install dependencies (root)
         run: npm ci
-
-      - name: Install dependencies (sidecar)
-        if: steps.sidecar-cache.outputs.cache-hit != 'true'
-        run: |
-          cd sharp-sidecar
-          npm ci
-
-      - name: Build sidecar
-        run: |
-          cd sharp-sidecar
-          npm run build:rename
 
       - name: Build frontend
         run: npm run build

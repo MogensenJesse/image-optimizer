@@ -1,10 +1,6 @@
 // src-tauri/src/processing/libvips/mod.rs
 
-//! Native image processing via libvips-rs.
-//!
-//! Replaces the Node.js Sharp sidecar with direct Rust-to-libvips calls,
-//! eliminating subprocess spawn overhead, JSON serialisation, and the bundled
-//! Node.js runtime from the application bundle.
+//! Native image processing via vendored libvips-rs bindings.
 //!
 //! # Architecture
 //!
@@ -17,3 +13,19 @@ mod formats;
 mod resize;
 
 pub use executor::NativeExecutor;
+
+use std::ffi::CStr;
+
+/// Reads the global libvips error buffer for diagnostic messages.
+pub(crate) fn vips_error_buffer_string() -> String {
+    unsafe {
+        let ptr = libvips::bindings::vips_error_buffer();
+        if ptr.is_null() {
+            return "unknown error".to_string();
+        }
+        CStr::from_ptr(ptr)
+            .to_string_lossy()
+            .trim()
+            .to_string()
+    }
+}

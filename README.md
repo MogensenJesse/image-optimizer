@@ -30,8 +30,7 @@ Image Optimizer is a high-performance desktop application designed to streamline
 - **SCSS**: Modular styling system with variables
 - **Rust**: High-performance, memory-safe language for the core application logic
 - **Tokio**: Asynchronous runtime for non-blocking operations
-- **Node.js**: Dedicated sidecar process for image processing operations
-- **Sharp**: High-performance image processing library with libvips
+- **libvips**: High-performance image processing via vendored native Rust bindings
 
 ## Documentation
 

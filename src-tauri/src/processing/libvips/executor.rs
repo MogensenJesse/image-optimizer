@@ -1,6 +1,6 @@
 // src-tauri/src/processing/libvips/executor.rs
 
-//! Native libvips executor that replaces the Node.js Sharp sidecar.
+//! Native libvips executor for batch image optimization.
 //!
 //! Each image is processed inside a `tokio::task::spawn_blocking` call so the
 //! async runtime is never blocked. libvips manages its own internal thread pool
@@ -15,7 +15,7 @@ use tracing::{debug, warn};
 use libvips::VipsImage;
 
 use crate::core::{ImageTask, OptimizationResult};
-use crate::utils::{OptimizerError, OptimizerResult, extract_filename};
+use crate::utils::{OptimizerError, OptimizerResult, extract_filename, normalize_format};
 
 use super::formats::save_image_as;
 use super::resize::apply_resize;
@@ -51,7 +51,7 @@ impl NativeExecutor {
 
             match result {
                 Ok(opt_result) => {
-                    self.emit_progress(completed, total, task, &opt_result, None);
+                    self.emit_progress(completed, total, task, &opt_result);
                     results.push(opt_result);
                 }
                 Err(e) => {
@@ -89,7 +89,6 @@ impl NativeExecutor {
         total: usize,
         task: &ImageTask,
         result: &OptimizationResult,
-        _worker_id: Option<usize>,
     ) {
         let percentage = (completed * 100) / total;
         let file_name = extract_filename(&task.input_path).to_string();
@@ -170,7 +169,7 @@ fn optimize_single(task: &ImageTask) -> OptimizerResult<OptimizationResult> {
 
     // Load image
     let image = VipsImage::new_from_file(input_path)
-        .map_err(|e| OptimizerError::processing(format!("Failed to load '{input_path}': {e}")))?;
+        .map_err(|_| OptimizerError::processing(format!("Failed to load '{input_path}': {}", super::vips_error_buffer_string())))?;
 
     debug!(
         "Loaded '{}': {}×{}",
@@ -217,34 +216,24 @@ fn optimize_single(task: &ImageTask) -> OptimizerResult<OptimizationResult> {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────────────
 
-/// Resolves "original" to the actual input format and normalises "jpg" → "jpeg".
+/// Resolves "original" to the actual input format and normalizes "jpg" → "jpeg".
 fn resolve_output_format(input_path: &str, requested: &str) -> OptimizerResult<String> {
     if requested == "original" {
-        // Derive format from the input file extension
         let ext = Path::new(input_path)
             .extension()
             .and_then(|e| e.to_str())
-            .ok_or_else(|| OptimizerError::format("Input file has no extension"))?
-            .to_lowercase();
+            .ok_or_else(|| OptimizerError::format("Input file has no extension"))?;
 
-        return Ok(normalise_format(&ext));
+        return Ok(normalize_format(ext));
     }
 
-    Ok(normalise_format(requested))
-}
-
-fn normalise_format(fmt: &str) -> String {
-    match fmt {
-        "jpg" => "jpeg".to_string(),
-        other => other.to_lowercase(),
-    }
+    Ok(normalize_format(requested))
 }
 
 /// Returns `output_path` with the extension corrected to match `format`.
 ///
 /// When the output format differs from the extension already on `output_path`
-/// (e.g. converting foo.jpg → webp), the extension is replaced. When the
-/// output format is "original" the input extension is preserved.
+/// (e.g. converting foo.jpg → webp), the extension is replaced.
 fn ensure_correct_extension(output_path: &str, input_path: &str, format: &str) -> String {
     let new_ext = match format {
         "jpeg" => "jpg",
@@ -258,17 +247,13 @@ fn ensure_correct_extension(output_path: &str, input_path: &str, format: &str) -
         .unwrap_or("")
         .to_lowercase();
 
-    // Also normalise current extension for comparison (jpg == jpeg)
-    let current_norm = normalise_format(&current_ext);
-    if current_norm == format || (current_ext == "jpg" && format == "jpeg") {
+    if normalize_format(&current_ext) == format {
         return output_path.to_string();
     }
 
-    // Replace extension
     let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
     let parent = path.parent().unwrap_or(Path::new(""));
 
-    // Fall back to input stem if output stem is empty
     let stem = if stem.is_empty() {
         Path::new(input_path)
             .file_stem()

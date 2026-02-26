@@ -20,7 +20,7 @@ pub async fn validate_task(task: &ImageTask) -> OptimizerResult<()> {
     Ok(())
 }
 
-/// Validates that an input path exists and is a valid image file
+/// Validates that an input path exists and is a supported image format.
 pub async fn validate_input_path(path: impl AsRef<Path>) -> OptimizerResult<()> {
     let path = path.as_ref();
     if !path.exists() {
@@ -29,11 +29,16 @@ pub async fn validate_input_path(path: impl AsRef<Path>) -> OptimizerResult<()> 
     if !path.is_file() {
         return Err(ValidationError::not_a_file(path).into());
     }
-    format_from_extension(path.to_str().unwrap_or_default())?;
+    let path_str = path.to_str()
+        .ok_or_else(|| ValidationError::settings("Path contains invalid characters"))?;
+    format_from_extension(path_str)?;
     Ok(())
 }
 
-/// Validates that an output path has a valid parent directory and format
+/// Validates that an output path has a valid parent directory.
+///
+/// The output extension is not validated here because format conversions
+/// (e.g., .jpg → .webp) correct the extension downstream in the executor.
 pub async fn validate_output_path(path: impl AsRef<Path>) -> OptimizerResult<()> {
     let path = path.as_ref();
     if let Some(parent) = path.parent() {
@@ -43,7 +48,6 @@ pub async fn validate_output_path(path: impl AsRef<Path>) -> OptimizerResult<()>
             })?;
         }
     }
-    format_from_extension(path.to_str().unwrap_or_default())?;
     Ok(())
 }
 

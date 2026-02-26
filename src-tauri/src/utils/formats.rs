@@ -1,14 +1,12 @@
 //! Image format detection and parsing.
 
-use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use crate::utils::OptimizerError;
 
 /// Supported image formats for optimization.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-#[allow(clippy::upper_case_acronyms)] // Standard naming for image formats
-pub enum ImageFormat {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(clippy::upper_case_acronyms)]
+enum ImageFormat {
     /// JPEG format (lossy compression)
     JPEG,
     /// PNG format (lossless compression)
@@ -36,14 +34,10 @@ impl FromStr for ImageFormat {
     }
 }
 
-/// Determines the image format from a file path's extension.
+/// Validates that a file path has a supported image format extension.
 ///
-/// # Arguments
-/// * `path` - File path to check
-///
-/// # Returns
-/// The detected [`ImageFormat`] or an error if unsupported.
-pub fn format_from_extension(path: &str) -> Result<ImageFormat, OptimizerError> {
+/// Returns `Ok(())` if the extension is recognized, or an error if not.
+pub fn format_from_extension(path: &str) -> Result<(), OptimizerError> {
     let ext = std::path::Path::new(path)
         .extension()
         .and_then(|e| e.to_str())
@@ -51,5 +45,14 @@ pub fn format_from_extension(path: &str) -> Result<ImageFormat, OptimizerError> 
             format!("File has no extension: {}", path)
         ))?;
     
-    ImageFormat::from_str(ext)
+    ImageFormat::from_str(ext)?;
+    Ok(())
+}
+
+/// Normalizes a format string: lowercases and maps "jpg" to "jpeg".
+pub fn normalize_format(fmt: &str) -> String {
+    match fmt.to_lowercase().as_str() {
+        "jpg" => "jpeg".to_string(),
+        other => other.to_string(),
+    }
 } 

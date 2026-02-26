@@ -2,7 +2,7 @@
 
 ## Overview
 
-This application is a Tauri-based desktop image optimizer with three main components: a React frontend, a Rust backend, and a Node.js sidecar process for image processing.
+This application is a Tauri-based desktop image optimizer with two main components: a React frontend and a Rust backend that processes images natively via vendored libvips bindings.
 
 ## Components
 
@@ -21,25 +21,25 @@ This application is a Tauri-based desktop image optimizer with three main compon
 - **Framework**: Tauri 2 with Tokio async runtime
 - **Responsibilities**: 
   - Exposes Tauri commands (`optimize_image`, `optimize_images`) to the frontend
-  - Manages sidecar process lifecycle and communication
+  - Processes images in-process via native libvips bindings
   - Handles progress event emission to frontend
   - Validates tasks and manages batch processing
 - **Key Modules**:
   - `commands/image.rs`: Tauri command handlers
-  - `processing/sharp/memory_map_executor.rs`: Sidecar executor with memory-mapped file communication
-  - `core/`: Application state and task management
+  - `processing/libvips/executor.rs`: Native libvips executor with batch processing
+  - `processing/libvips/formats.rs`: Format-specific save options (JPEG, PNG, WebP, AVIF)
+  - `processing/libvips/resize.rs`: Resize mode mapping to libvips thumbnail operations
+  - `core/`: Application state, types, and task definitions
+  - `utils/`: Error handling, validation, and format utilities
 - **Progress Communication**: Emits `batch-progress` and `image_optimization_progress` events to frontend
 
-### Node.js Sidecar (`sharp-sidecar/`)
+### Vendored libvips Bindings (`vendor/libvips-rs/`)
 
-- **Runtime**: Node.js packaged as standalone executable (`pkg`)
-- **Purpose**: Image processing using Sharp library (libvips)
-- **Communication**: 
-  - Receives tasks via command-line arguments or memory-mapped JSON files
-  - Outputs results as JSON to stdout (between `BATCH_RESULT_START`/`BATCH_RESULT_END` markers)
-  - Sends progress updates via stdout for real-time feedback
-- **Entry Point**: `index.js` handles command parsing and worker pool management
-- **Processing**: Uses worker threads for parallel image optimization
+- **Purpose**: Rust FFI bindings for libvips, vendored and patched for Windows compatibility
+- **Components**:
+  - `bindings.rs`: Auto-generated FFI bindings from `bindgen`
+  - `ops.rs`: Safe Rust wrappers around libvips operations
+  - `manual.rs`: Hand-written bindings for operations not covered by code generation
 
 ## Communication Flow
 
@@ -49,29 +49,26 @@ This application is a Tauri-based desktop image optimizer with three main compon
 │  Frontend   │ <──────────────────────────── │   Backend    │
 └─────────────┘      Tauri Events (progress)  └──────────────┘
                                                       │
-                                                      │ spawn sidecar
-                                                      │ stdin/stdout
+                                                      │ in-process FFI
                                                       ▼
                                               ┌──────────────┐
-                                              │   Node.js     │
-                                              │   Sidecar     │
-                                              │  (Sharp)      │
+                                              │   libvips    │
+                                              │  (native C)  │
                                               └──────────────┘
 ```
 
 1. **Frontend → Backend**: React calls `invoke("optimize_images", { tasks })` with image paths and settings
-2. **Backend → Sidecar**: Rust spawns sidecar process via `tauri_plugin_shell`, passes batch data via memory-mapped file or command-line args
-3. **Sidecar → Backend**: Node.js processes images, outputs JSON results to stdout, sends progress messages
-4. **Backend → Frontend**: Rust parses sidecar output, emits Tauri events (`image_optimization_progress`, `batch-progress`)
-5. **Frontend Updates**: React hooks listen to events and update UI progress state
+2. **Backend → libvips**: Rust loads images via `VipsImage::new_from_file`, applies resize and format conversion through libvips ops
+3. **Backend → Frontend**: Rust emits Tauri events (`image_optimization_progress`, `batch-progress`) with per-image results
+4. **Frontend Updates**: React hooks listen to events and update UI progress state
 
 ## Key Design Decisions
 
-- **Sidecar Architecture**: Node.js sidecar isolates Sharp dependency and enables independent updates
-- **Memory-Mapped Files**: Used for large batch transfers to avoid command-line length limits
+- **Native libvips**: Images are processed in-process via vendored Rust-to-C bindings, eliminating subprocess overhead
+- **Blocking Tasks on Async Runtime**: Each image is processed inside `tokio::task::spawn_blocking` so the async runtime is never blocked; libvips uses its own internal thread pool for per-image parallelism
 - **Event-Driven Progress**: Real-time UI updates via Tauri events without polling
 - **Batch Processing**: Images processed in chunks (500 per batch) for scalability
-- **Worker Threads**: Sidecar uses Node.js worker threads for parallel processing
+- **ICC Profile Handling**: sRGB fallback profiles are set on resize operations to handle images without embedded profiles
 
 ## Useful CLI commands
 

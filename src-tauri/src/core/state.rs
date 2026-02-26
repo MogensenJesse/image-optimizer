@@ -3,7 +3,6 @@
 use std::sync::Arc;
 use crate::processing::libvips::NativeExecutor;
 use tracing::debug;
-use crate::utils::OptimizerError;
 
 /// Thread-safe guard for the libvips `VipsApp` lifecycle.
 ///
@@ -53,14 +52,5 @@ impl AppState {
     /// Creates a new native libvips executor for batch processing.
     pub fn create_executor(&self) -> NativeExecutor {
         NativeExecutor::new((*self.app_handle).clone())
-    }
-
-    /// No-op warmup placeholder kept for API compatibility.
-    ///
-    /// The native executor has no cold-start overhead unlike the sidecar,
-    /// so warmup is not needed.
-    pub async fn warmup_executor(&self) -> Result<(), OptimizerError> {
-        debug!("Native executor requires no warmup");
-        Ok(())
     }
 } 

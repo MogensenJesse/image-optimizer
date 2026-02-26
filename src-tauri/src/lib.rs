@@ -7,8 +7,7 @@
 //!
 //! - Native image optimization via libvips (no subprocess)
 //! - Batch processing with real-time progress tracking
-//! - Support for JPEG, PNG, WebP, AVIF, and TIFF formats
-//! - Benchmarking command to measure optimization throughput
+//! - Support for JPEG, PNG, WebP, and AVIF formats
 //!
 //! # Architecture
 //!
@@ -41,6 +40,6 @@ pub mod processing;
 pub mod utils;
 
 // Public exports for external consumers
-pub use core::{AppState, ImageTask, ImageSettings, OptimizationResult, BenchmarkResult};
+pub use core::{AppState, ImageTask, ImageSettings, OptimizationResult};
 pub use utils::{OptimizerError, OptimizerResult};
 pub use commands::*;

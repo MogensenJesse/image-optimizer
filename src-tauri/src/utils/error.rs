@@ -54,9 +54,6 @@ pub enum OptimizerError {
     #[error("Format error: {0}")]
     Format(String),
 
-    /// Sharp sidecar process error
-    #[error("Sidecar error: {0}")]
-    Sidecar(String),
 }
 
 /// Convenience result type for optimizer operations.
@@ -72,10 +69,6 @@ impl OptimizerError {
 
     pub fn format<T: Into<String>>(msg: T) -> Self {
         Self::Format(msg.into())
-    }
-
-    pub fn sidecar<T: Into<String>>(msg: T) -> Self {
-        Self::Sidecar(msg.into())
     }
 }
 

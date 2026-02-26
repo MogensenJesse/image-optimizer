@@ -118,8 +118,8 @@ pub fn getpoint(inp: &VipsImage, x: i32, y: i32) -> Result<Vec<f64>> {
 pub fn case(index: &VipsImage, cases: &mut [VipsImage], n: i32) -> Result<VipsImage> {
     unsafe {
         let index_in: *mut bindings::VipsImage = index.ctx;
-        let cases_in: *mut *mut bindings::VipsImage =
-            cases.iter().map(|v| v.ctx).collect::<Vec<_>>().as_mut_ptr();
+        let mut cases_vec: Vec<*mut bindings::VipsImage> = cases.iter().map(|v| v.ctx).collect();
+        let cases_in: *mut *mut bindings::VipsImage = cases_vec.as_mut_ptr();
         let mut out_out: *mut bindings::VipsImage = null_mut();
 
         let vips_op_response = bindings::vips_case(index_in, cases_in, &mut out_out, n, NULL);

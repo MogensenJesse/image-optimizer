@@ -13,12 +13,11 @@ The workflow (`.github/workflows/build.yml`) builds the app for:
 
 1. **Checkout** repository code
 2. **Setup** Node.js 20 (with npm cache) and Rust toolchain
-3. **Restore caches** (Rust dependencies, sidecar node_modules)
+3. **Restore caches** (Rust dependencies)
 4. **Install Linux dependencies** (for Linux builds only: `libvips-dev`, `pkg-config`, `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf`)
-5. **Install npm dependencies** (root and sidecar - skipped if cached)
-6. **Build sidecar** binary using `pkg` (creates platform-specific executables)
-7. **Build frontend** (Vite)
-8. **Build Tauri app** using `tauri-action` (which handles bundling)
+5. **Install npm dependencies** (root)
+6. **Build frontend** (Vite)
+7. **Build Tauri app** using `tauri-action` (which handles bundling)
 
 ## Caching Strategy
 
@@ -28,7 +27,6 @@ The workflow uses caching to significantly reduce build times:
 |-------|--------|--------------|
 | **npm (root)** | `setup-node` built-in | `package-lock.json` |
 | **Rust/Cargo** | `Swatinem/rust-cache@v2` | `Cargo.lock` + rustc version |
-| **Sidecar npm** | `actions/cache@v4` | `sharp-sidecar/package-lock.json` |
 
 **Expected savings**: 60-70% reduction in build time on cache hits.
 
@@ -55,37 +53,27 @@ Built artifacts are automatically uploaded to GitHub Releases as draft releases.
 
 ### Windows
 - Builds NSIS installer
-- Sidecar binary: `sharp-sidecar-x86_64-pc-windows-msvc.exe`
 
 ### macOS
 - Builds for both Intel (`x86_64-apple-darwin`) and Apple Silicon (`aarch64-apple-darwin`)
 - Creates `.dmg` and `.app` bundles
-- Sidecar binaries: `sharp-sidecar-x86_64-apple-darwin` or `sharp-sidecar-aarch64-apple-darwin`
 
 ### Linux
 - Builds AppImage (default) or other formats based on Tauri config
 - Requires system dependencies (installed automatically in CI):
-  - `libvips-dev` - Image processing for Sharp sidecar
+  - `libvips-dev` - Native image processing library
   - `libgtk-3-dev`, `libwebkit2gtk-4.1-dev` - GTK3/WebKit for Tauri
   - `libappindicator3-dev`, `librsvg2-dev`, `patchelf` - Additional Tauri requirements
-- Sidecar binary: `sharp-sidecar-x86_64-unknown-linux-gnu`
 
 ## Troubleshooting
 
-### Sidecar Build Issues
-- Ensure `pkg` builds binaries for all target platforms
-- Check that Sharp native modules are copied correctly in `post-build.js`
-- Verify platform-specific handling in `rename.js`
-
 ### Linux Build Failures
 - Ensure all Linux dependencies are installed (handled automatically in CI):
-  - `libvips-dev`, `pkg-config` for Sharp
+  - `libvips-dev`, `pkg-config` for native image processing
   - `libgtk-3-dev`, `libwebkit2gtk-4.1-dev` for Tauri GTK/WebKit
   - `libappindicator3-dev`, `librsvg2-dev`, `patchelf` for Tauri
-- Check that Sharp's Linux binaries are available
 - If `gdk-3.0` or `gtk-3.0` errors occur, ensure GTK3 dev packages are installed
 
 ### Release Upload Issues
 - Ensure `GITHUB_TOKEN` has `contents: write` permission (handled automatically)
 - Check that tag format matches `v*` pattern
-

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 /// Configuration settings for image optimization.
 ///
 /// Contains quality, resize, and output format settings that control
-/// how images are processed by the Sharp sidecar.
+/// how images are processed by the native libvips executor.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageSettings {
     /// Quality settings for compression
@@ -76,27 +76,4 @@ pub struct OptimizationResult {
     /// Compression ratio as a percentage
     #[serde(rename = "compressionRatio")]
     pub compression_ratio: f64,
-}
-
-/// Result of a benchmark run measuring optimization throughput.
-#[derive(Debug, Clone, Serialize)]
-pub struct BenchmarkResult {
-    /// Total wall-clock time for the entire batch in milliseconds
-    #[serde(rename = "totalTimeMs")]
-    pub total_time_ms: u64,
-    /// Average time per image in milliseconds
-    #[serde(rename = "avgPerImageMs")]
-    pub avg_per_image_ms: f64,
-    /// Throughput in images per second
-    #[serde(rename = "throughputImagesPerSec")]
-    pub throughput_images_per_sec: f64,
-    /// Number of images processed
-    #[serde(rename = "imageCount")]
-    pub image_count: usize,
-    /// Total input bytes across all images
-    #[serde(rename = "totalInputBytes")]
-    pub total_input_bytes: u64,
-    /// Total output bytes across all images
-    #[serde(rename = "totalOutputBytes")]
-    pub total_output_bytes: u64,
 } 
