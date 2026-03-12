@@ -69,13 +69,17 @@ fn link_libvips() {
         // against and the 8.18.0 Windows binaries we ship.
         build_compat_shim(&vips_dir);
     } else if cfg!(target_os = "macos") {
+        // Same propagation gap as Windows: use rustc-link-arg so the
+        // linker flag reaches both the cdylib and the binary target.
         if lib_dir.exists() {
-            println!("cargo:rustc-link-search=native={}", lib_dir.display());
+            println!("cargo:rustc-link-arg=-L{}", lib_dir.display());
         }
-        println!("cargo:rustc-link-lib=dylib=vips");
+        println!("cargo:rustc-link-arg=-lvips");
     } else {
-        // Linux: system libvips-dev package is sufficient.
-        println!("cargo:rustc-link-lib=dylib=vips");
+        // Linux: system libvips-dev provides the shared library.
+        // Must use rustc-link-arg (not rustc-link-lib) to work around
+        // the cdylib + bin propagation gap.
+        println!("cargo:rustc-link-arg=-lvips");
     }
 }
 
