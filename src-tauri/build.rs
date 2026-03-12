@@ -68,19 +68,41 @@ fn link_libvips() {
         // between the libvips version that libvips-rs 8.15.1 was generated
         // against and the 8.18.0 Windows binaries we ship.
         build_compat_shim(&vips_dir);
-    } else if cfg!(target_os = "macos") {
-        // Same propagation gap as Windows: use rustc-link-arg so the
-        // linker flag reaches both the cdylib and the binary target.
-        if lib_dir.exists() {
-            println!("cargo:rustc-link-arg=-L{}", lib_dir.display());
-        }
-        println!("cargo:rustc-link-arg=-lvips");
     } else {
-        // Linux: system libvips-dev provides the shared library.
-        // Must use rustc-link-arg (not rustc-link-lib) to work around
-        // the cdylib + bin propagation gap.
-        println!("cargo:rustc-link-arg=-lvips");
+        // macOS / Linux: use pkg-config to discover vips and all its
+        // transitive dependencies (glib, gobject, etc.).  libvips-rs
+        // calls GLib symbols directly, and on macOS the linker does NOT
+        // resolve them transitively through libvips.dylib.
+        //
+        // We emit the flags as rustc-link-arg (not rustc-link-lib) to
+        // work around the cdylib + bin propagation gap.
+        if let Some(flags) = pkg_config_libs("vips") {
+            for flag in flags.split_whitespace() {
+                println!("cargo:rustc-link-arg={flag}");
+            }
+        } else if lib_dir.exists() {
+            // Fallback when pkg-config is unavailable (e.g. vendored build).
+            println!("cargo:rustc-link-arg=-L{}", lib_dir.display());
+            println!("cargo:rustc-link-arg=-lvips");
+            println!("cargo:rustc-link-arg=-lgobject-2.0");
+            println!("cargo:rustc-link-arg=-lglib-2.0");
+        } else {
+            println!("cargo:rustc-link-arg=-lvips");
+            println!("cargo:rustc-link-arg=-lgobject-2.0");
+            println!("cargo:rustc-link-arg=-lglib-2.0");
+        }
     }
+}
+
+/// Runs `pkg-config --libs <package>` and returns the flags on success.
+fn pkg_config_libs(package: &str) -> Option<String> {
+    std::process::Command::new("pkg-config")
+        .args(["--libs", package])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .filter(|s| !s.is_empty())
 }
 
 /// Compiles `libvips_compat.c` into a static archive and links it via an
