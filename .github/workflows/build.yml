@@ -82,6 +82,18 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+      - name: Get changelog for release notes
+        id: changelog
+        shell: bash
+        run: |
+          if [ -f CHANGELOG.md ]; then
+            echo "body<<CHANGELOG_EOF" >> $GITHUB_OUTPUT
+            cat CHANGELOG.md >> $GITHUB_OUTPUT
+            echo "CHANGELOG_EOF" >> $GITHUB_OUTPUT
+          else
+            echo "body=See the assets to download this version and install." >> $GITHUB_OUTPUT
+          fi
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -94,7 +106,7 @@ jobs:
           includeDebug: false
           tagName: v__VERSION__
           releaseName: 'Image Optimizer v__VERSION__'
-          releaseBody: 'See the assets to download this version and install.'
+          releaseBody: ${{ steps.changelog.outputs.body }}
           releaseDraft: true
           prerelease: false
 
