@@ -13,6 +13,7 @@ use tauri::Emitter;
 use tracing::{debug, warn};
 
 use libvips::VipsImage;
+use libvips::ops::Access;
 
 use crate::core::{ImageTask, OptimizationResult};
 use crate::utils::{OptimizerError, OptimizerResult, extract_filename, normalize_format};
@@ -180,7 +181,7 @@ fn optimize_single(task: &ImageTask) -> OptimizerResult<OptimizationResult> {
         );
         img
     } else {
-        let img = VipsImage::new_from_file(input_path)
+        let img = VipsImage::new_from_file_access(input_path, Access::Sequential, false)
             .map_err(|_| OptimizerError::processing(format!(
                 "Failed to load '{input_path}': {}",
                 super::vips_error_buffer_string()

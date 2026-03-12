@@ -71,7 +71,7 @@ function useProgressTracker(isProcessing) {
           ...prevProgress,
           processingTime: elapsedSeconds,
         }));
-      }, 100); // Update more frequently for smoother time display
+      }, 100);
     }
 
     return () => {
@@ -149,66 +149,29 @@ function useProgressTracker(isProcessing) {
             const { completedTasks, totalTasks, status, metadata } =
               event.payload;
 
-            // Check if the metadata contains a formatted message with saved bytes and compression ratio
-            if (metadata?.formattedMessage) {
-              const formattedMessage = metadata.formattedMessage;
+            if (metadata?.savedBytes != null && metadata?.originalSize != null) {
+              const savedBytes = Number(metadata.savedBytes);
+              const originalSize = Number(metadata.originalSize);
+              const compressionRatio = parseFloat(metadata.compressionRatio) || 0;
 
-              // Try to extract saved bytes and compression ratio from the message
-              // Example format: "IMG_20240406_180359.jpg optimized (630.78 KB saved / 65.86% compression) - Progress: 25% (1/4)"
-              const savedBytesMatch = formattedMessage.match(
-                /\(([\d.]+) (KB|MB|GB) saved/i,
-              );
-              const compressionRatioMatch = formattedMessage.match(
-                /\/ ([\d.]+)% compression/i,
-              );
+              currentBatch.totalSavedBytes += savedBytes;
+              currentBatch.totalOriginalSize += originalSize;
 
-              if (savedBytesMatch && compressionRatioMatch) {
-                const savedAmount = parseFloat(savedBytesMatch[1]);
-                const savedUnit = savedBytesMatch[2].toUpperCase();
-                const compressionRatio = parseFloat(compressionRatioMatch[1]);
+              if (metadata.fileName) {
+                const optimizationRecord = {
+                  fileName: metadata.fileName,
+                  originalSize,
+                  optimizedSize: Number(metadata.optimizedSize) || 0,
+                  savedBytes,
+                  compressionRatio,
+                  timestamp: Date.now(),
+                };
 
-                // Convert saved amount to bytes based on the unit
-                let savedBytes = 0;
-                if (savedUnit === "KB") {
-                  savedBytes = savedAmount * 1024;
-                } else if (savedUnit === "MB") {
-                  savedBytes = savedAmount * 1024 * 1024;
-                } else if (savedUnit === "GB") {
-                  savedBytes = savedAmount * 1024 * 1024 * 1024;
-                }
+                currentBatch.lastOptimizedFile = optimizationRecord;
 
-                // Update our statistics with the extracted data
-                currentBatch.totalSavedBytes += savedBytes;
-
-                // We don't have original size from the message, but we can estimate it
-                // using the compression ratio: originalSize = savedBytes / (compressionRatio / 100)
-                const estimatedOriginalSize =
-                  savedBytes / (compressionRatio / 100);
-                currentBatch.totalOriginalSize += estimatedOriginalSize;
-
-                // Calculate updated metrics
-                const _savedSizeMB =
-                  currentBatch.totalSavedBytes / (1024 * 1024);
-                const _savedPercentage =
-                  currentBatch.totalOriginalSize > 0
-                    ? Math.round(
-                        (currentBatch.totalSavedBytes /
-                          currentBatch.totalOriginalSize) *
-                          100,
-                      )
-                    : 0;
-
-                // Create an optimization record for the current file
-                if (metadata.fileName) {
-                  const optimizationRecord = {
-                    fileName: metadata.fileName,
-                    savedBytes,
-                    compressionRatio,
-                    timestamp: Date.now(),
-                  };
-
-                  // Update the last optimized file
-                  currentBatch.lastOptimizedFile = optimizationRecord;
+                currentBatch.recentOptimizations.unshift(optimizationRecord);
+                if (currentBatch.recentOptimizations.length > 5) {
+                  currentBatch.recentOptimizations.pop();
                 }
               }
             }

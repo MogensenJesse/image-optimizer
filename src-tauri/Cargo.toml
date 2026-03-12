@@ -22,7 +22,7 @@ cc = "1"
 [profile.release]
 codegen-units = 1
 panic = "abort"
-opt-level = "s" # Optimize for size
+opt-level = 3   # Maximize speed for image processing
 lto = true      # Enable link-time optimization
 strip = true    # Strip debug symbols
 
