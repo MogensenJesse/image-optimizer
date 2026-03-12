@@ -9,11 +9,59 @@ use super::vips_error_buffer_string;
 
 type Result<T> = std::result::Result<T, OptimizerError>;
 
-/// Applies the resize specified in `settings` to `image`.
+/// Returns `true` when `settings` will actually resize (mode is not "none"
+/// and a valid target size is provided).
+pub fn needs_resize(settings: &ResizeSettings) -> bool {
+    settings.mode != "none" && matches!(settings.size, Some(s) if s > 0)
+}
+
+/// Loads and resizes an image from `path` in one step.
+///
+/// Uses the file-based `vips_thumbnail` which enables **shrink-on-load**:
+/// for JPEG, libjpeg can skip decoding most DCT coefficients when
+/// downsizing by integer factors (2x, 4x, 8x), making large-image
+/// resizes significantly faster than loading first and resizing second.
+pub fn load_and_resize(path: &str, settings: &ResizeSettings) -> Result<VipsImage> {
+    let size = settings.size.unwrap_or(0) as i32;
+    if size <= 0 {
+        return Err(OptimizerError::processing("No target size for resize".to_string()));
+    }
+
+    let probe = VipsImage::new_from_file(path)
+        .map_err(|_| OptimizerError::processing(format!(
+            "Failed to probe '{}': {}", path, vips_error_buffer_string()
+        )))?;
+    let orig_w = probe.get_width();
+    let orig_h = probe.get_height();
+
+    match settings.mode.as_str() {
+        "width" => thumbnail_file(path, size, orig_h, "width"),
+        "height" => thumbnail_file(path, orig_w, size, "height"),
+        "longest" => {
+            if orig_w >= orig_h {
+                thumbnail_file(path, size, orig_h, "longest")
+            } else {
+                thumbnail_file(path, orig_w, size, "longest")
+            }
+        }
+        "shortest" => {
+            if orig_w <= orig_h {
+                thumbnail_file(path, size, orig_h, "shortest")
+            } else {
+                thumbnail_file(path, orig_w, size, "shortest")
+            }
+        }
+        unknown => Err(OptimizerError::processing(format!(
+            "Unknown resize mode: {unknown}"
+        ))),
+    }
+}
+
+/// Applies the resize specified in `settings` to an already-loaded `image`.
 ///
 /// Returns the original image unchanged when the mode is "none" or no
-/// target size is provided. Uses `thumbnail_image` for all modes so that
-/// libvips can apply its high-quality shrink+reduce pipeline.
+/// target size is provided. Prefer [`load_and_resize`] when the image has
+/// not been loaded yet, as it enables shrink-on-load optimizations.
 pub fn apply_resize(image: VipsImage, settings: &ResizeSettings) -> Result<VipsImage> {
     if settings.mode == "none" {
         return Ok(image);
@@ -28,20 +76,20 @@ pub fn apply_resize(image: VipsImage, settings: &ResizeSettings) -> Result<VipsI
     let orig_h = image.get_height();
 
     match settings.mode.as_str() {
-        "width" => thumbnail(&image, size, orig_h, "width"),
-        "height" => thumbnail(&image, orig_w, size, "height"),
+        "width" => thumbnail_image(&image, size, orig_h, "width"),
+        "height" => thumbnail_image(&image, orig_w, size, "height"),
         "longest" => {
             if orig_w >= orig_h {
-                thumbnail(&image, size, orig_h, "longest")
+                thumbnail_image(&image, size, orig_h, "longest")
             } else {
-                thumbnail(&image, orig_w, size, "longest")
+                thumbnail_image(&image, orig_w, size, "longest")
             }
         }
         "shortest" => {
             if orig_w <= orig_h {
-                thumbnail(&image, size, orig_h, "shortest")
+                thumbnail_image(&image, size, orig_h, "shortest")
             } else {
-                thumbnail(&image, orig_w, size, "shortest")
+                thumbnail_image(&image, orig_w, size, "shortest")
             }
         }
         unknown => Err(OptimizerError::processing(format!(
@@ -50,24 +98,33 @@ pub fn apply_resize(image: VipsImage, settings: &ResizeSettings) -> Result<VipsI
     }
 }
 
-/// Runs `thumbnail_image` with explicit width and height constraints.
-///
-/// `Size::Down` prevents upscaling when the image is already smaller than
-/// the target. Passing both width and height avoids the need for sentinel
-/// values that libvips may reject.
-///
-/// `import_profile` is set to `"sRGB"` because libvips-rs unconditionally
-/// passes the option to the C API. An empty string (the default) causes
-/// libvips to try opening a file named `""`, which fails for images that
-/// need profile conversion.
-fn thumbnail(image: &VipsImage, target_w: i32, target_h: i32, mode: &str) -> Result<VipsImage> {
+/// File-based thumbnail: loads and resizes in one step, enabling
+/// shrink-on-load for formats that support it (JPEG, WebP, TIFF).
+fn thumbnail_file(path: &str, target_w: i32, target_h: i32, mode: &str) -> Result<VipsImage> {
+    use ops::{Size, ThumbnailOptions};
+
+    let opts = ThumbnailOptions {
+        height: target_h,
+        size: Size::Down,
+        import_profile: "sRGB".to_string(),
+        ..ThumbnailOptions::default()
+    };
+
+    ops::thumbnail_with_opts(path, target_w, &opts)
+        .map_err(|_| OptimizerError::processing(format!(
+            "Resize ({mode}) failed: {}",
+            vips_error_buffer_string()
+        )))
+}
+
+/// Image-based thumbnail for already-loaded images.
+fn thumbnail_image(image: &VipsImage, target_w: i32, target_h: i32, mode: &str) -> Result<VipsImage> {
     use ops::{Size, ThumbnailImageOptions};
 
     let opts = ThumbnailImageOptions {
         height: target_h,
         size: Size::Down,
         import_profile: "sRGB".to_string(),
-        export_profile: "sRGB".to_string(),
         ..ThumbnailImageOptions::default()
     };
 

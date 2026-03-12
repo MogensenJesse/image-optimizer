@@ -22330,42 +22330,72 @@ pub fn thumbnail_with_opts(
         let linear_in: i32 = if thumbnail_options.linear { 1 } else { 0 };
         let linear_in_name = utils::new_c_string("linear")?;
 
-        let import_profile_in: CString = utils::new_c_string(&thumbnail_options.import_profile)?;
-        let import_profile_in_name = utils::new_c_string("import-profile")?;
-
-        let export_profile_in: CString = utils::new_c_string(&thumbnail_options.export_profile)?;
-        let export_profile_in_name = utils::new_c_string("export-profile")?;
-
         let intent_in: i32 = thumbnail_options.intent as i32;
         let intent_in_name = utils::new_c_string("intent")?;
 
         let fail_on_in: i32 = thumbnail_options.fail_on as i32;
         let fail_on_in_name = utils::new_c_string("fail-on")?;
 
-        let vips_op_response = bindings::vips_thumbnail(
-            filename_in.as_ptr(),
-            &mut out_out,
-            width_in,
-            height_in_name.as_ptr(),
-            height_in,
-            size_in_name.as_ptr(),
-            size_in,
-            no_rotate_in_name.as_ptr(),
-            no_rotate_in,
-            crop_in_name.as_ptr(),
-            crop_in,
-            linear_in_name.as_ptr(),
-            linear_in,
-            import_profile_in_name.as_ptr(),
-            import_profile_in.as_ptr(),
-            export_profile_in_name.as_ptr(),
-            export_profile_in.as_ptr(),
-            intent_in_name.as_ptr(),
-            intent_in,
-            fail_on_in_name.as_ptr(),
-            fail_on_in,
-            NULL,
-        );
+        let has_import = !thumbnail_options.import_profile.is_empty();
+        let has_export = !thumbnail_options.export_profile.is_empty();
+
+        let import_profile_in: CString = utils::new_c_string(&thumbnail_options.import_profile)?;
+        let import_profile_in_name = utils::new_c_string("import-profile")?;
+        let export_profile_in: CString = utils::new_c_string(&thumbnail_options.export_profile)?;
+        let export_profile_in_name = utils::new_c_string("export-profile")?;
+
+        // Empty profile strings cause libvips to try opening a file named "",
+        // so we skip passing them to the variadic C call when empty.
+        let vips_op_response = match (has_import, has_export) {
+            (true, true) => bindings::vips_thumbnail(
+                filename_in.as_ptr(), &mut out_out, width_in,
+                height_in_name.as_ptr(), height_in,
+                size_in_name.as_ptr(), size_in,
+                no_rotate_in_name.as_ptr(), no_rotate_in,
+                crop_in_name.as_ptr(), crop_in,
+                linear_in_name.as_ptr(), linear_in,
+                import_profile_in_name.as_ptr(), import_profile_in.as_ptr(),
+                export_profile_in_name.as_ptr(), export_profile_in.as_ptr(),
+                intent_in_name.as_ptr(), intent_in,
+                fail_on_in_name.as_ptr(), fail_on_in,
+                NULL,
+            ),
+            (true, false) => bindings::vips_thumbnail(
+                filename_in.as_ptr(), &mut out_out, width_in,
+                height_in_name.as_ptr(), height_in,
+                size_in_name.as_ptr(), size_in,
+                no_rotate_in_name.as_ptr(), no_rotate_in,
+                crop_in_name.as_ptr(), crop_in,
+                linear_in_name.as_ptr(), linear_in,
+                import_profile_in_name.as_ptr(), import_profile_in.as_ptr(),
+                intent_in_name.as_ptr(), intent_in,
+                fail_on_in_name.as_ptr(), fail_on_in,
+                NULL,
+            ),
+            (false, true) => bindings::vips_thumbnail(
+                filename_in.as_ptr(), &mut out_out, width_in,
+                height_in_name.as_ptr(), height_in,
+                size_in_name.as_ptr(), size_in,
+                no_rotate_in_name.as_ptr(), no_rotate_in,
+                crop_in_name.as_ptr(), crop_in,
+                linear_in_name.as_ptr(), linear_in,
+                export_profile_in_name.as_ptr(), export_profile_in.as_ptr(),
+                intent_in_name.as_ptr(), intent_in,
+                fail_on_in_name.as_ptr(), fail_on_in,
+                NULL,
+            ),
+            (false, false) => bindings::vips_thumbnail(
+                filename_in.as_ptr(), &mut out_out, width_in,
+                height_in_name.as_ptr(), height_in,
+                size_in_name.as_ptr(), size_in,
+                no_rotate_in_name.as_ptr(), no_rotate_in,
+                crop_in_name.as_ptr(), crop_in,
+                linear_in_name.as_ptr(), linear_in,
+                intent_in_name.as_ptr(), intent_in,
+                fail_on_in_name.as_ptr(), fail_on_in,
+                NULL,
+            ),
+        };
         utils::result(
             vips_op_response,
             VipsImage { ctx: out_out },
@@ -22680,44 +22710,74 @@ pub fn thumbnail_image_with_opts(
         let linear_in: i32 = if thumbnail_image_options.linear { 1 } else { 0 };
         let linear_in_name = utils::new_c_string("linear")?;
 
-        let import_profile_in: CString =
-            utils::new_c_string(&thumbnail_image_options.import_profile)?;
-        let import_profile_in_name = utils::new_c_string("import-profile")?;
-
-        let export_profile_in: CString =
-            utils::new_c_string(&thumbnail_image_options.export_profile)?;
-        let export_profile_in_name = utils::new_c_string("export-profile")?;
-
         let intent_in: i32 = thumbnail_image_options.intent as i32;
         let intent_in_name = utils::new_c_string("intent")?;
 
         let fail_on_in: i32 = thumbnail_image_options.fail_on as i32;
         let fail_on_in_name = utils::new_c_string("fail-on")?;
 
-        let vips_op_response = bindings::vips_thumbnail_image(
-            inp_in,
-            &mut out_out,
-            width_in,
-            height_in_name.as_ptr(),
-            height_in,
-            size_in_name.as_ptr(),
-            size_in,
-            no_rotate_in_name.as_ptr(),
-            no_rotate_in,
-            crop_in_name.as_ptr(),
-            crop_in,
-            linear_in_name.as_ptr(),
-            linear_in,
-            import_profile_in_name.as_ptr(),
-            import_profile_in.as_ptr(),
-            export_profile_in_name.as_ptr(),
-            export_profile_in.as_ptr(),
-            intent_in_name.as_ptr(),
-            intent_in,
-            fail_on_in_name.as_ptr(),
-            fail_on_in,
-            NULL,
-        );
+        let has_import = !thumbnail_image_options.import_profile.is_empty();
+        let has_export = !thumbnail_image_options.export_profile.is_empty();
+
+        let import_profile_in: CString =
+            utils::new_c_string(&thumbnail_image_options.import_profile)?;
+        let import_profile_in_name = utils::new_c_string("import-profile")?;
+        let export_profile_in: CString =
+            utils::new_c_string(&thumbnail_image_options.export_profile)?;
+        let export_profile_in_name = utils::new_c_string("export-profile")?;
+
+        // Empty profile strings cause libvips to try opening a file named "",
+        // so we skip passing them to the variadic C call when empty.
+        let vips_op_response = match (has_import, has_export) {
+            (true, true) => bindings::vips_thumbnail_image(
+                inp_in, &mut out_out, width_in,
+                height_in_name.as_ptr(), height_in,
+                size_in_name.as_ptr(), size_in,
+                no_rotate_in_name.as_ptr(), no_rotate_in,
+                crop_in_name.as_ptr(), crop_in,
+                linear_in_name.as_ptr(), linear_in,
+                import_profile_in_name.as_ptr(), import_profile_in.as_ptr(),
+                export_profile_in_name.as_ptr(), export_profile_in.as_ptr(),
+                intent_in_name.as_ptr(), intent_in,
+                fail_on_in_name.as_ptr(), fail_on_in,
+                NULL,
+            ),
+            (true, false) => bindings::vips_thumbnail_image(
+                inp_in, &mut out_out, width_in,
+                height_in_name.as_ptr(), height_in,
+                size_in_name.as_ptr(), size_in,
+                no_rotate_in_name.as_ptr(), no_rotate_in,
+                crop_in_name.as_ptr(), crop_in,
+                linear_in_name.as_ptr(), linear_in,
+                import_profile_in_name.as_ptr(), import_profile_in.as_ptr(),
+                intent_in_name.as_ptr(), intent_in,
+                fail_on_in_name.as_ptr(), fail_on_in,
+                NULL,
+            ),
+            (false, true) => bindings::vips_thumbnail_image(
+                inp_in, &mut out_out, width_in,
+                height_in_name.as_ptr(), height_in,
+                size_in_name.as_ptr(), size_in,
+                no_rotate_in_name.as_ptr(), no_rotate_in,
+                crop_in_name.as_ptr(), crop_in,
+                linear_in_name.as_ptr(), linear_in,
+                export_profile_in_name.as_ptr(), export_profile_in.as_ptr(),
+                intent_in_name.as_ptr(), intent_in,
+                fail_on_in_name.as_ptr(), fail_on_in,
+                NULL,
+            ),
+            (false, false) => bindings::vips_thumbnail_image(
+                inp_in, &mut out_out, width_in,
+                height_in_name.as_ptr(), height_in,
+                size_in_name.as_ptr(), size_in,
+                no_rotate_in_name.as_ptr(), no_rotate_in,
+                crop_in_name.as_ptr(), crop_in,
+                linear_in_name.as_ptr(), linear_in,
+                intent_in_name.as_ptr(), intent_in,
+                fail_on_in_name.as_ptr(), fail_on_in,
+                NULL,
+            ),
+        };
         utils::result(
             vips_op_response,
             VipsImage { ctx: out_out },

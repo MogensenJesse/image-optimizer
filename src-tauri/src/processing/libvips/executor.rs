@@ -18,7 +18,7 @@ use crate::core::{ImageTask, OptimizationResult};
 use crate::utils::{OptimizerError, OptimizerResult, extract_filename, normalize_format};
 
 use super::formats::save_image_as;
-use super::resize::apply_resize;
+use super::resize::{apply_resize, needs_resize, load_and_resize};
 
 /// Executor that processes images directly via libvips with no subprocess overhead.
 pub struct NativeExecutor {
@@ -167,19 +167,32 @@ fn optimize_single(task: &ImageTask) -> OptimizerResult<OptimizationResult> {
         })?;
     }
 
-    // Load image
-    let image = VipsImage::new_from_file(input_path)
-        .map_err(|_| OptimizerError::processing(format!("Failed to load '{input_path}': {}", super::vips_error_buffer_string())))?;
-
-    debug!(
-        "Loaded '{}': {}×{}",
-        extract_filename(input_path),
-        image.get_width(),
-        image.get_height()
-    );
-
-    // Apply resize (no-op when mode is "none")
-    let image = apply_resize(image, &settings.resize)?;
+    // When resizing, use file-based thumbnail for shrink-on-load (skips
+    // decoding most DCT coefficients on large JPEG downsizes). Otherwise
+    // load the full image for compression-only operations.
+    let image = if needs_resize(&settings.resize) {
+        let img = load_and_resize(input_path, &settings.resize)?;
+        debug!(
+            "Loaded+resized '{}': {}×{}",
+            extract_filename(input_path),
+            img.get_width(),
+            img.get_height()
+        );
+        img
+    } else {
+        let img = VipsImage::new_from_file(input_path)
+            .map_err(|_| OptimizerError::processing(format!(
+                "Failed to load '{input_path}': {}",
+                super::vips_error_buffer_string()
+            )))?;
+        debug!(
+            "Loaded '{}': {}×{}",
+            extract_filename(input_path),
+            img.get_width(),
+            img.get_height()
+        );
+        apply_resize(img, &settings.resize)?
+    };
 
     // Encode and save
     save_image_as(&image, &output_path, &output_format, &settings.quality)?;

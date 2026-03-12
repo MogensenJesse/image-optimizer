@@ -4,7 +4,7 @@
 
 use libvips::ops::{
     self,
-    ForeignHeifCompression, ForeignSubsample,
+    ForeignHeifCompression, ForeignPngFilter, ForeignSubsample,
     ForeignKeep,
 };
 use crate::core::QualitySettings;
@@ -44,8 +44,10 @@ fn is_lossless(quality: &QualitySettings, format: &str) -> bool {
 
 /// Saves `image` as JPEG with mozjpeg-equivalent settings.
 ///
-/// When quality == 100: uses trellis quantisation + optimal scans (near-lossless).
-/// Otherwise: standard optimised JPEG.
+/// When quality == 100: enables trellis quantisation and overshoot deringing
+/// for maximum compression quality; disables progressive scans (expensive at
+/// high quality with diminishing returns). Otherwise: progressive scans
+/// enabled, trellis/deringing off for faster encoding.
 pub fn save_jpeg(image: &VipsImage, output_path: &str, quality: &QualitySettings) -> Result<()> {
     let q = effective_quality(quality, "jpeg") as i32;
     let lossless = is_lossless(quality, "jpeg");
@@ -53,14 +55,14 @@ pub fn save_jpeg(image: &VipsImage, output_path: &str, quality: &QualitySettings
     let opts = ops::JpegsaveOptions {
         q,
         optimize_coding: true,
-        optimize_scans: true,
-        // Trellis quantisation and overshoot deringing give mozjpeg-level quality
+        // Progressive scan optimization is expensive at high quality; skip it in lossless mode
+        optimize_scans: !lossless,
         trellis_quant: lossless,
         overshoot_deringing: lossless,
-        // quant_table 3 = mozjpeg quantisation table (higher quality at same byte count)
         quant_table: 3,
-        subsample_mode: ForeignSubsample::On, // 4:2:0 chroma subsampling
-        keep: ForeignKeep::None,              // strip metadata
+        // Auto lets libvips pick 4:4:4 at high quality and 4:2:0 at lower quality
+        subsample_mode: ForeignSubsample::Auto,
+        keep: ForeignKeep::None,
         ..ops::JpegsaveOptions::default()
     };
 
@@ -70,17 +72,19 @@ pub fn save_jpeg(image: &VipsImage, output_path: &str, quality: &QualitySettings
 
 /// Saves `image` as PNG.
 ///
-/// When quality == 100: lossless (no palette quantisation).
-/// Otherwise: palette quantisation + adaptive compression.
+/// When quality == 100: max deflate compression, max effort, adaptive row
+/// filtering for best file size. Otherwise: palette quantisation with fast
+/// defaults.
 pub fn save_png(image: &VipsImage, output_path: &str, quality: &QualitySettings) -> Result<()> {
     let q = effective_quality(quality, "png") as i32;
     let lossless = is_lossless(quality, "png");
 
     let opts = ops::PngsaveOptions {
-        compression: PNG_COMPRESSION,
+        compression: if lossless { 9 } else { PNG_COMPRESSION },
         palette: !lossless,
         q,
-        effort: PNG_EFFORT,
+        effort: if lossless { 10 } else { PNG_EFFORT },
+        filter: if lossless { ForeignPngFilter::All } else { ForeignPngFilter::None },
         keep: ForeignKeep::None,
         ..ops::PngsaveOptions::default()
     };
@@ -91,8 +95,8 @@ pub fn save_png(image: &VipsImage, output_path: &str, quality: &QualitySettings)
 
 /// Saves `image` as WebP.
 ///
-/// When quality == 100: lossless mode.
-/// Otherwise: lossy with smart subsampling.
+/// When quality == 100: lossless mode with max effort and min-size
+/// optimization. Otherwise: lossy with fast defaults.
 pub fn save_webp(image: &VipsImage, output_path: &str, quality: &QualitySettings) -> Result<()> {
     let q = effective_quality(quality, "webp") as i32;
     let lossless = is_lossless(quality, "webp");
@@ -100,8 +104,9 @@ pub fn save_webp(image: &VipsImage, output_path: &str, quality: &QualitySettings
     let opts = ops::WebpsaveOptions {
         q,
         lossless,
-        alpha_q: q,            // alpha quality matches overall quality
-        effort: WEBP_EFFORT,
+        alpha_q: q,
+        effort: if lossless { 6 } else { WEBP_EFFORT },
+        min_size: lossless,
         smart_subsample: false,
         keep: ForeignKeep::None,
         ..ops::WebpsaveOptions::default()
@@ -113,19 +118,20 @@ pub fn save_webp(image: &VipsImage, output_path: &str, quality: &QualitySettings
 
 /// Saves `image` as AVIF (AV1 via HEIF container).
 ///
-/// At quality 100 we use q=100 with 4:4:4 chroma (no subsampling) instead of
-/// the encoder's `lossless` flag, because AV1 lossless mode applies an
-/// internal RGB→YCbCr conversion that produces visible color shifts on some
-/// encoder builds (notably the Windows aom/svt-av1 bundled with libvips 8.18).
+/// At quality 100 we use q=100 with 4:4:4 chroma, max effort (9), and no
+/// `lossless` flag. The `lossless` flag is avoided because AV1 lossless mode
+/// applies an internal RGB->YCbCr conversion that produces visible color
+/// shifts on some encoder builds (notably Windows aom/svt-av1 in libvips 8.18).
 pub fn save_avif(image: &VipsImage, output_path: &str, quality: &QualitySettings) -> Result<()> {
     let q = effective_quality(quality, "avif") as i32;
+    let lossless = is_lossless(quality, "avif");
     let near_lossless = q >= 90;
 
     let opts = ops::HeifsaveOptions {
         q,
         lossless: false,
         compression: ForeignHeifCompression::Av1,
-        effort: AVIF_EFFORT,
+        effort: if lossless { 9 } else { AVIF_EFFORT },
         bitdepth: 8,
         subsample_mode: if near_lossless { ForeignSubsample::Off } else { ForeignSubsample::On },
         keep: ForeignKeep::None,

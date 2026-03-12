@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "rust-async-patterns": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "988ec224108ffdb4ec8f4d87ad3caeeb6e54ba9c026b81286ff87ad09b55aa2e"
+    },
+    "vite": {
+      "source": "antfu/skills",
+      "sourceType": "github",
+      "computedHash": "f406fceb1b9020cd759a728d8424de7ffd8dfe5874bd97be2724571741e54852"
+    }
+  }
+}
