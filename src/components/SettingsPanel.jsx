@@ -3,6 +3,7 @@
 import { load } from "@tauri-apps/plugin-store";
 import { useCallback, useEffect, useState } from "react";
 import closeIcon from "../assets/icons/close.svg";
+import { LANGUAGES, useTranslation } from "../i18n";
 import { checkForUpdate, downloadAndInstall } from "../utils/updater";
 
 const STORE_KEY = "autoCheckUpdates";
@@ -26,9 +27,10 @@ const _DEV_MOCK_UPDATE = {
 };
 
 function SettingsPanel({ show, onClose }) {
+  const { t, language, setLanguage } = useTranslation();
   const [autoCheck, setAutoCheck] = useState(true);
-  const [updateState, setUpdateState] = useState(UPDATE_STATE.IDLE); // DEV ONLY — set to UPDATE_STATE.AVAILABLE to see the changelog UI
-  const [updateInfo, setUpdateInfo] = useState(null); // DEV ONLY — set to DEV_MOCK_UPDATE to see the changelog UI
+  const [updateState, setUpdateState] = useState(UPDATE_STATE.IDLE);
+  const [updateInfo, setUpdateInfo] = useState(null);
   const [downloadProgress, setDownloadProgress] = useState(0);
 
   // Load persisted preference on mount
@@ -110,25 +112,25 @@ function SettingsPanel({ show, onClose }) {
       case UPDATE_STATE.UP_TO_DATE:
         return (
           <span className="settings-panel__status settings-panel__status--success">
-            Up to date
+            {t("settings.upToDate")}
           </span>
         );
       case UPDATE_STATE.AVAILABLE:
         return (
           <span className="settings-panel__status settings-panel__status--available">
-            v{updateInfo?.version} available
+            {t("settings.versionAvailable", { version: updateInfo?.version })}
           </span>
         );
       case UPDATE_STATE.DOWNLOADING:
         return (
           <span className="settings-panel__status">
-            Installing... {downloadProgress}%
+            {t("settings.installing", { percent: downloadProgress })}
           </span>
         );
       case UPDATE_STATE.ERROR:
         return (
           <span className="settings-panel__status settings-panel__status--error">
-            Update failed
+            {t("settings.updateFailed")}
           </span>
         );
       default:
@@ -139,7 +141,7 @@ function SettingsPanel({ show, onClose }) {
   const getPrimaryAction = () => {
     if (updateState === UPDATE_STATE.AVAILABLE) {
       return {
-        label: "Install update",
+        label: t("settings.installUpdate"),
         onClick: handleInstallUpdate,
         disabled: false,
       };
@@ -147,7 +149,7 @@ function SettingsPanel({ show, onClose }) {
 
     if (updateState === UPDATE_STATE.CHECKING) {
       return {
-        label: "Checking...",
+        label: t("settings.checking"),
         onClick: handleCheckForUpdates,
         disabled: true,
       };
@@ -155,14 +157,14 @@ function SettingsPanel({ show, onClose }) {
 
     if (updateState === UPDATE_STATE.DOWNLOADING) {
       return {
-        label: `Installing... ${downloadProgress}%`,
+        label: t("settings.installing", { percent: downloadProgress }),
         onClick: handleInstallUpdate,
         disabled: true,
       };
     }
 
     return {
-      label: "Check for updates",
+      label: t("settings.checkForUpdates"),
       onClick: handleCheckForUpdates,
       disabled: false,
     };
@@ -170,37 +172,45 @@ function SettingsPanel({ show, onClose }) {
 
   const primaryAction = getPrimaryAction();
 
+  /** Render inline markdown (**bold**) as React elements. */
+  const renderInline = (text) => {
+    const parts = text.split(/(\*\*[^*]+\*\*)/g);
+    return parts.map((part) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={part}>{part.slice(2, -2)}</strong>;
+      }
+      return part;
+    });
+  };
+
   /** Parse a GitHub release markdown body into structured elements. */
   const renderChangelog = (body) => {
     const elements = [];
-    let sectionIndex = 0;
+    let idx = 0;
 
     for (const line of body.split("\n")) {
       const trimmed = line.trim();
       if (!trimmed) continue;
 
-      if (trimmed.startsWith("###")) {
-        // Section header — strip the ### prefix
+      if (trimmed.startsWith("##")) {
         elements.push(
-          <p
-            key={`s${sectionIndex++}`}
-            className="settings-panel__changelog-section"
-          >
+          <p key={`h${idx++}`} className="settings-panel__changelog-section">
             {trimmed.replace(/^#{1,4}\s*/, "")}
           </p>,
         );
       } else if (trimmed.startsWith("- ")) {
-        // List item — strip the "- " prefix
         elements.push(
-          <p
-            key={`i${elements.length}`}
-            className="settings-panel__changelog-item"
-          >
-            {trimmed.slice(2)}
+          <p key={`i${idx++}`} className="settings-panel__changelog-item">
+            {renderInline(trimmed.slice(2))}
+          </p>,
+        );
+      } else {
+        elements.push(
+          <p key={`p${idx++}`} className="settings-panel__changelog-paragraph">
+            {renderInline(trimmed)}
           </p>,
         );
       }
-      // Skip other lines (e.g. "**Full Changelog**: ...")
     }
 
     return elements;
@@ -210,23 +220,44 @@ function SettingsPanel({ show, onClose }) {
     <div className={`settings-panel ${show ? "settings-panel--open" : ""}`}>
       <div className="settings-panel__surface" aria-hidden={!show}>
         <div className="settings-panel__header">
-          <span>Settings</span>
+          <span>{t("settings.title")}</span>
           <button
             type="button"
             className="settings-panel__close-btn"
             onClick={onClose}
-            aria-label="Close settings"
+            aria-label={t("settings.close")}
           >
             <img
               className="settings-panel__close-icon"
               src={closeIcon}
-              alt="Close"
+              alt=""
             />
           </button>
         </div>
 
         <div className="settings-panel__body">
-          <span className="settings-panel__section-label">App updates</span>
+          <span className="settings-panel__section-label">
+            {t("settings.language")}
+          </span>
+          <div className="settings-panel__divider" />
+
+          <div className="settings-panel__item">
+            <select
+              className="settings-panel__lang-select"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+            >
+              {LANGUAGES.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <span className="settings-panel__section-label">
+            {t("settings.updates")}
+          </span>
           <div className="settings-panel__divider" />
 
           <div className="settings-panel__item settings-panel__item--toggle">
@@ -236,12 +267,16 @@ function SettingsPanel({ show, onClose }) {
               onClick={handleToggle}
               role="switch"
               aria-checked={autoCheck}
-              title={autoCheck ? "Disable auto-check" : "Enable auto-check"}
+              title={
+                autoCheck
+                  ? t("settings.disableAutoCheck")
+                  : t("settings.enableAutoCheck")
+              }
             >
               <span className="settings-panel__toggle-thumb" />
             </button>
             <p className="settings-panel__toggle-label">
-              Check for updates on startup
+              {t("settings.checkOnStartup")}
             </p>
           </div>
 
@@ -263,7 +298,7 @@ function SettingsPanel({ show, onClose }) {
           {updateState === UPDATE_STATE.AVAILABLE && updateInfo?.body && (
             <div className="settings-panel__changelog">
               <span className="settings-panel__changelog-title">
-                v{updateInfo.version} Changelog
+                {t("settings.changelog", { version: updateInfo.version })}
               </span>
               <div className="settings-panel__changelog-body">
                 {renderChangelog(updateInfo.body)}

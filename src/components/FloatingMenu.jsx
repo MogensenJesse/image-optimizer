@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import closeIcon from "../assets/icons/close.svg";
+import { useTranslation } from "../i18n";
 
 function FloatingMenu({
   settings,
@@ -8,7 +9,8 @@ function FloatingMenu({
   show,
   onClose,
 }) {
-  const [resizeMode, setResizeMode] = useState(settings.resize.mode || "none"); // none, width, height, longest, shortest
+  const { t } = useTranslation();
+  const [resizeMode, setResizeMode] = useState(settings.resize.mode || "none");
 
   // Memoized function to calculate gradient color based on percentage
   const calculateGradientColor = useMemo(() => {
@@ -33,13 +35,13 @@ function FloatingMenu({
 
   // Function to get quality label based on slider value
   const getQualityLabel = (value) => {
-    if (value === 100) return "Lossless";
-    if (value >= 90) return "Near-lossless";
-    if (value >= 70) return "Excellent";
-    if (value >= 50) return "Good";
-    if (value >= 30) return "Fair";
-    if (value >= 10) return "Poor";
-    return "Broken beyond repair";
+    if (value === 100) return t("menu.quality.lossless");
+    if (value >= 90) return t("menu.quality.nearLossless");
+    if (value >= 70) return t("menu.quality.excellent");
+    if (value >= 50) return t("menu.quality.good");
+    if (value >= 30) return t("menu.quality.fair");
+    if (value >= 10) return t("menu.quality.poor");
+    return t("menu.quality.broken");
   };
 
   const sliderContainerRef = useRef(null);
@@ -118,7 +120,7 @@ function FloatingMenu({
         }}
         role="button"
         tabIndex={0}
-        aria-label="Close menu"
+        aria-label={t("menu.close")}
       />
 
       <div className={`floating-menu ${show ? "floating-menu--open" : ""}`}>
@@ -126,7 +128,7 @@ function FloatingMenu({
           <div className="floating-menu__item">
             <div className="floating-menu__content floating-menu__content--column">
               <div className="header-row">
-                <span>Quality</span>
+                <span>{t("menu.quality")}</span>
                 <span className="value">
                   <span className="menu-control--label">
                     {getQualityLabel(settings.quality.global)}
@@ -151,14 +153,14 @@ function FloatingMenu({
 
           <div className="floating-menu__item">
             <div className="floating-menu__content">
-              <span>Resize</span>
+              <span>{t("menu.resize")}</span>
               <div className="control-group">
                 {resizeMode !== "none" && (
                   <div className="input-with-unit">
                     <input
                       type="number"
                       min="1"
-                      placeholder="Size"
+                      placeholder={t("menu.resize.placeholder")}
                       value={settings.resize.size || ""}
                       onChange={(e) =>
                         handleResizeChange(resizeMode, e.target.value)
@@ -176,11 +178,11 @@ function FloatingMenu({
                   }}
                   className="menu-control--select"
                 >
-                  <option value="none">Don't resize</option>
-                  <option value="width">Width</option>
-                  <option value="height">Height</option>
-                  <option value="longest">Longest edge</option>
-                  <option value="shortest">Shortest edge</option>
+                  <option value="none">{t("menu.resize.none")}</option>
+                  <option value="width">{t("menu.resize.width")}</option>
+                  <option value="height">{t("menu.resize.height")}</option>
+                  <option value="longest">{t("menu.resize.longest")}</option>
+                  <option value="shortest">{t("menu.resize.shortest")}</option>
                 </select>
               </div>
             </div>
@@ -190,7 +192,7 @@ function FloatingMenu({
 
           <div className="floating-menu__item">
             <div className="floating-menu__content">
-              <span>Convert to</span>
+              <span>{t("menu.convertTo")}</span>
               <select
                 value={settings.outputFormat}
                 onChange={(e) =>
@@ -201,7 +203,7 @@ function FloatingMenu({
                 }
                 className="menu-control--select"
               >
-                <option value="original">Original</option>
+                <option value="original">{t("menu.format.original")}</option>
                 <option value="jpeg">JPEG</option>
                 <option value="png">PNG</option>
                 <option value="webp">WEBP</option>
@@ -210,8 +212,8 @@ function FloatingMenu({
             </div>
           </div>
 
-          <button type="button" onClick={onClose} aria-label="Close menu">
-            <img className="floating-menu__close" src={closeIcon} alt="Close" />
+          <button type="button" onClick={onClose} aria-label={t("menu.close")}>
+            <img className="floating-menu__close" src={closeIcon} alt="" />
           </button>
         </div>
       </div>

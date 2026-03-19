@@ -1,0 +1,62 @@
+// src/assets/styles/components/_Toast.scss
+@use '../base/variables' as v;
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: v.$radius-sm;
+  font-size: 11px;
+  letter-spacing: 0.2px;
+  backdrop-filter: blur(12px);
+  animation: toast-in 0.3s v.$ease-out;
+
+  &--warning {
+    background: rgba(v.$yellow, 0.15);
+    border: 1px solid rgba(v.$yellow, 0.25);
+    color: v.$yellow;
+  }
+
+  &--error {
+    background: rgba(v.$red, 0.15);
+    border: 1px solid rgba(v.$red, 0.25);
+    color: v.$red;
+  }
+
+  &__message {
+    flex: 1;
+    line-height: 1.4;
+  }
+
+  &__close {
+    background: none;
+    border: none;
+    color: inherit;
+    opacity: 0.6;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 2px;
+    line-height: 1;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}

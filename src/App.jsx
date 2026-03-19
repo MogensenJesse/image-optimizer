@@ -6,15 +6,19 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { mkdir } from "@tauri-apps/plugin-fs";
 import { platform as getPlatform } from "@tauri-apps/plugin-os";
 import { load } from "@tauri-apps/plugin-store";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import optionsIcon from "./assets/icons/options.svg";
 import plusIcon from "./assets/icons/plus.svg";
 import FloatingMenu from "./components/FloatingMenu";
 import ProgressBar from "./components/ProgressBar";
 import SettingsPanel from "./components/SettingsPanel";
 import TitleBar from "./components/TitleBar";
+import Toast from "./components/Toast";
 import useProgressTracker from "./hooks/useProgressTracker";
+import { useTranslation } from "./i18n";
 import { checkForUpdate } from "./utils/updater";
+
+const SUPPORTED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "avif"]);
 
 // Define app states as constants
 const APP_STATE = {
@@ -33,6 +37,9 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [hasUpdate, setHasUpdate] = useState(false);
   const [platformName, setPlatformName] = useState(null);
+  const [toast, setToast] = useState(null);
+  const toastTimerRef = useRef(null);
+  const { t } = useTranslation();
 
   // Use our custom hook for progress tracking
   const { progress, initProgress, processingRef } = useProgressTracker(
@@ -178,34 +185,63 @@ function App() {
     };
   }, [isLinuxPlatform]);
 
-  // Function to handle file processing (used for both drop and click)
+  const showToast = useCallback((message, type = "warning") => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message, type });
+    toastTimerRef.current = setTimeout(() => setToast(null), 5000);
+  }, []);
+
   const processFiles = useCallback(
     async (filePaths) => {
       if (processingRef.current || !filePaths || filePaths.length === 0) {
         return;
       }
 
-      initProgress(filePaths.length);
+      const supported = [];
+      const skipped = [];
+
+      for (const p of filePaths) {
+        const ext = p.split(".").pop()?.toLowerCase();
+        if (ext && SUPPORTED_EXTENSIONS.has(ext)) {
+          supported.push(p);
+        } else {
+          skipped.push(p);
+        }
+      }
+
+      if (skipped.length > 0) {
+        const names = skipped.map((p) => p.split(/[\\/]/).pop());
+        const label =
+          skipped.length === 1
+            ? t("app.skippedFile", { name: names[0] })
+            : t("app.skippedFiles", {
+                count: skipped.length,
+                names: names.join(", "),
+              });
+        showToast(label);
+      }
+
+      if (supported.length === 0) return;
+
+      initProgress(supported.length);
       processingRef.current = true;
 
+      let animationDone = false;
+
       try {
-        // Start UI animations immediately
         setAppState(APP_STATE.FADE_IN);
 
-        // Start optimization process in parallel with UI animations
         const optimizationPromise = (async () => {
-          // Create all required directories first
           await Promise.all(
-            filePaths.map(async (path) => {
+            supported.map(async (path) => {
               const parentDir = await dirname(path);
               const optimizedPath = await join(parentDir, "optimized");
               await mkdir(optimizedPath, { recursive: true });
             }),
           );
 
-          // Create batch tasks
           const tasks = await Promise.all(
-            filePaths.map(async (path) => {
+            supported.map(async (path) => {
               const parentDir = await dirname(path);
               const fileName = await basename(path);
               const optimizedPath = await join(
@@ -217,26 +253,30 @@ function App() {
             }),
           );
 
-          // Start the actual optimization
           return invoke("optimize_images", { tasks });
         })();
 
-        // Handle UI animations independently
         const animationPromise = (async () => {
           await new Promise((resolve) => setTimeout(resolve, 50));
           await new Promise((resolve) => setTimeout(resolve, 150));
+          animationDone = true;
           setAppState(APP_STATE.PROCESSING);
         })();
 
-        // Wait for both to complete, but optimization can start before animations finish
         await Promise.all([optimizationPromise, animationPromise]);
       } catch (error) {
         console.error("Error processing images:", error);
-        setAppState(APP_STATE.IDLE);
+        if (animationDone) {
+          setAppState(APP_STATE.IDLE);
+        } else {
+          // Animation hasn't fired yet; defer reset so the late
+          // setAppState(PROCESSING) doesn't overwrite us.
+          setTimeout(() => setAppState(APP_STATE.IDLE), 300);
+        }
         processingRef.current = false;
       }
     },
-    [settings, initProgress, processingRef],
+    [settings, initProgress, processingRef, showToast, t],
   );
 
   // Handle click on dropzone to open file picker
@@ -251,8 +291,8 @@ function App() {
         multiple: true,
         filters: [
           {
-            name: "Images",
-            extensions: ["png", "jpg", "jpeg", "webp", "avif", "gif"],
+            name: t("app.fileFilter"),
+            extensions: [...SUPPORTED_EXTENSIONS],
           },
         ],
       });
@@ -340,7 +380,7 @@ function App() {
               }}
               role="button"
               tabIndex={0}
-              aria-label="Drop images here or click to select files"
+              aria-label={t("app.dropzone.aria")}
             >
               <div className="dropzone__content">
                 {showProgressBar && (
@@ -360,13 +400,9 @@ function App() {
                   <div
                     className={`dropzone__message ${appState === APP_STATE.FADE_OUT ? "fade-in-delayed" : ""}`}
                   >
-                    <img
-                      src={plusIcon}
-                      alt="Drop here"
-                      className="dropzone__icon"
-                    />
-                    <h2>Drop images here</h2>
-                    <p>Optimized images will be saved in their source folder</p>
+                    <img src={plusIcon} alt="" className="dropzone__icon" />
+                    <h2>{t("app.dropzone.title")}</h2>
+                    <p>{t("app.dropzone.subtitle")}</p>
                   </div>
                 )}
               </div>
@@ -380,7 +416,7 @@ function App() {
                 appState !== APP_STATE.IDLE && appState !== APP_STATE.DRAGGING
               }
             >
-              <img src={optionsIcon} alt="Options" />
+              <img src={optionsIcon} alt="" />
             </button>
 
             <FloatingMenu
@@ -400,6 +436,14 @@ function App() {
           />
         </div>
       </div>
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }

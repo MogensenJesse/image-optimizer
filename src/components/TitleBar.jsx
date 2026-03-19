@@ -5,10 +5,12 @@ import { useEffect, useState } from "react";
 import closeIcon from "../assets/icons/close.svg";
 import minimizeIcon from "../assets/icons/minimize.svg";
 import settingsIcon from "../assets/icons/settings.svg";
+import { useTranslation } from "../i18n";
 
 function TitleBar({ onSettingsToggle, hasUpdate }) {
   const appWindow = getCurrentWindow();
   const [version, setVersion] = useState("");
+  const { t } = useTranslation();
 
   useEffect(() => {
     getVersion().then(setVersion).catch(console.error);
@@ -25,7 +27,7 @@ function TitleBar({ onSettingsToggle, hasUpdate }) {
   return (
     <div className="title-bar" data-tauri-drag-region>
       <h1 className="title-bar-title" data-tauri-drag-region>
-        Image optimizer{" "}
+        {t("titlebar.title")}{" "}
         {version && <span className="title-bar-version">v{version}</span>}
       </h1>
       <div className="window-controls">
@@ -33,26 +35,26 @@ function TitleBar({ onSettingsToggle, hasUpdate }) {
           type="button"
           onClick={onSettingsToggle}
           className="window-control-button window-control-settings"
-          title="Settings"
+          title={t("titlebar.settings")}
         >
-          <img src={settingsIcon} alt="Settings" />
+          <img src={settingsIcon} alt={t("titlebar.settings")} />
           {hasUpdate && <span className="window-control-badge" />}
         </button>
         <button
           type="button"
           onClick={handleMinimize}
           className="window-control-button"
-          title="Minimize"
+          title={t("titlebar.minimize")}
         >
-          <img src={minimizeIcon} alt="Minimize" />
+          <img src={minimizeIcon} alt={t("titlebar.minimize")} />
         </button>
         <button
           type="button"
           onClick={handleClose}
           className="window-control-button window-control-close"
-          title="Close"
+          title={t("titlebar.close")}
         >
-          <img src={closeIcon} alt="Close" />
+          <img src={closeIcon} alt={t("titlebar.close")} />
         </button>
       </div>
     </div>

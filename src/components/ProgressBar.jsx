@@ -1,3 +1,5 @@
+import { useTranslation } from "../i18n";
+
 /**
  * ProgressBar component for displaying image optimization progress
  *
@@ -17,7 +19,7 @@ function ProgressBar({
   savedPercentage = 0,
   processingTime = 0,
 }) {
-  // Calculate saved percentage for display
+  const { t } = useTranslation();
   const displayPercentage = Math.round(progressPercentage);
   const isComplete = displayPercentage >= 100;
 
@@ -36,17 +38,13 @@ function ProgressBar({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  // Format processing time to a readable format with one decimal place for seconds
   const formatTime = (seconds) => {
-    // For seconds less than 60, show with one decimal place
     if (seconds < 60) {
-      return `${seconds.toFixed(1)}s`;
+      return t("progress.seconds", { value: seconds.toFixed(1) });
     }
-
-    // For minutes + seconds format
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = (seconds % 60).toFixed(1);
-    return `${minutes}m ${remainingSeconds}s`;
+    return t("progress.minutes", { min: minutes, sec: remainingSeconds });
   };
 
   return (
@@ -93,14 +91,20 @@ function ProgressBar({
         <h2
           className={`progress-circle__percentage-value ${isComplete ? "complete" : ""}`}
         >
-          {isComplete ? "Optimization complete" : `${displayPercentage}%`}
+          {isComplete ? t("progress.complete") : `${displayPercentage}%`}
         </h2>
         <p className="progress-circle__percentage-label">
-          {savedSize.toFixed(2)} MB / {savedPercentage}% saved
+          {t("progress.saved", {
+            size: savedSize.toFixed(2),
+            percent: savedPercentage,
+          })}
         </p>
 
         <p className="progress-circle__percentage-label">
-          {completedTasks} images optimized in {formatTime(processingTime)}
+          {t("progress.summary", {
+            count: completedTasks,
+            time: formatTime(processingTime),
+          })}
         </p>
       </div>
     </div>
