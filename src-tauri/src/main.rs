@@ -9,7 +9,8 @@ mod core;
 mod processing;
 mod commands;
 
-use tracing::{info, debug};
+use tracing::{debug, info};
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 use tauri::Manager;
 use crate::core::AppState;
 use crate::commands::{optimize_image, optimize_images};
@@ -19,18 +20,34 @@ use crate::commands::{optimize_image, optimize_images};
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
 fn main() {
-    let subscriber = tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
-        .with_file(false)         // Remove file path
-        .with_line_number(false)  // Remove line numbers
-        .with_thread_ids(false)   // Remove thread IDs
-        .with_thread_names(false) // Remove thread names
-        .with_target(false)       // Remove module path
-        .with_ansi(true)         // Keep colored output
-        .with_writer(std::io::stdout)
-        .compact();              // Use compact formatter instead of pretty
+    // Respect RUST_LOG when set; otherwise info for the app and warn for HTTP stacks.
+    // Global DEBUG was causing hyper/reqwest + tauri-plugin-updater to print full
+    // latest.json (changelog text, signatures) on every update check.
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        EnvFilter::new(
+            "info,\
+             image_optimizer=debug,\
+             hyper=warn,\
+             h2=warn,\
+             reqwest=warn,\
+             rustls=warn",
+        )
+    });
 
-    subscriber.init();
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(
+            fmt::layer()
+                .with_file(false)
+                .with_line_number(false)
+                .with_thread_ids(false)
+                .with_thread_names(false)
+                .with_target(false)
+                .with_ansi(true)
+                .with_writer(std::io::stdout)
+                .compact(),
+        )
+        .init();
     
     info!("=== Application Starting ===");
 
