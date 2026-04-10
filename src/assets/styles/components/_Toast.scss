@@ -13,7 +13,8 @@
   padding: 10px 16px;
   border-radius: v.$radius-sm;
   font-size: 11px;
-  letter-spacing: 0.2px;
+  font-weight: 500;
+  letter-spacing: 0.15em;
   backdrop-filter: blur(12px);
   animation: toast-in 0.3s v.$ease-out;
 
