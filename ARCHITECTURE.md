@@ -74,11 +74,12 @@ This application is a Tauri-based desktop image optimizer with two main componen
 
 1. **Update `CHANGELOG.md`** with the new version's changes — CI reads this file to populate the GitHub Release body and the updater's `latest.json` notes
 2. **Bump the version** — this syncs `package.json`, `Cargo.toml`, `tauri.conf.json`, and `Cargo.lock`, then commits and creates a git tag:
-   ```
+  ```
    npm version major/minor/patch
-   ```
-3. **Push the branch and tag** — pushing the `v*` tag triggers the CI build workflow:
-   ```
+  ```
+3. **Push the branch and tag** — pushing the `v`* tag triggers the CI build workflow:
+  ```
    git push origin Development && git push origin v<x.x.x>
-   ```
+  ```
 4. **Review the draft release** on GitHub — CI creates a draft release with build artifacts for Windows, macOS, and Linux. Verify the release notes and publish it
+
