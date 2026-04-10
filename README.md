@@ -50,14 +50,14 @@ For detailed technical information about the architecture, components, and imple
 
 - [ ] Add SVG support
 - [x] Add additional performance optimizations
-- [ ] Add unsupported image format detection
+- [x] Add unsupported image format detection
 - [x] Add macOS support
 - [x] Add Linux support
 - [x] Add updating mechanism
 - [ ] Redesign the product website
 - [ ] Design product logo & icons
 - [ ] Implement code signing for Windows and macOS builds
-- [ ] Add multi-language support
+- [x] Add multi-language support
 
 ## License
 This project is licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). Please review the license terms before using or distributing this software.
