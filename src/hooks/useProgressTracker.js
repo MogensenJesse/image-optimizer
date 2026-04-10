@@ -1,6 +1,6 @@
 // src/hooks/useProgressTracker.js
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const TIMER_INTERVAL_MS = 100;
 
@@ -45,23 +45,28 @@ function useProgressTracker() {
     }, TIMER_INTERVAL_MS);
   };
 
-  const stopTimer = () => {
+  const stopTimer = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-  };
+  }, []);
 
   // Clean up timer on unmount
-  useEffect(() => stopTimer, []);
+  useEffect(() => stopTimer, [stopTimer]);
 
   // Single event listener — registered once on mount
   useEffect(() => {
     const unsubscribe = listen("image_optimization_progress", (event) => {
       if (!processingRef.current) return;
 
-      const { completedTasks, totalTasks, progressPercentage, status, metadata } =
-        event.payload;
+      const {
+        completedTasks,
+        totalTasks,
+        progressPercentage,
+        status,
+        metadata,
+      } = event.payload;
 
       const stats = statsRef.current;
 
@@ -101,7 +106,7 @@ function useProgressTracker() {
     return () => {
       unsubscribe.then((fn) => fn());
     };
-  }, []);
+  }, [stopTimer]);
 
   /**
    * Reset all tracking state and start the elapsed-time timer.

@@ -41,12 +41,12 @@ pub async fn validate_input_path(path: impl AsRef<Path>) -> OptimizerResult<()> 
 /// (e.g., .jpg → .webp) correct the extension downstream in the executor.
 pub async fn validate_output_path(path: impl AsRef<Path>) -> OptimizerResult<()> {
     let path = path.as_ref();
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            fs::create_dir_all(parent).await.map_err(|e| {
-                ValidationError::Path(e.into())
-            })?;
-        }
+    if let Some(parent) = path.parent()
+        && !parent.exists()
+    {
+        fs::create_dir_all(parent).await.map_err(|e| {
+            ValidationError::Path(e.into())
+        })?;
     }
     Ok(())
 }
@@ -69,15 +69,15 @@ pub fn validate_settings(settings: &crate::core::ImageSettings) -> OptimizerResu
     }
 
     // Resize validation
-    if let Some(width) = settings.resize.width {
-        if width == 0 {
-            return Err(ValidationError::settings("Width cannot be 0").into());
-        }
+    if let Some(width) = settings.resize.width
+        && width == 0
+    {
+        return Err(ValidationError::settings("Width cannot be 0").into());
     }
-    if let Some(height) = settings.resize.height {
-        if height == 0 {
-            return Err(ValidationError::settings("Height cannot be 0").into());
-        }
+    if let Some(height) = settings.resize.height
+        && height == 0
+    {
+        return Err(ValidationError::settings("Height cannot be 0").into());
     }
     Ok(())
 } 
