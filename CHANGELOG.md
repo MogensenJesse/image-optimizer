@@ -1,28 +1,23 @@
-## What's New in v0.5.3
-
-Image optimization is now powered by a native Rust engine (libvips), replacing the Node.js sidecar. This results in a **20–50% increase in optimization speed**, lower memory usage, and a simpler architecture.
+## What's New in v0.6.0
 
 ### New Features
 
-- **Native image processing engine** — all optimization now runs natively in Rust using libvips, eliminating the separate Node.js process
-- **Smart lossless compression** — quality 100% now uses maximum compression effort across all formats (JPEG, PNG, WebP, AVIF) for the smallest possible file sizes
+- **Internationalization** — the app is now available in 6 languages: English, Dutch, German, French, Spanish, and Russian
+- **Toast notifications** — non-intrusive feedback when unsupported files are skipped, with auto-dismiss animation
 
 ### Improvements
 
-- **Shrink-on-load** for JPEG resizing — only decodes the pixels needed, significantly faster for large images
-- **Sequential file access** for compression-only operations, reducing I/O overhead
-- Optimized build settings for faster image processing
-- Lossy mode encoding tuned to prioritize speed while maintaining great quality
-- Settings UI improvements
+- **Structured logging** — configurable log levels via `RUST_LOG`
+- **UI accessibility** — consistent focus indicators on all interactive elements
+- **Typography consistency** — standardized font weights and spacing across panels and menus
+- **Dropdown styling** — added chevron icon to the language selector
+- **Skipped-files messaging** — shows one filename with a count of others instead of listing all
+- **Progress bar responsiveness** — visual now closely tracks the percentage text
+- **Unified progress tracking** — progress bar now accurately reflects overall job completion
 - Updated JS and Rust dependencies
 
 ### Fixes
 
-- Resolved AVIF color shifts in lossless mode
-- Fixed AVIF bit-depth compatibility issues
-- Fixed CI builds for Windows, Linux, and macOS
-
-### Other
-
-- Removed Node.js sidecar and all related IPC/serialization code
-- Simplified project architecture to a single-process model
+- Fixed toast notification only appearing once for repeated actions
+- Fixed progress events being dropped during fade-in animation
+- Fixed processing timer not starting for fast operations
