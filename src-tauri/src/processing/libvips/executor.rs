@@ -1,11 +1,10 @@
 // src-tauri/src/processing/libvips/executor.rs
 
-//! Native libvips executor for batch image optimization.
+//! Native executor for batch image and SVG optimization.
 //!
-//! Each image is processed inside a `tokio::task::spawn_blocking` call so the
-//! async runtime is never blocked. libvips manages its own internal thread pool
-//! for per-image parallelism, so images are dispatched sequentially here while
-//! libvips concurrently saturates CPU cores within each image.
+//! Raster images are processed via libvips; SVG files are optimized with
+//! oxvg (a high-performance Rust port of SVGO). Each task runs inside a
+//! `tokio::task::spawn_blocking` call so the async runtime is never blocked.
 
 use std::path::Path;
 use std::time::Instant;
@@ -17,7 +16,7 @@ use libvips::VipsImage;
 use libvips::ops::Access;
 
 use crate::core::{ImageTask, OptimizationResult};
-use crate::utils::{OptimizerError, OptimizerResult, extract_filename, normalize_format};
+use crate::utils::{ImageFormat, OptimizerError, OptimizerResult, extract_filename, format_from_extension, normalize_format};
 
 use super::formats::save_image_as;
 use super::resize::{apply_resize, needs_resize, load_and_resize};
@@ -64,7 +63,7 @@ impl NativeExecutor {
                 }
                 Err(e) => {
                     let error_msg = e.to_string();
-                    warn!("Image optimization failed for {}: {}", task.input_path, error_msg);
+                    warn!("Optimization failed for {}: {}", task.input_path, error_msg);
 
                     self.emit_error_progress(overall_completed, job_total, task, &error_msg);
 
@@ -153,36 +152,124 @@ impl NativeExecutor {
     }
 }
 
-// ── Blocking image processing (runs on tokio's blocking thread pool) ──────────────────
+// ── Blocking processing (runs on tokio's blocking thread pool) ────────────────────────
 
-/// Optimises one image task synchronously.
-///
-/// Runs in a blocking thread so libvips can use its internal thread pool freely.
+/// Optimises one task synchronously — dispatches to SVG or raster pipeline.
 fn optimize_single(task: &ImageTask) -> OptimizerResult<OptimizationResult> {
+    let format = format_from_extension(&task.input_path)?;
+    if format == ImageFormat::SVG {
+        return optimize_svg(task);
+    }
+    optimize_raster(task)
+}
+
+// ── SVG optimization ──────────────────────────────────────────────────────────────────
+
+/// Maps the global quality setting (1–100) to SVG float precision (0–8).
+///
+/// Higher quality preserves more decimal places in coordinates; lower quality
+/// rounds more aggressively for smaller files at the cost of path fidelity.
+fn quality_to_precision(quality: u32) -> u8 {
+    match quality {
+        95..=100 => 8,
+        85..=94 => 3,
+        70..=84 => 2,
+        40..=69 => 1,
+        _ => 0,
+    }
+}
+
+/// Optimises an SVG file using oxvg (high-performance Rust port of SVGO).
+///
+/// Parses the SVG into an AST, runs the default SVGO-equivalent jobs with
+/// float precision derived from the quality slider, and writes the result.
+fn optimize_svg(task: &ImageTask) -> OptimizerResult<OptimizationResult> {
+    use oxvg_ast::{parse::roxmltree::parse, serialize::Node as _, visitor::Info};
+    use oxvg_optimiser::Jobs;
+
+    let input_path = &task.input_path;
+    let precision = quality_to_precision(task.settings.quality.global);
+
+    let svg_content = std::fs::read_to_string(input_path)
+        .map_err(|e| OptimizerError::processing(format!("Cannot read SVG file: {e}")))?;
+
+    let original_size = svg_content.len() as u64;
+
+    let precision_overrides: Jobs = serde_json::from_value(serde_json::json!({
+        "cleanupNumericValues": { "floatPrecision": precision },
+        "convertPathData": { "floatPrecision": precision },
+        "cleanupListOfValues": { "floatPrecision": precision },
+    }))
+    .map_err(|e| OptimizerError::processing(format!("SVG jobs config failed: {e}")))?;
+
+    let mut jobs = Jobs::default();
+    jobs.extend(&precision_overrides);
+
+    let optimized_svg = parse(&svg_content, |dom, allocator| {
+        jobs.run(dom, &Info::new(allocator))
+            .map_err(|e| e.to_string())?;
+        dom.serialize().map_err(|e| e.to_string())
+    })
+    .map_err(|e| OptimizerError::processing(format!("SVG parsing failed: {e}")))?
+    .map_err(|e| OptimizerError::processing(format!("SVG optimization failed: {e}")))?;
+
+    let output_path = &task.output_path;
+    if let Some(parent) = Path::new(output_path).parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            OptimizerError::processing(format!("Cannot create output directory: {e}"))
+        })?;
+    }
+
+    std::fs::write(output_path, &optimized_svg)
+        .map_err(|e| OptimizerError::processing(format!("Cannot write optimized SVG: {e}")))?;
+
+    let optimized_size = optimized_svg.len() as u64;
+    let saved_bytes = original_size as i64 - optimized_size as i64;
+    let compression_ratio = if original_size > 0 {
+        saved_bytes as f64 / original_size as f64 * 100.0
+    } else {
+        0.0
+    };
+
+    debug!(
+        "'{}' → {} bytes saved ({:.1}%)",
+        extract_filename(input_path),
+        saved_bytes,
+        compression_ratio
+    );
+
+    Ok(OptimizationResult {
+        original_path: input_path.clone(),
+        optimized_path: output_path.clone(),
+        original_size,
+        optimized_size,
+        success: true,
+        error: None,
+        saved_bytes,
+        compression_ratio,
+    })
+}
+
+// ── Raster image optimization ─────────────────────────────────────────────────────────
+
+/// Optimises one raster image task synchronously via libvips.
+fn optimize_raster(task: &ImageTask) -> OptimizerResult<OptimizationResult> {
     let input_path = &task.input_path;
     let settings = &task.settings;
 
-    // Original size before any transformation
     let original_size = std::fs::metadata(input_path)
         .map(|m| m.len())
         .map_err(|e| OptimizerError::processing(format!("Cannot read input file: {e}")))?;
 
-    // Determine the output format
     let output_format = resolve_output_format(input_path, &settings.output_format)?;
-
-    // Adjust the output path extension to match the resolved format
     let output_path = ensure_correct_extension(&task.output_path, input_path, &output_format);
 
-    // Ensure the output directory exists
     if let Some(parent) = Path::new(&output_path).parent() {
         std::fs::create_dir_all(parent).map_err(|e| {
             OptimizerError::processing(format!("Cannot create output directory: {e}"))
         })?;
     }
 
-    // When resizing, use file-based thumbnail for shrink-on-load (skips
-    // decoding most DCT coefficients on large JPEG downsizes). Otherwise
-    // load the full image for compression-only operations.
     let image = if needs_resize(&settings.resize) {
         let img = load_and_resize(input_path, &settings.resize)?;
         debug!(
@@ -207,7 +294,6 @@ fn optimize_single(task: &ImageTask) -> OptimizerResult<OptimizationResult> {
         apply_resize(img, &settings.resize)?
     };
 
-    // Encode and save
     save_image_as(&image, &output_path, &output_format, &settings.quality)?;
 
     let optimized_size = std::fs::metadata(&output_path)

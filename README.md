@@ -1,6 +1,6 @@
 # Image Optimizer
 
-![Image Optimizer Screenshot](./screenshot.png) 
+Image Optimizer Screenshot 
 
 Image Optimizer is a high-performance desktop application designed to streamline image compression and optimization without compromising visual quality. It offers advanced tools for rapid batch processing of images, including resizing, format conversion, and compression.
 
@@ -39,25 +39,25 @@ For detailed technical information about the architecture, components, and imple
 ## Security
 
 - **Unsigned Builds**: Currently, both Windows and macOS builds are not code-signed. This is on the roadmap but doesn't affect the application's security.
-
 - **Security Warnings**: You may encounter security warnings when first running the application:
   - **Windows**: You might see a "Windows protected your PC" message. Click "More info" and then "Run anyway" to proceed.
   - **macOS**: You may need to right-click (or Control-click) the app and select "Open" from the context menu, then click "Open" in the dialog that appears.
-
 - **No Network Requirements**: Image Optimizer processes all images locally without sending any data to external servers.
 
 ## Roadmap
 
-- [ ] Add SVG support
-- [x] Add additional performance optimizations
-- [x] Add unsupported image format detection
-- [x] Add macOS support
-- [x] Add Linux support
-- [x] Add updating mechanism
-- [ ] Redesign the product website
-- [ ] Design product logo & icons
-- [ ] Implement code signing for Windows and macOS builds
-- [x] Add multi-language support
+- Add SVG support
+- Add expert settings toggle
+- Add additional performance optimizations
+- Add unsupported image format detection
+- Add macOS support
+- Add Linux support
+- Add updating mechanism
+- Redesign the product website
+- Design product logo & icons
+- Implement code signing for Windows and macOS builds
+- Add multi-language support
 
 ## License
+
 This project is licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). Please review the license terms before using or distributing this software.

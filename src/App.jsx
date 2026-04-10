@@ -18,7 +18,7 @@ import useProgressTracker from "./hooks/useProgressTracker";
 import { useTranslation } from "./i18n";
 import { checkForUpdate } from "./utils/updater";
 
-const SUPPORTED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "avif"]);
+const SUPPORTED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "avif", "svg"]);
 
 // Define app states as constants
 const APP_STATE = {

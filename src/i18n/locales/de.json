@@ -13,7 +13,7 @@
   "titlebar.close": "Schließen",
 
   "progress.complete": "Optimierung abgeschlossen",
-  "progress.saved": "{{size}} MB / {{percent}}% gespart",
+  "progress.saved": "{{size}} / {{percent}}% gespart",
   "progress.summary": "{{count}} Bilder optimiert in {{time}}",
   "progress.seconds": "{{value}}s",
   "progress.minutes": "{{min}}m {{sec}}s",

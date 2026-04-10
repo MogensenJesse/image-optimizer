@@ -56,6 +56,8 @@ thiserror = "2.0"
 anyhow = "1.0"
 window-vibrancy = "0.7"
 libvips = { package = "libvips-rs", version = "=8.15.1" }
+oxvg_optimiser = "0.0.5"
+oxvg_ast = { version = "0.0.5", features = ["roxmltree"] }
 
 # Auto-update and persistent settings
 tauri-plugin-updater = "2"

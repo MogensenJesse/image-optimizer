@@ -1,3 +1,5 @@
+// src-tauri/src/utils/formats.rs
+
 //! Image format detection and parsing.
 
 use std::str::FromStr;
@@ -6,7 +8,7 @@ use crate::utils::OptimizerError;
 /// Supported image formats for optimization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(clippy::upper_case_acronyms)]
-enum ImageFormat {
+pub enum ImageFormat {
     /// JPEG format (lossy compression)
     JPEG,
     /// PNG format (lossless compression)
@@ -15,6 +17,8 @@ enum ImageFormat {
     WebP,
     /// AVIF format (next-gen, best compression)
     AVIF,
+    /// SVG format (vector, lossless optimization only)
+    SVG,
 }
 
 impl FromStr for ImageFormat {
@@ -27,6 +31,7 @@ impl FromStr for ImageFormat {
             "png" => Ok(Self::PNG),
             "webp" => Ok(Self::WebP),
             "avif" => Ok(Self::AVIF),
+            "svg" => Ok(Self::SVG),
             _ => Err(OptimizerError::format(format!(
                 "Unsupported image format: {}", ext
             ))),
@@ -34,19 +39,16 @@ impl FromStr for ImageFormat {
     }
 }
 
-/// Validates that a file path has a supported image format extension.
-///
-/// Returns `Ok(())` if the extension is recognized, or an error if not.
-pub fn format_from_extension(path: &str) -> Result<(), OptimizerError> {
+/// Parses the file extension from a path and returns the corresponding `ImageFormat`.
+pub fn format_from_extension(path: &str) -> Result<ImageFormat, OptimizerError> {
     let ext = std::path::Path::new(path)
         .extension()
         .and_then(|e| e.to_str())
         .ok_or_else(|| OptimizerError::format(
             format!("File has no extension: {}", path)
         ))?;
-    
-    ImageFormat::from_str(ext)?;
-    Ok(())
+
+    ImageFormat::from_str(ext)
 }
 
 /// Normalizes a format string: lowercases and maps "jpg" to "jpeg".
@@ -55,4 +57,4 @@ pub fn normalize_format(fmt: &str) -> String {
         "jpg" => "jpeg".to_string(),
         other => other.to_string(),
     }
-} 
+}

@@ -13,7 +13,7 @@
   "titlebar.close": "Закрыть",
 
   "progress.complete": "Оптимизация завершена",
-  "progress.saved": "{{size}} МБ / {{percent}}% сэкономлено",
+  "progress.saved": "{{size}} / {{percent}}% сэкономлено",
   "progress.summary": "{{count}} изображений оптимизировано за {{time}}",
   "progress.seconds": "{{value}}с",
   "progress.minutes": "{{min}}м {{sec}}с",

@@ -2,6 +2,7 @@
 
 ### New Features
 
+- **SVG optimization** — SVG files are now supported via vexy-vsvg (a native Rust port of SVGO), removing metadata, minifying paths, and collapsing groups for smaller file sizes
 - **Internationalization** — the app is now available in 6 languages: English, Dutch, German, French, Spanish, and Russian
 - **Toast notifications** — non-intrusive feedback when unsupported files are skipped, with auto-dismiss animation
 

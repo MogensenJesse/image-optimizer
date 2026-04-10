@@ -13,7 +13,7 @@
   "titlebar.close": "Sluiten",
 
   "progress.complete": "Optimalisatie voltooid",
-  "progress.saved": "{{size}} MB / {{percent}}% bespaard",
+  "progress.saved": "{{size}} / {{percent}}% bespaard",
   "progress.summary": "{{count}} afbeeldingen geoptimaliseerd in {{time}}",
   "progress.seconds": "{{value}}s",
   "progress.minutes": "{{min}}m {{sec}}s",
