@@ -18,6 +18,10 @@
   backdrop-filter: blur(12px);
   animation: toast-in 0.3s v.$ease-out;
 
+  &--dismissing {
+    animation: toast-out 0.25s v.$ease-out forwards;
+  }
+
   &--warning {
     background: rgba(v.$yellow, 0.15);
     border: 1px solid rgba(v.$yellow, 0.25);
@@ -48,6 +52,12 @@
     &:hover {
       opacity: 1;
     }
+
+    &:focus-visible {
+      outline: 1px solid rgba(v.$light, 0.35);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
   }
 }
 
@@ -59,5 +69,16 @@
   to {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
   }
 }

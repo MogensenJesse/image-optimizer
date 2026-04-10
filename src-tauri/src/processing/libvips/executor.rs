@@ -8,6 +8,7 @@
 //! libvips concurrently saturates CPU cores within each image.
 
 use std::path::Path;
+use std::time::Instant;
 use tauri::AppHandle;
 use tauri::Emitter;
 use tracing::{debug, warn};
@@ -31,19 +32,25 @@ impl NativeExecutor {
         Self { app }
     }
 
-    /// Processes all `tasks` sequentially, emitting a progress event after each image.
+    /// Processes a chunk of tasks, emitting progress events with **overall** job counts.
+    ///
+    /// `offset` is the number of tasks already completed in prior chunks so that
+    /// `completedTasks` and `totalTasks` in emitted events reflect the full job,
+    /// not just this chunk.
     ///
     /// libvips uses its own internal thread pool for within-image parallelism, so
     /// sequential dispatch here is intentional and avoids thread oversubscription.
     pub async fn execute_batch(
         &self,
         tasks: &[ImageTask],
+        offset: usize,
+        job_total: usize,
+        job_start: Instant,
     ) -> OptimizerResult<Vec<OptimizationResult>> {
-        let total = tasks.len();
-        let mut results = Vec::with_capacity(total);
+        let mut results = Vec::with_capacity(tasks.len());
 
         for (idx, task) in tasks.iter().enumerate() {
-            let completed = idx + 1;
+            let overall_completed = offset + idx + 1;
             let task_clone = task.clone();
 
             let result = tokio::task::spawn_blocking(move || optimize_single(&task_clone))
@@ -52,17 +59,15 @@ impl NativeExecutor {
 
             match result {
                 Ok(opt_result) => {
-                    self.emit_progress(completed, total, task, &opt_result);
+                    self.emit_progress(overall_completed, job_total, job_start, task, &opt_result);
                     results.push(opt_result);
                 }
                 Err(e) => {
                     let error_msg = e.to_string();
                     warn!("Image optimization failed for {}: {}", task.input_path, error_msg);
 
-                    // Emit error progress so the frontend stays in sync
-                    self.emit_error_progress(completed, total, task, &error_msg);
+                    self.emit_error_progress(overall_completed, job_total, task, &error_msg);
 
-                    // Push a failed result so the caller gets one result per task
                     results.push(OptimizationResult {
                         original_path: task.input_path.clone(),
                         optimized_path: task.output_path.clone(),
@@ -88,10 +93,12 @@ impl NativeExecutor {
         &self,
         completed: usize,
         total: usize,
+        job_start: Instant,
         task: &ImageTask,
         result: &OptimizationResult,
     ) {
         let percentage = (completed * 100) / total;
+        let is_final = completed == total;
         let file_name = extract_filename(&task.input_path).to_string();
         let saved_kb = result.saved_bytes as f64 / 1024.0;
 
@@ -102,7 +109,7 @@ impl NativeExecutor {
 
         debug!("{formatted_msg}");
 
-        let metadata = serde_json::json!({
+        let mut metadata = serde_json::json!({
             "formattedMessage": formatted_msg,
             "fileName": file_name,
             "originalSize": result.original_size,
@@ -111,11 +118,16 @@ impl NativeExecutor {
             "compressionRatio": format!("{:.2}", result.compression_ratio),
         });
 
+        if is_final {
+            let duration_secs = job_start.elapsed().as_secs_f64();
+            metadata["totalDuration"] = serde_json::json!(format!("{duration_secs:.2}"));
+        }
+
         let payload = serde_json::json!({
             "completedTasks": completed,
             "totalTasks": total,
             "progressPercentage": percentage,
-            "status": if completed == total { "complete" } else { "processing" },
+            "status": if is_final { "complete" } else { "processing" },
             "metadata": metadata,
         });
 
@@ -130,7 +142,7 @@ impl NativeExecutor {
             "completedTasks": completed,
             "totalTasks": total,
             "progressPercentage": percentage,
-            "status": "error",
+            "status": if completed == total { "complete" } else { "error" },
             "metadata": {
                 "fileName": file_name,
                 "error": error,

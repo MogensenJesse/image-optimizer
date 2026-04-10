@@ -50,6 +50,10 @@
   &__content {
     width: 100%;
     color: v.$light;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
 
     // Default layout for resize and convert options
     display: flex;
@@ -83,19 +87,29 @@
     background-color: rgba(v.$light, 0.1);
   }
 
-  // Close button
+  // Close button icon (inside a bare <button>)
   &__close {
-    background: none;
     height: 32px;
     width: 32px;
     padding: 10px;
-    cursor: pointer;
     color: v.$light;
     opacity: 0.7;
     transition: opacity 0.3s v.$ease-out;
-    
-    &:hover {
+  }
+
+  // The wrapping <button> that holds the close icon
+  &__panel > button {
+    background: none;
+    cursor: pointer;
+
+    &:hover .floating-menu__close {
       opacity: 1;
+    }
+
+    &:focus-visible {
+      outline: 1px solid rgba(v.$light, 0.35);
+      outline-offset: 2px;
+      border-radius: 4px;
     }
   }
 
@@ -153,7 +167,6 @@
 
   // Form controls - consolidated inside floating-menu
   .menu-control {
-    // width: 100%;
     color: v.$light;
     
     // Range slider input
@@ -175,14 +188,7 @@
         border-radius: 10px;
       }
       
-      // Standard track for Chromium (Windows)
-      &::-ms-track {
-        background: transparent;
-        height: 3px;
-        border-radius: 10px;
-      }
-
-      // Hide thumb by default - WebKit (macOS, Linux)
+      // Hide thumb by default - WebKit (macOS, Linux/Windows Chromium)
       &::-webkit-slider-thumb {
         appearance: none;
         -webkit-appearance: none;
@@ -198,27 +204,10 @@
         z-index: 3;
       }
       
-      // Standard thumb for Chromium (Windows)
-      &::-ms-thumb {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background: v.$light;
-        cursor: pointer;
-        transition: opacity 0.2s ease, transform 0.2s ease;
-        opacity: 0;
-        position: relative;
-        z-index: 3;
-      }
-      
-      // Show thumb on hover
-      &:hover {
+      // Show thumb on hover and focus
+      &:hover,
+      &:focus-visible {
         &::-webkit-slider-thumb {
-          opacity: 1;
-          transform: scale(1.2);
-        }
-        
-        &::-ms-thumb {
           opacity: 1;
           transform: scale(1.2);
         }
@@ -245,8 +234,10 @@
       transition: opacity 0.2s ease;
       position: relative;
       
-      &:focus {
-        outline: none;
+      &:focus-visible {
+        outline: 1px solid rgba(v.$light, 0.35);
+        outline-offset: 2px;
+        border-radius: 4px;
       }
       
       &:hover {
@@ -256,7 +247,6 @@
     
     // Select specific styles
     &--select {
-      // width: auto;
       background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e0e0e0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
       background-repeat: no-repeat;
       background-position: right 0px center;

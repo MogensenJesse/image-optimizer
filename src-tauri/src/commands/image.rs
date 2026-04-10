@@ -1,5 +1,6 @@
 //! Tauri command handlers for image optimization.
 
+use std::time::Instant;
 use tauri::State;
 use tracing::debug;
 use crate::core::{AppState, ImageSettings, OptimizationResult};
@@ -33,8 +34,8 @@ pub async fn optimize_image(
 /// Optimizes multiple images in batch with progress tracking.
 ///
 /// Images are processed in chunks of 500 to keep memory bounded.
-/// Per-image progress events (`image_optimization_progress`) are emitted by
-/// the executor; this function only handles chunking and aggregation.
+/// Progress events use **overall** job counts (not per-chunk) so the
+/// frontend receives a simple monotonic stream from 1..N.
 ///
 /// # Arguments
 /// * `state` - Application state containing the executor
@@ -47,8 +48,9 @@ pub async fn optimize_images(
     state: State<'_, AppState>,
     tasks: Vec<ImageTask>,
 ) -> OptimizerResult<Vec<OptimizationResult>> {
-    let task_count = tasks.len();
-    debug!("Received optimize_images command for {} images", task_count);
+    let job_total = tasks.len();
+    let job_start = Instant::now();
+    debug!("Received optimize_images command for {} images", job_total);
     
     for task in &tasks {
         validate_task(task).await?;
@@ -56,21 +58,18 @@ pub async fn optimize_images(
 
     const CHUNK_SIZE: usize = 500;
     let chunks: Vec<_> = tasks.chunks(CHUNK_SIZE).collect();
-    debug!("Processing {} images in {} chunks of size {}", task_count, chunks.len(), CHUNK_SIZE);
+    debug!("Processing {} images in {} chunks of size {}", job_total, chunks.len(), CHUNK_SIZE);
     
-    let mut all_results = Vec::with_capacity(tasks.len());
+    let mut all_results = Vec::with_capacity(job_total);
     let executor = state.create_executor();
+    let mut offset = 0;
     
     for (i, chunk) in chunks.iter().enumerate() {
         debug!("Processing chunk {}/{} ({} images)", i + 1, chunks.len(), chunk.len());
-        let results = executor.execute_batch(chunk).await?;
+        let results = executor.execute_batch(chunk, offset, job_total, job_start).await?;
+        offset += chunk.len();
         all_results.extend(results);
-        debug!("Completed chunk {}/{} - Overall progress: {}% ({}/{})",
-            i + 1, chunks.len(), 
-            ((i + 1) * 100) / chunks.len(),
-            (i + 1) * chunk.len().min(CHUNK_SIZE),
-            task_count
-        );
+        debug!("Completed chunk {}/{} ({}/{})", i + 1, chunks.len(), offset, job_total);
     }
     
     debug!("All chunks processed, returning {} results", all_results.len());

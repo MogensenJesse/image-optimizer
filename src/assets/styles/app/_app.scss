@@ -54,6 +54,12 @@ body.platform-linux {
   transition: background-color 0.6s v.$ease-out;
   cursor: pointer;
 
+  &:focus-visible {
+    outline: 1px solid rgba(v.$light, 0.35);
+    outline-offset: -1px;
+    border-radius: v.$radius-sm;
+  }
+
   // Only apply hover effects when not in processing state
   &:not(.dropzone--processing):hover {
     background-color: rgba(v.$night, 0.6);
@@ -196,9 +202,13 @@ body.platform-linux {
   
   &:hover {
     background-color: rgba(v.$night, 0.9);
-    // transform: translateX(-50%) scale(1.05);
   }
   
+  &:focus-visible {
+    outline: 1px solid rgba(v.$light, 0.35);
+    outline-offset: 2px;
+  }
+
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;

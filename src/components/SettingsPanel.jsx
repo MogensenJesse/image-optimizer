@@ -239,7 +239,6 @@ function SettingsPanel({ show, onClose }) {
           <span className="settings-panel__section-label">
             {t("settings.language")}
           </span>
-          <div className="settings-panel__divider" />
 
           <div className="settings-panel__item">
             <select
@@ -255,10 +254,11 @@ function SettingsPanel({ show, onClose }) {
             </select>
           </div>
 
+          <div className="settings-panel__divider" />
+
           <span className="settings-panel__section-label">
             {t("settings.updates")}
           </span>
-          <div className="settings-panel__divider" />
 
           <div className="settings-panel__item settings-panel__item--toggle">
             <button
@@ -275,9 +275,9 @@ function SettingsPanel({ show, onClose }) {
             >
               <span className="settings-panel__toggle-thumb" />
             </button>
-            <p className="settings-panel__toggle-label">
+            <span className="settings-panel__toggle-label">
               {t("settings.checkOnStartup")}
-            </p>
+            </span>
           </div>
 
           <button

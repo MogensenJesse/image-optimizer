@@ -4,7 +4,8 @@
   "app.dropzone.aria": "Bilder hier ablegen oder klicken um Dateien auszuwählen",
   "app.fileFilter": "Bilder",
   "app.skippedFile": "Nicht unterstützte Datei übersprungen: {{name}}",
-  "app.skippedFiles": "{{count}} nicht unterstützte Dateien übersprungen: {{names}}",
+  "app.skippedFilesOne": "Nicht unterstützte Dateien übersprungen: {{name}} und 1 weitere",
+  "app.skippedFilesMany": "Nicht unterstützte Dateien übersprungen: {{name}} und {{count}} weitere",
 
   "titlebar.title": "Image optimizer",
   "titlebar.settings": "Einstellungen",

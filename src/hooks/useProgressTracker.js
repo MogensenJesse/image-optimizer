@@ -1,355 +1,135 @@
+// src/hooks/useProgressTracker.js
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 
+const TIMER_INTERVAL_MS = 100;
+
 /**
- * Custom hook to track progress of image optimization across multiple batches
+ * Tracks progress of image optimization.
  *
- * @param {boolean} isProcessing - Whether the application is currently processing images
- * @returns {Object} Progress state and functions to control progress
+ * The backend emits `image_optimization_progress` events with overall
+ * (not per-chunk) `completedTasks` / `totalTasks` counts, so this hook
+ * simply forwards those values into React state.
+ *
+ * @returns {{ progress: Object, initProgress: Function, processingRef: React.MutableRefObject<boolean> }}
  */
-function useProgressTracker(isProcessing) {
+function useProgressTracker() {
   const processingRef = useRef(false);
   const [progress, setProgress] = useState({
     completedTasks: 0,
     totalTasks: 0,
     progressPercentage: 0,
     status: "idle",
-    lastUpdated: Date.now(),
-    savedSize: 0, // Size saved in MB
-    savedPercentage: 0, // Percentage of size saved
-    currentFile: null, // Currently processing file
-    lastOptimizedFile: null, // Last optimized file with metrics
-    startTime: null, // Start time of the processing
-    processingTime: 0, // Total processing time in seconds
+    savedSize: 0,
+    savedPercentage: 0,
+    processingTime: 0,
   });
 
-  // Ref to track cumulative progress across batches
-  const batchProgressRef = useRef({
-    totalImages: 0, // Total number of dropped images
-    processedImages: 0, // Number of images processed across all batches
-    currentBatchId: null, // Identifier for the current batch being processed
-    lastCompletedInBatch: 0, // How many were completed in the current batch
-    lastStatus: null, // Status of the last update
-    batchCount: 0, // How many batches we've seen
-    knownTotalImages: null, // Initial count from the drag-drop event
-
-    // Statistics tracking (based on actual results)
-    totalSavedBytes: 0, // Total bytes saved
-    totalOriginalSize: 0, // Total original size in bytes
-    lastOptimizedFile: null, // Last optimized file with metrics
-
-    // Keep track of the last 5 optimized files for UI display
-    recentOptimizations: [],
-
-    // Timing information
-    startTime: null, // When processing started
-    processingTime: 0, // Processing time in seconds
+  const statsRef = useRef({
+    totalSavedBytes: 0,
+    totalOriginalSize: 0,
+    startTime: null,
   });
 
-  // Update processingRef when isProcessing changes
-  useEffect(() => {
-    processingRef.current = isProcessing;
-  }, [isProcessing]);
+  const timerRef = useRef(null);
 
-  // Effect to update processing time while processing is active
-  useEffect(() => {
-    let timer = null;
+  // Elapsed-time ticker — runs from initProgress until the final event
+  // arrives, independent of the FADE_IN / PROCESSING state machine.
+  const startTimer = () => {
+    stopTimer();
+    timerRef.current = setInterval(() => {
+      const { startTime } = statsRef.current;
+      if (!startTime) return;
+      const elapsed = (Date.now() - startTime) / 1000;
+      setProgress((prev) => ({ ...prev, processingTime: elapsed }));
+    }, TIMER_INTERVAL_MS);
+  };
 
-    // Only start timer if processing is active and startTime is set
-    if (isProcessing && batchProgressRef.current.startTime) {
-      // Update processing time every 100ms for more precision
-      timer = setInterval(() => {
-        const currentTime = Date.now();
-        const elapsedSeconds =
-          (currentTime - batchProgressRef.current.startTime) / 1000;
-
-        // Update both the ref and the state in one go
-        batchProgressRef.current.processingTime = elapsedSeconds;
-
-        // Use functional update to ensure we're using the latest state
-        setProgress((prevProgress) => ({
-          ...prevProgress,
-          processingTime: elapsedSeconds,
-        }));
-      }, 100);
+  const stopTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
     }
+  };
 
-    return () => {
-      if (timer) {
-        clearInterval(timer);
-      }
-    };
-  }, [isProcessing]); // Re-run when isProcessing changes
+  // Clean up timer on unmount
+  useEffect(() => stopTimer, []);
 
+  // Single event listener — registered once on mount
   useEffect(() => {
-    // Listen for progress updates from backend
-    const unsubscribeProgress = listen(
-      "image_optimization_progress",
-      (event) => {
-        // Check if this is a detailed update with file-specific metrics
-        const isDetailedUpdate = event.payload.metadata?.detailedUpdate;
+    const unsubscribe = listen("image_optimization_progress", (event) => {
+      if (!processingRef.current) return;
 
-        // Use processingRef instead of isProcessing to avoid state timing issues
-        if (processingRef.current) {
-          const currentBatch = batchProgressRef.current;
+      const { completedTasks, totalTasks, progressPercentage, status, metadata } =
+        event.payload;
 
-          if (isDetailedUpdate) {
-            // This is a detailed update with file-specific metrics
-            const { fileName } = event.payload.metadata;
-            const result = event.payload.result;
+      const stats = statsRef.current;
 
-            if (result) {
-              // Update the statistics with actual data
-              currentBatch.totalSavedBytes += result.saved_bytes;
-              currentBatch.totalOriginalSize += result.original_size;
+      // Accumulate per-image size stats when present
+      if (metadata?.savedBytes != null && metadata?.originalSize != null) {
+        stats.totalSavedBytes += Number(metadata.savedBytes);
+        stats.totalOriginalSize += Number(metadata.originalSize);
+      }
 
-              // Create an optimization record
-              const optimizationRecord = {
-                fileName,
-                originalSize: result.original_size,
-                optimizedSize: result.optimized_size,
-                savedBytes: result.saved_bytes,
-                compressionRatio: parseFloat(result.compression_ratio),
-                timestamp: Date.now(),
-              };
+      const savedSizeMB = stats.totalSavedBytes / (1024 * 1024);
+      const savedPercentage =
+        stats.totalOriginalSize > 0
+          ? Math.round((stats.totalSavedBytes / stats.totalOriginalSize) * 100)
+          : 0;
 
-              // Update the last optimized file
-              currentBatch.lastOptimizedFile = optimizationRecord;
+      // Use the backend's wall-clock duration on the final event
+      let processingTime = stats.startTime
+        ? (Date.now() - stats.startTime) / 1000
+        : 0;
 
-              // Add to recent optimizations (keep only the last 5)
-              currentBatch.recentOptimizations.unshift(optimizationRecord);
-              if (currentBatch.recentOptimizations.length > 5) {
-                currentBatch.recentOptimizations.pop();
-              }
+      if (status === "complete" && metadata?.totalDuration) {
+        processingTime = parseFloat(metadata.totalDuration);
+        stopTimer();
+      }
 
-              // Calculate overall saved percentage
-              const savedPercentage =
-                currentBatch.totalOriginalSize > 0
-                  ? Math.round(
-                      (currentBatch.totalSavedBytes /
-                        currentBatch.totalOriginalSize) *
-                        100,
-                    )
-                  : 0;
-
-              // Calculate saved size in MB
-              const savedSizeMB = currentBatch.totalSavedBytes / (1024 * 1024);
-
-              // Update the progress state with the latest metrics
-              setProgress((prevProgress) => ({
-                ...prevProgress,
-                savedSize: parseFloat(savedSizeMB.toFixed(1)),
-                savedPercentage,
-                lastOptimizedFile: optimizationRecord,
-                processingTime: currentBatch.processingTime,
-              }));
-            }
-          } else {
-            // This is a regular progress update
-            const { completedTasks, totalTasks, status, metadata } =
-              event.payload;
-
-            if (metadata?.savedBytes != null && metadata?.originalSize != null) {
-              const savedBytes = Number(metadata.savedBytes);
-              const originalSize = Number(metadata.originalSize);
-              const compressionRatio = parseFloat(metadata.compressionRatio) || 0;
-
-              currentBatch.totalSavedBytes += savedBytes;
-              currentBatch.totalOriginalSize += originalSize;
-
-              if (metadata.fileName) {
-                const optimizationRecord = {
-                  fileName: metadata.fileName,
-                  originalSize,
-                  optimizedSize: Number(metadata.optimizedSize) || 0,
-                  savedBytes,
-                  compressionRatio,
-                  timestamp: Date.now(),
-                };
-
-                currentBatch.lastOptimizedFile = optimizationRecord;
-
-                currentBatch.recentOptimizations.unshift(optimizationRecord);
-                if (currentBatch.recentOptimizations.length > 5) {
-                  currentBatch.recentOptimizations.pop();
-                }
-              }
-            }
-
-            // Detect a new batch in any of these cases:
-            // 1. Previous status was 'complete' and now we're processing again
-            // 2. completedTasks suddenly dropped to a low number after being high
-            // 3. totalTasks changed from previous batch
-            const previouslyComplete =
-              currentBatch.lastStatus === "complete" && status === "processing";
-            const taskCountReset =
-              currentBatch.lastCompletedInBatch > completedTasks &&
-              completedTasks <= 20;
-            const taskSizeChanged =
-              currentBatch.currentBatchId !== null &&
-              currentBatch.currentBatchId !== `${totalTasks}`;
-
-            if (
-              !currentBatch.currentBatchId ||
-              previouslyComplete ||
-              taskCountReset ||
-              taskSizeChanged
-            ) {
-              // This is a new batch - increment batch count and update the batch ID
-              currentBatch.batchCount++;
-              currentBatch.currentBatchId = `${totalTasks}`;
-
-              // ONLY update totalImages if we didn't already know how many files were dropped
-              // This ensures we maintain the original total from the drop event
-              if (!currentBatch.knownTotalImages) {
-                // If this is the first batch, set the total
-                if (currentBatch.batchCount === 1) {
-                  currentBatch.totalImages = totalTasks;
-                } else {
-                  // For additional batches, add to the running total if we don't know the final count
-                  currentBatch.totalImages += totalTasks;
-                }
-              }
-
-              currentBatch.lastCompletedInBatch = 0;
-            }
-
-            // Update the last status
-            currentBatch.lastStatus = status;
-
-            // Calculate how many new tasks were completed in this update
-            const newlyCompleted = Math.max(
-              0,
-              completedTasks - currentBatch.lastCompletedInBatch,
-            );
-            currentBatch.lastCompletedInBatch = completedTasks;
-
-            // Update processed count by adding new completions
-            currentBatch.processedImages += newlyCompleted;
-
-            // The total to use for percentage calculation is either the known total from drop event
-            // or the running total we've calculated from batches
-            const totalForCalculation =
-              currentBatch.knownTotalImages || currentBatch.totalImages;
-
-            // Ensure we don't exceed the total
-            currentBatch.processedImages = Math.min(
-              currentBatch.processedImages,
-              totalForCalculation,
-            );
-
-            // Calculate percentage based on overall progress - use the KNOWN total from drop event if available
-            const overallPercentage =
-              totalForCalculation > 0
-                ? Math.floor(
-                    (currentBatch.processedImages / totalForCalculation) * 100,
-                  )
-                : 0;
-
-            // Calculate saved size in MB
-            const savedSizeMB = currentBatch.totalSavedBytes / (1024 * 1024);
-
-            // Calculate overall saved percentage
-            const savedPercentage =
-              currentBatch.totalOriginalSize > 0
-                ? Math.round(
-                    (currentBatch.totalSavedBytes /
-                      currentBatch.totalOriginalSize) *
-                      100,
-                  )
-                : 0;
-
-            // Update the progress state with cumulative values
-            setProgress((prevProgress) => ({
-              ...prevProgress,
-              completedTasks: currentBatch.processedImages,
-              totalTasks: totalForCalculation,
-              progressPercentage: overallPercentage,
-              status: status,
-              lastUpdated: Date.now(),
-              // Update savedSize and savedPercentage values
-              savedSize: parseFloat(savedSizeMB.toFixed(1)),
-              savedPercentage,
-              lastOptimizedFile: currentBatch.lastOptimizedFile,
-              processingTime: currentBatch.processingTime,
-            }));
-          }
-        }
-
-        // If this is the final completion event with total duration from backend
-        if (
-          event.payload.status === "complete" &&
-          event.payload.metadata &&
-          event.payload.metadata.totalDuration
-        ) {
-          // Use the backend's reported duration for accuracy
-          const backendDuration = parseFloat(
-            event.payload.metadata.totalDuration,
-          );
-
-          batchProgressRef.current.processingTime = backendDuration;
-          setProgress((prevProgress) => ({
-            ...prevProgress,
-            processingTime: backendDuration,
-          }));
-        }
-      },
-    );
+      setProgress({
+        completedTasks,
+        totalTasks,
+        progressPercentage,
+        status,
+        savedSize: parseFloat(savedSizeMB.toFixed(1)),
+        savedPercentage,
+        processingTime,
+      });
+    });
 
     return () => {
-      unsubscribeProgress.then((fn) => fn());
+      unsubscribe.then((fn) => fn());
     };
   }, []);
 
   /**
-   * Initialize progress tracking with the number of files dropped
-   * @param {number} fileCount - Number of files dropped
+   * Reset all tracking state and start the elapsed-time timer.
+   * Called by App before invoking the backend command.
+   *
+   * @param {number} fileCount - Number of files to process
    */
   const initProgress = (fileCount) => {
-    const startTime = Date.now();
+    statsRef.current = {
+      totalSavedBytes: 0,
+      totalOriginalSize: 0,
+      startTime: Date.now(),
+    };
 
-    // Reset progress tracking when starting a new optimization
     setProgress({
       completedTasks: 0,
       totalTasks: fileCount,
       progressPercentage: 0,
       status: "idle",
-      lastUpdated: Date.now(),
       savedSize: 0,
       savedPercentage: 0,
-      currentFile: null,
-      lastOptimizedFile: null,
-      startTime,
       processingTime: 0,
     });
 
-    // Reset batch progress ref with additional tracking properties
-    batchProgressRef.current = {
-      totalImages: 0,
-      processedImages: 0,
-      currentBatchId: null,
-      lastCompletedInBatch: 0,
-      lastStatus: null,
-      batchCount: 0,
-      knownTotalImages: fileCount,
-
-      // Reset statistics tracking
-      totalSavedBytes: 0,
-      totalOriginalSize: 0,
-      lastOptimizedFile: null,
-      recentOptimizations: [],
-
-      // Set start time for processing
-      startTime,
-      processingTime: 0,
-    };
+    startTimer();
   };
 
-  return {
-    progress,
-    initProgress,
-    processingRef,
-  };
+  return { progress, initProgress, processingRef };
 }
 
 export default useProgressTracker;

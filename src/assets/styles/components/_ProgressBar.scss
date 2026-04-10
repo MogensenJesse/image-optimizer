@@ -28,7 +28,7 @@
   }
   
   &__progress {
-    transition: stroke-dashoffset 0.5s ease-in-out;
+    transition: stroke-dashoffset 0.15s ease-out;
     stroke-linecap: round;
   }
   

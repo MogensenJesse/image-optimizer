@@ -4,7 +4,8 @@
   "app.dropzone.aria": "Déposez des images ici ou cliquez pour sélectionner des fichiers",
   "app.fileFilter": "Images",
   "app.skippedFile": "Fichier non pris en charge ignoré : {{name}}",
-  "app.skippedFiles": "{{count}} fichiers non pris en charge ignorés : {{names}}",
+  "app.skippedFilesOne": "Fichiers non pris en charge ignorés : {{name}} et 1 autre",
+  "app.skippedFilesMany": "Fichiers non pris en charge ignorés : {{name}} et {{count}} autres",
 
   "titlebar.title": "Image optimizer",
   "titlebar.settings": "Paramètres",

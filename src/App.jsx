@@ -38,13 +38,11 @@ function App() {
   const [hasUpdate, setHasUpdate] = useState(false);
   const [platformName, setPlatformName] = useState(null);
   const [toast, setToast] = useState(null);
-  const toastTimerRef = useRef(null);
+  const toastKeyRef = useRef(0);
   const { t } = useTranslation();
 
   // Use our custom hook for progress tracking
-  const { progress, initProgress, processingRef } = useProgressTracker(
-    appState === APP_STATE.PROCESSING,
-  );
+  const { progress, initProgress, processingRef } = useProgressTracker();
 
   const [settings, setSettings] = useState({
     quality: {
@@ -186,9 +184,8 @@ function App() {
   }, [isLinuxPlatform]);
 
   const showToast = useCallback((message, type = "warning") => {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    setToast({ message, type });
-    toastTimerRef.current = setTimeout(() => setToast(null), 5000);
+    toastKeyRef.current += 1;
+    setToast({ message, type, key: toastKeyRef.current });
   }, []);
 
   const processFiles = useCallback(
@@ -210,14 +207,16 @@ function App() {
       }
 
       if (skipped.length > 0) {
-        const names = skipped.map((p) => p.split(/[\\/]/).pop());
-        const label =
-          skipped.length === 1
-            ? t("app.skippedFile", { name: names[0] })
-            : t("app.skippedFiles", {
-                count: skipped.length,
-                names: names.join(", "),
-              });
+        const firstName = skipped[0].split(/[\\/]/).pop();
+        const others = skipped.length - 1;
+        let label;
+        if (others === 0) {
+          label = t("app.skippedFile", { name: firstName });
+        } else if (others === 1) {
+          label = t("app.skippedFilesOne", { name: firstName });
+        } else {
+          label = t("app.skippedFilesMany", { name: firstName, count: others });
+        }
         showToast(label);
       }
 
@@ -439,6 +438,7 @@ function App() {
 
       {toast && (
         <Toast
+          key={toast.key}
           message={toast.message}
           type={toast.type}
           onClose={() => setToast(null)}

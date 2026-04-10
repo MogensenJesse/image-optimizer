@@ -4,7 +4,8 @@
   "app.dropzone.aria": "Перетащите изображения сюда или нажмите для выбора файлов",
   "app.fileFilter": "Изображения",
   "app.skippedFile": "Пропущен неподдерживаемый файл: {{name}}",
-  "app.skippedFiles": "Пропущено {{count}} неподдерживаемых файлов: {{names}}",
+  "app.skippedFilesOne": "Пропущены неподдерживаемые файлы: {{name}} и 1 другой",
+  "app.skippedFilesMany": "Пропущены неподдерживаемые файлы: {{name}} и {{count}} других",
 
   "titlebar.title": "Image optimizer",
   "titlebar.settings": "Настройки",

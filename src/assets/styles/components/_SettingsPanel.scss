@@ -34,14 +34,19 @@
     padding: 20px;
     display: flex;
     flex-direction: column;
+    font-size: 11px;
+    font-weight: 500;
+    color: v.$light;
+    letter-spacing: 0.15em;
   }
 
   &__header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    text-transform: uppercase;
   }
-
+  
   &__title {
     font-size: 10px;
     letter-spacing: 0.05em;
@@ -92,6 +97,8 @@
     width: 100%;
     height: 1px;
     background-color: rgba(v.$light, 0.1);
+    margin-top: 15px;
+    margin-bottom: 15px;
   }
 
   &__item {
@@ -107,6 +114,7 @@
   &__toggle-label {
     opacity: 0.5;
     transition: opacity 0.25s ease;
+    letter-spacing: 0.075em;
 
     .settings-panel__toggle--on ~ & {
       opacity: 1;
@@ -156,12 +164,16 @@
     color: v.$light;
     border: 1px solid rgba(v.$light, 0.15);
     border-radius: 5px;
-    padding: 8px 10px;
+    padding: 8px 28px 8px 10px;
     font-size: 11px;
     cursor: pointer;
     appearance: none;
     outline: none;
     transition: border-color 0.2s ease;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e0e0e0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 12px;
 
     &:hover {
       border-color: rgba(v.$light, 0.3);
@@ -188,6 +200,8 @@
     padding: 16px 12px;
     text-align: center;
     opacity: 0.5;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
     cursor: pointer;
     transition:
       opacity 0.2s ease,
@@ -240,11 +254,11 @@
     opacity: 0.5;
     font-size: 9px;
     line-height: 1.6;
-    letter-spacing: 0.2px;
+    letter-spacing: 0.02em;
 
     strong {
       opacity: 1;
-      font-weight: 600;
+      font-weight: bold;
     }
 
     // Minimalistic scrollbar
@@ -268,7 +282,7 @@
 
   &__changelog-section {
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.05em;
     margin: 0;
     opacity: 1;
   }

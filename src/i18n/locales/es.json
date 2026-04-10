@@ -4,7 +4,8 @@
   "app.dropzone.aria": "Suelta imágenes aquí o haz clic para seleccionar archivos",
   "app.fileFilter": "Imágenes",
   "app.skippedFile": "Archivo no compatible omitido: {{name}}",
-  "app.skippedFiles": "{{count}} archivos no compatibles omitidos: {{names}}",
+  "app.skippedFilesOne": "Archivos no compatibles omitidos: {{name}} y 1 más",
+  "app.skippedFilesMany": "Archivos no compatibles omitidos: {{name}} y {{count}} más",
 
   "titlebar.title": "Image optimizer",
   "titlebar.settings": "Ajustes",

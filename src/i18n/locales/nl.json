@@ -4,7 +4,8 @@
   "app.dropzone.aria": "Sleep afbeeldingen hier of klik om bestanden te selecteren",
   "app.fileFilter": "Afbeeldingen",
   "app.skippedFile": "Niet-ondersteund bestand overgeslagen: {{name}}",
-  "app.skippedFiles": "{{count}} niet-ondersteunde bestanden overgeslagen: {{names}}",
+  "app.skippedFilesOne": "Niet-ondersteunde bestanden overgeslagen: {{name}} en 1 ander",
+  "app.skippedFilesMany": "Niet-ondersteunde bestanden overgeslagen: {{name}} en {{count}} andere",
 
   "titlebar.title": "Image optimizer",
   "titlebar.settings": "Instellingen",

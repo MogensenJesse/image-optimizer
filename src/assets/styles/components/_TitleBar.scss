@@ -20,7 +20,7 @@
 
   &-version {
     font-size: 0.7em;
-    font-weight: 400;
+    font-weight: 500;
     opacity: 0.5;
     margin-left: 0.25em;
   }
@@ -40,7 +40,6 @@
   align-items: center;
   background: transparent;
   border: none;
-  outline: none;
   cursor: pointer;
   transition: background-color 0.2s;
   position: relative;
@@ -51,6 +50,12 @@
     opacity: 0.8;
   }
   
+  &:focus-visible {
+    outline: 1px solid rgba(v.$light, 0.35);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
   &:hover {
     
     img {

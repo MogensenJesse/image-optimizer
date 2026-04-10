@@ -4,7 +4,8 @@
   "app.dropzone.aria": "Drop images here or click to select files",
   "app.fileFilter": "Images",
   "app.skippedFile": "Skipped unsupported file: {{name}}",
-  "app.skippedFiles": "Skipped {{count}} unsupported files: {{names}}",
+  "app.skippedFilesOne": "Skipped unsupported files: {{name}} and 1 other",
+  "app.skippedFilesMany": "Skipped unsupported files: {{name}} and {{count}} others",
 
   "titlebar.title": "Image optimizer",
   "titlebar.settings": "Settings",
