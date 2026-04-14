@@ -70,11 +70,36 @@ jobs:
           Remove-Item -Recurse vendor\libvips-extract
           echo "${{ github.workspace }}\vendor\libvips-native\bin" | Out-File -Append -FilePath $env:GITHUB_PATH
 
+      - name: Stage native DLLs (Windows)
+        if: runner.os == 'Windows'
+        id: stage-windows
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri\native-dlls
+          Copy-Item vendor\libvips-native\bin\*.dll src-tauri\native-dlls\
+          $count = (Get-ChildItem src-tauri\native-dlls\*.dll).Count
+          Write-Host "Staged $count DLLs for bundling"
+          $json = '{"bundle":{"resources":{"native-dlls/":"native-dlls"}}}'
+          Set-Content -Path platform-config.json -Value $json
+          echo "config_args=--config platform-config.json" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
+
       - name: Install libvips (macOS)
         if: runner.os == 'macOS'
         run: |
           brew install vips
           echo "VIPS_DIR=$(brew --prefix vips)" >> $GITHUB_ENV
+
+      - name: Stage native dylibs (macOS)
+        if: runner.os == 'macOS'
+        id: stage-macos
+        run: |
+          chmod +x scripts/collect-macos-dylibs.sh
+          ./scripts/collect-macos-dylibs.sh src-tauri/native-libs
+          FRAMEWORKS=$(cd src-tauri && find native-libs -name "*.dylib" -maxdepth 1 \
+            | sort | sed 's/^/"/' | sed 's/$/"/' | paste -sd, -)
+          echo "{\"bundle\":{\"macOS\":{\"frameworks\":[$FRAMEWORKS]}}}" \
+            > platform-config.json
+          echo "config_args=--config platform-config.json" >> $GITHUB_OUTPUT
 
       - name: Install dependencies (root)
         run: npm ci
@@ -102,7 +127,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: .
-          args: ${{ matrix.args }}
+          args: >-
+            ${{ matrix.args }}
+            ${{ steps.stage-windows.outputs.config_args || '' }}
+            ${{ steps.stage-macos.outputs.config_args || '' }}
           includeDebug: false
           tagName: v__VERSION__
           releaseName: 'Image Optimizer v__VERSION__'
@@ -110,4 +138,19 @@ jobs:
           releaseDraft: true
           prerelease: false
 
-
+      - name: Verify AppImage contains native libs (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          APPIMAGE=$(find src-tauri/target/release/bundle/appimage -name "*.AppImage" 2>/dev/null | head -1)
+          if [ -z "$APPIMAGE" ]; then
+            echo "::warning::No AppImage found to verify"
+            exit 0
+          fi
+          chmod +x "$APPIMAGE"
+          "$APPIMAGE" --appimage-extract > /dev/null 2>&1
+          if find squashfs-root -name "libvips*" | grep -q .; then
+            echo "OK: libvips found in AppImage"
+          else
+            echo "::warning::libvips NOT found in AppImage — users without system libvips will fail"
+          fi
+          rm -rf squashfs-root

@@ -1,3 +1,20 @@
+## v0.6.1
+
+### Improvements
+
+- **SVG optimization** — replaced vexy-vsvg with oxvg_optimiser for significantly better SVG minification (up to 67% compression)
+- **Adaptive size display** — file savings now shown in B, KB, or MB depending on magnitude
+- **Native library bundling** — libvips and its dependencies are now included in all platform installers (Windows DLLs, macOS dylibs, Linux deb dependency)
+- **In-app changelog rendering** — bold and inline code markdown now renders correctly
+
+### Fixes
+
+- Fixed "DLL not found" errors on Windows installations (`libvips-42.dll`, `libgobject-2.0-0.dll`)
+- Fixed silent launch failures on macOS and Linux due to missing native libraries
+- Fixed "0 MB saved" display when optimizing small files
+
+---
+
 ## What's New in v0.6.0
 
 ### New Features
@@ -22,3 +39,4 @@
 - Fixed toast notification only appearing once for repeated actions
 - Fixed progress events being dropped during fade-in animation
 - Fixed processing timer not starting for fast operations
+

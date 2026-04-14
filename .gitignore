@@ -22,6 +22,10 @@ src-tauri/target/analyzer/
 # Vendored native libraries (platform-specific, not committed)
 vendor/libvips-native/
 
+# Staged native libs for bundling (populated by CI)
+src-tauri/native-dlls/
+src-tauri/native-libs/
+
 # Editor directories and files
 .cursor/*
 .vscode/*
