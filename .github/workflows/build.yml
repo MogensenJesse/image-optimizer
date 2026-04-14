@@ -6,6 +6,10 @@ on:
       - 'v*'
   workflow_dispatch:
 
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+
 jobs:
   build-tauri:
     permissions:
@@ -15,16 +19,14 @@ jobs:
       matrix:
         include:
           - platform: 'macos-latest'
-            args: ''
+            args: '--target aarch64-apple-darwin'
+            rust_target: 'aarch64-apple-darwin'
           - platform: 'windows-latest'
             args: ''
           # Use Ubuntu 22.04 for broader Linux compatibility (glibc 2.35)
           # This supports Debian 12+, Ubuntu 22.04+, Fedora 36+, etc.
           - platform: 'ubuntu-22.04'
             args: ''
-          - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin'
-            arch: 'arm64'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -40,14 +42,14 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.args == '--target aarch64-apple-darwin' && 'aarch64-apple-darwin' || '' }}
+          targets: ${{ matrix.rust_target || '' }}
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "src-tauri -> target"
-          # Include target arch in cache key for cross-compilation
-          shared-key: ${{ matrix.args == '--target aarch64-apple-darwin' && 'macos-arm64' || '' }}
+          shared-key: ${{ matrix.rust_target && format('rust-{0}', matrix.rust_target) || '' }}
+          cache-on-failure: true
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -57,8 +59,16 @@ jobs:
             libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev \
             librsvg2-dev patchelf
 
-      - name: Install libvips (Windows)
+      - name: Cache libvips (Windows)
         if: runner.os == 'Windows'
+        id: cache-vips
+        uses: actions/cache@v4
+        with:
+          path: vendor/libvips-native
+          key: libvips-win64-8.18.0
+
+      - name: Install libvips (Windows)
+        if: runner.os == 'Windows' && steps.cache-vips.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           $vipsVersion = "8.18.0"
@@ -68,7 +78,11 @@ jobs:
           Move-Item vendor\libvips-extract\vips-dev-8.18 vendor\libvips-native
           Remove-Item vips.zip
           Remove-Item -Recurse vendor\libvips-extract
-          echo "${{ github.workspace }}\vendor\libvips-native\bin" | Out-File -Append -FilePath $env:GITHUB_PATH
+
+      - name: Add libvips to PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: echo "${{ github.workspace }}\vendor\libvips-native\bin" | Out-File -Append -FilePath $env:GITHUB_PATH
 
       - name: Stage native DLLs (Windows)
         if: runner.os == 'Windows'
