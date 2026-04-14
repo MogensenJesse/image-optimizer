@@ -23,7 +23,7 @@ cc = "1"
 codegen-units = 1
 panic = "abort"
 opt-level = 3   # Maximize speed for image processing
-lto = true      # Enable link-time optimization
+lto = "thin"    # ThinLTO: avoids fat-LTO bitcode failures with objc2 on macOS
 strip = true    # Strip debug symbols
 
 # Speed up debug builds
