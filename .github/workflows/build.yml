@@ -152,6 +152,22 @@ jobs:
           releaseDraft: true
           prerelease: false
 
+      - name: Verify native DLLs in bundle (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $nsis = "src-tauri\target\release\bundle\nsis"
+          if (Test-Path $nsis) {
+            $dlls = Get-ChildItem "$nsis\*.dll" -Recurse -ErrorAction SilentlyContinue
+            Write-Host "Found $($dlls.Count) DLLs in NSIS bundle"
+          }
+          $dlls = Get-ChildItem "src-tauri\target\release\native-dlls\*.dll" -ErrorAction SilentlyContinue
+          if ($dlls) {
+            Write-Host "OK: $($dlls.Count) native DLLs staged for bundling"
+          } else {
+            Write-Host "::warning::No native DLLs found in target — check bundle.resources config"
+          }
+
       - name: Verify AppImage contains native libs (Linux)
         if: runner.os == 'Linux'
         run: |
