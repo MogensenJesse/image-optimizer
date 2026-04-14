@@ -1911,7 +1911,7 @@ dependencies = [
 
 [[package]]
 name = "image-optimizer"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "anyhow",
  "cc",

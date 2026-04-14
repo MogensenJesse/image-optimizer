@@ -6,9 +6,8 @@
 # references. Collected dylibs are staged for Tauri's macOS frameworks
 # bundling, which places them in Contents/Frameworks/ and fixes @rpath.
 #
-# Compatible with bash 3.2+ (macOS system bash). Uses the staging
-# directory itself to track already-collected libraries instead of
-# associative arrays (which require bash 4+).
+# Compatible with macOS system bash 3.2 — avoids associative arrays
+# and [[ ]] && / || patterns that interact poorly with set -e.
 
 set -euo pipefail
 
@@ -21,25 +20,39 @@ collect() {
   name=$(basename "$lib")
 
   # Already collected — file exists in staging
-  [[ -f "$STAGING/$name" ]] && return
+  if [[ -f "$STAGING/$name" ]]; then
+    return 0
+  fi
 
   # Skip macOS system libraries
-  case "$lib" in /usr/lib/*|/System/*) return ;; esac
-  [[ -f "$lib" ]] || return
+  case "$lib" in /usr/lib/*|/System/*) return 0 ;; esac
+
+  if [[ ! -f "$lib" ]]; then
+    return 0
+  fi
 
   # Copy first so recursive calls see it and won't re-process
   cp -L "$lib" "$STAGING/$name"
 
-  # Recurse into this dylib's own dependencies.
-  # Process substitution keeps the while loop in the current shell.
-  while read -r dep; do
-    [[ -f "$dep" ]] && collect "$dep"
-  done < <(otool -L "$lib" | awk 'NR>1 {print $1}')
+  # Capture dependency list, then iterate (avoids subshell/pipe issues)
+  local deps
+  deps=$(otool -L "$lib" | awk 'NR>1 {print $1}')
+
+  local dep
+  for dep in $deps; do
+    if [[ -f "$dep" ]]; then
+      collect "$dep"
+    fi
+  done
+
+  return 0
 }
 
 VIPS_PREFIX=$(brew --prefix vips)
 for lib in "$VIPS_PREFIX"/lib/libvips*.dylib; do
-  [[ -f "$lib" ]] && collect "$lib"
+  if [[ -f "$lib" ]]; then
+    collect "$lib"
+  fi
 done
 
 COUNT=$(find "$STAGING" -name "*.dylib" -maxdepth 1 | wc -l | tr -d ' ')
