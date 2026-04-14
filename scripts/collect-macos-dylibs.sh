@@ -6,30 +6,32 @@
 # references. Collected dylibs are staged for Tauri's macOS frameworks
 # bundling, which places them in Contents/Frameworks/ and fixes @rpath.
 #
-# Requires bash 4+ for associative arrays (use Homebrew bash on macOS).
+# Compatible with bash 3.2+ (macOS system bash). Uses the staging
+# directory itself to track already-collected libraries instead of
+# associative arrays (which require bash 4+).
 
 set -euo pipefail
 
 STAGING="${1:-src-tauri/native-libs}"
 mkdir -p "$STAGING"
 
-declare -A SEEN
-
 collect() {
   local lib="$1"
   local name
   name=$(basename "$lib")
 
-  [[ -n "${SEEN[$name]:-}" ]] && return
-  SEEN[$name]=1
+  # Already collected — file exists in staging
+  [[ -f "$STAGING/$name" ]] && return
 
+  # Skip macOS system libraries
   case "$lib" in /usr/lib/*|/System/*) return ;; esac
   [[ -f "$lib" ]] || return
 
+  # Copy first so recursive calls see it and won't re-process
   cp -L "$lib" "$STAGING/$name"
 
-  # Process substitution keeps the while loop in the current shell,
-  # so SEEN modifications propagate correctly across recursive calls.
+  # Recurse into this dylib's own dependencies.
+  # Process substitution keeps the while loop in the current shell.
   while read -r dep; do
     [[ -f "$dep" ]] && collect "$dep"
   done < <(otool -L "$lib" | awk 'NR>1 {print $1}')

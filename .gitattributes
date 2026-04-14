@@ -1,0 +1,5 @@
+# Force LF line endings for shell scripts (they break with CRLF on macOS/Linux)
+*.sh text eol=lf
+
+# NSIS scripts are Windows-only but LF works fine there too
+*.nsh text eol=lf
