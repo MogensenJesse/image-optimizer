@@ -6,6 +6,7 @@
   "app.skippedFile": "Skipped unsupported file: {{name}}",
   "app.skippedFilesOne": "Skipped unsupported files: {{name}} and 1 other",
   "app.skippedFilesMany": "Skipped unsupported files: {{name}} and {{count}} others",
+  "app.options": "Options",
 
   "titlebar.title": "Image optimizer",
   "titlebar.settings": "Settings",
@@ -14,6 +15,9 @@
 
   "progress.complete": "Optimization complete",
   "progress.saved": "{{size}} / {{percent}}% saved",
+  "progress.sizeB": "{{value}} B",
+  "progress.sizeKB": "{{value}} KB",
+  "progress.sizeMB": "{{value}} MB",
   "progress.summary": "{{count}} images optimized in {{time}}",
   "progress.seconds": "{{value}}s",
   "progress.minutes": "{{min}}m {{sec}}s",

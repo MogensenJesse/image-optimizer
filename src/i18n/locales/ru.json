@@ -6,6 +6,7 @@
   "app.skippedFile": "Пропущен неподдерживаемый файл: {{name}}",
   "app.skippedFilesOne": "Пропущены неподдерживаемые файлы: {{name}} и 1 другой",
   "app.skippedFilesMany": "Пропущены неподдерживаемые файлы: {{name}} и {{count}} других",
+  "app.options": "Параметры",
 
   "titlebar.title": "Image optimizer",
   "titlebar.settings": "Настройки",
@@ -14,6 +15,9 @@
 
   "progress.complete": "Оптимизация завершена",
   "progress.saved": "{{size}} / {{percent}}% сэкономлено",
+  "progress.sizeB": "{{value}} Б",
+  "progress.sizeKB": "{{value}} КБ",
+  "progress.sizeMB": "{{value}} МБ",
   "progress.summary": "{{count}} изображений оптимизировано за {{time}}",
   "progress.seconds": "{{value}}с",
   "progress.minutes": "{{min}}м {{sec}}с",

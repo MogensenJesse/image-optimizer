@@ -46,17 +46,17 @@ For detailed technical information about the architecture, components, and imple
 
 ## Roadmap
 
-- Add SVG support
-- Add expert settings toggle
-- Add additional performance optimizations
-- Add unsupported image format detection
-- Add macOS support
-- Add Linux support
-- Add updating mechanism
-- Redesign the product website
-- Design product logo & icons
-- Implement code signing for Windows and macOS builds
-- Add multi-language support
+[x] Add SVG support
+[ ] Add expert settings toggle
+[x] Add additional performance optimizations
+[x] Add unsupported image format detection
+[x] Add macOS support
+[x] Add Linux support
+[x] Add updating mechanism
+[ ] Redesign the product website
+[ ] Design product logo & icons
+[ ] Implement code signing for Windows and macOS builds
+[x] Add multi-language support
 
 ## License
 

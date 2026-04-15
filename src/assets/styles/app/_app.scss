@@ -221,8 +221,7 @@ body.platform-linux {
     opacity: 0.8;
   }
   
-  &::after {
-    content: 'OPTIONS';
+  &__label {
     font-size: 10px;
     font-weight: 500;
     color: v.$light;

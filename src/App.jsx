@@ -416,6 +416,7 @@ function App() {
               }
             >
               <img src={optionsIcon} alt="" />
+              <span className="options-button__label">{t("app.options")}</span>
             </button>
 
             <FloatingMenu

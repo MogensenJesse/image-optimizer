@@ -32,9 +32,10 @@ function ProgressBar({
   const gradientId = "progressGradient";
 
   const formatFileSize = (bytes) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    if (bytes < 1024) return t("progress.sizeB", { value: bytes });
+    if (bytes < 1024 * 1024)
+      return t("progress.sizeKB", { value: (bytes / 1024).toFixed(1) });
+    return t("progress.sizeMB", { value: (bytes / (1024 * 1024)).toFixed(2) });
   };
 
   const formatTime = (seconds) => {

@@ -34,7 +34,7 @@
   "bundle": {
     "createUpdaterArtifacts": true,
     "active": true,
-    "targets": "all",
+    "targets": ["nsis", "dmg", "deb", "appimage"],
     "macOS": {
       "minimumSystemVersion": "10.13"
     },
