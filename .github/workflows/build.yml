@@ -133,8 +133,7 @@ jobs:
         run: |
           if [ -f CHANGELOG.md ]; then
             echo "body<<CHANGELOG_EOF" >> $GITHUB_OUTPUT
-            cat CHANGELOG.md >> $GITHUB_OUTPUT
-            echo "" >> $GITHUB_OUTPUT
+            sed 's/\r$//' CHANGELOG.md >> $GITHUB_OUTPUT
             echo "CHANGELOG_EOF" >> $GITHUB_OUTPUT
           else
             echo "body=See the assets to download this version and install." >> $GITHUB_OUTPUT

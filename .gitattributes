@@ -3,3 +3,6 @@
 
 # NSIS scripts are Windows-only but LF works fine there too
 *.nsh text eol=lf
+
+# Markdown files are consumed by CI (heredoc outputs); CRLF breaks GitHub Actions
+*.md text eol=lf
