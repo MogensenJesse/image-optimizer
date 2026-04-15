@@ -43,15 +43,17 @@
 
 ---
 
-## v0.6.2 – v0.6.6
+## v0.6.2 – v0.6.7
 
 ### Improvements
 
 - **Faster CI builds** — added Rust and libvips caching, removed duplicate macOS build
-- **macOS builds** — fixed compilation failure caused by LTO and window-vibrancy conflict
+- **macOS universal binary** — single download now works on both Intel and Apple Silicon Macs
+- **Translated UI** — "Options" label and file-size units (B, KB, MB) are now localized in all languages
 
 ### Fixes
 
 - Fixed native DLLs not being copied next to the executable on Windows
 - Fixed macOS build script compatibility with older bash versions
+- Fixed compilation failure on macOS caused by LTO and window-vibrancy conflict
 - Dropped unused MSI installer to simplify Windows distribution
