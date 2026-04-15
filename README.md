@@ -48,7 +48,8 @@ For detailed technical information about the architecture, components, and imple
 
 ## Roadmap
 
-- [ ] Add SVG support
+- [x] Add SVG support
+- [ ] Add expert settings toggle
 - [x] Add additional performance optimizations
 - [x] Add unsupported image format detection
 - [x] Add macOS support
