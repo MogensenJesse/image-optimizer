@@ -132,11 +132,14 @@ jobs:
         shell: bash
         run: |
           if [ -f CHANGELOG.md ]; then
-            echo "body<<CHANGELOG_EOF" >> $GITHUB_OUTPUT
-            tr -d '\r' < CHANGELOG.md >> $GITHUB_OUTPUT
-            echo "CHANGELOG_EOF" >> $GITHUB_OUTPUT
+            DELIMITER="CHANGELOG_$(openssl rand -hex 8)"
+            {
+              printf '%s\n' "body<<$DELIMITER"
+              tr -d '\r' < CHANGELOG.md
+              printf '\n%s\n' "$DELIMITER"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "body=See the assets to download this version and install." >> $GITHUB_OUTPUT
+            printf 'body=See the assets to download this version and install.\n' >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build Tauri app
