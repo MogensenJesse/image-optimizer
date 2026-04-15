@@ -121,6 +121,44 @@ jobs:
             > platform-config.json
           echo "config_args=--config platform-config.json" >> $GITHUB_OUTPUT
 
+      - name: Fix dylib install names for bundling (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          STAGING="src-tauri/native-libs"
+
+          # Phase 1 — Change install names in the Homebrew source dylibs before
+          # compilation.  The Rust linker records a dylib's ID verbatim into the
+          # binary's LC_LOAD_DYLIB; after this, it records @rpath/<name> instead
+          # of the absolute Homebrew path, so dyld finds the bundled copy at runtime.
+          for staged in "$STAGING"/*.dylib; do
+            [ -f "$staged" ] || continue
+            name=$(basename "$staged")
+            for brew_lib in \
+                /opt/homebrew/opt/*/lib/"$name" \
+                /usr/local/opt/*/lib/"$name"; do
+              [ -f "$brew_lib" ] && install_name_tool -id "@rpath/$name" "$brew_lib" || true
+            done
+          done
+
+          # Phase 2a — Fix each staged universal dylib's own ID.
+          for dylib in "$STAGING"/*.dylib; do
+            [ -f "$dylib" ] || continue
+            install_name_tool -id "@rpath/$(basename "$dylib")" "$dylib"
+          done
+
+          # Phase 2b — Rewrite references inside each staged dylib that point to
+          # other bundled dylibs from absolute Homebrew paths to @rpath/<name>.
+          # This fixes transitive loading (e.g. libvips -> libgobject-2.0).
+          for dylib in "$STAGING"/*.dylib; do
+            [ -f "$dylib" ] || continue
+            while IFS= read -r dep; do
+              depname=$(basename "$dep")
+              if [ -f "$STAGING/$depname" ]; then
+                install_name_tool -change "$dep" "@rpath/$depname" "$dylib" 2>/dev/null || true
+              fi
+            done < <(otool -L "$dylib" | awk 'NR>1 {print $1}')
+          done
+
       - name: Install dependencies (root)
         run: npm ci
 
