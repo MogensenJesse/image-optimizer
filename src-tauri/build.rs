@@ -95,10 +95,24 @@ fn link_libvips() {
 }
 
 /// Runs `pkg-config --libs <package>` and returns the flags on success.
+///
+/// For universal macOS builds (`--target universal-apple-darwin`), Cargo
+/// invokes `build.rs` once per architecture.  ARM64 Homebrew lives at
+/// `/opt/homebrew/` while x86_64 Homebrew lives at `/usr/local/`.  We
+/// override `PKG_CONFIG_PATH` based on `TARGET` so the linker receives
+/// the correct library search paths for each slice.
 fn pkg_config_libs(package: &str) -> Option<String> {
-    std::process::Command::new("pkg-config")
-        .args(["--libs", package])
-        .output()
+    let mut cmd = std::process::Command::new("pkg-config");
+    cmd.args(["--libs", package]);
+
+    if let Ok(target) = std::env::var("TARGET") {
+        if target == "x86_64-apple-darwin" {
+            cmd.env("PKG_CONFIG_PATH", "/usr/local/lib/pkgconfig");
+            cmd.env("PKG_CONFIG_LIBDIR", "/usr/local/lib/pkgconfig");
+        }
+    }
+
+    cmd.output()
         .ok()
         .filter(|o| o.status.success())
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())

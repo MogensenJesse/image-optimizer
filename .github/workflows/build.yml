@@ -19,8 +19,8 @@ jobs:
       matrix:
         include:
           - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin'
-            rust_target: 'aarch64-apple-darwin'
+            args: '--target universal-apple-darwin'
+            rust_target: 'aarch64-apple-darwin,x86_64-apple-darwin'
           - platform: 'windows-latest'
             args: ''
           # Use Ubuntu 22.04 for broader Linux compatibility (glibc 2.35)
@@ -48,7 +48,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "src-tauri -> target"
-          shared-key: ${{ matrix.rust_target && format('rust-{0}', matrix.rust_target) || '' }}
+          shared-key: ${{ contains(matrix.rust_target, ',') && 'rust-universal-apple-darwin' || (matrix.rust_target && format('rust-{0}', matrix.rust_target) || '') }}
           cache-on-failure: true
 
       - name: Install Linux dependencies
@@ -97,18 +97,24 @@ jobs:
           Set-Content -Path platform-config.json -Value $json
           echo "config_args=--config platform-config.json" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
 
-      - name: Install libvips (macOS)
+      - name: Install libvips ARM64 (macOS)
         if: runner.os == 'macOS'
         run: |
           brew install vips
           echo "VIPS_DIR=$(brew --prefix vips)" >> $GITHUB_ENV
 
-      - name: Stage native dylibs (macOS)
+      - name: Install libvips x86_64 (macOS, for universal build)
+        if: runner.os == 'macOS'
+        run: |
+          arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+          arch -x86_64 /usr/local/bin/brew install vips
+
+      - name: Stage universal dylibs (macOS)
         if: runner.os == 'macOS'
         id: stage-macos
         run: |
-          chmod +x scripts/collect-macos-dylibs.sh
-          ./scripts/collect-macos-dylibs.sh src-tauri/native-libs
+          chmod +x scripts/collect-universal-dylibs.sh
+          ./scripts/collect-universal-dylibs.sh src-tauri/native-libs
           FRAMEWORKS=$(cd src-tauri && find native-libs -name "*.dylib" -maxdepth 1 \
             | sort | sed 's/^/"/' | sed 's/$/"/' | paste -sd, -)
           echo "{\"bundle\":{\"macOS\":{\"frameworks\":[$FRAMEWORKS]}}}" \
