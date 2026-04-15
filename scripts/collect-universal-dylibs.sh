@@ -85,10 +85,20 @@ else
   echo "::warning::x86_64 Homebrew vips not found at /usr/local/"
 fi
 
-# --- Merge matching pairs with lipo -------------------------------------
+# --- Merge matching pairs with lipo; bundle single-arch dylibs as-is ----
+#
+# When ARM64 and x86_64 Homebrew install different versions of a transitive
+# dependency (e.g. libraw_r.23 vs libraw_r.25), the filenames differ and lipo
+# cannot merge them.  Rather than silently discarding these dylibs, we copy
+# each unmatched slice into the staging directory so it is bundled as a
+# single-arch dylib.  dyld selects the correct slice at runtime: the x86_64
+# binary loads x86_64-only dylibs; the arm64 binary loads arm64-only ones.
+# The install-name fixup step then rewrites @rpath references in all staged
+# dylibs, covering these single-arch entries as well.
 
 MERGED=0
-SKIPPED=0
+ARM64_ONLY=0
+X86_64_ONLY=0
 
 for arm_lib in "$ARM64_DIR"/*.dylib; do
   if [[ ! -f "$arm_lib" ]]; then
@@ -102,8 +112,9 @@ for arm_lib in "$ARM64_DIR"/*.dylib; do
     lipo -create "$arm_lib" "$x86_lib" -output "$STAGING/$name"
     MERGED=$((MERGED + 1))
   else
-    SKIPPED=$((SKIPPED + 1))
-    echo "  skip: $name (ARM64 only, no x86_64 match)"
+    cp "$arm_lib" "$STAGING/$name"
+    ARM64_ONLY=$((ARM64_ONLY + 1))
+    echo "  bundle arm64-only: $name"
   fi
 done
 
@@ -114,8 +125,9 @@ for x86_lib in "$X86_64_DIR"/*.dylib; do
 
   name=$(basename "$x86_lib")
   if [[ ! -f "$ARM64_DIR/$name" ]]; then
-    SKIPPED=$((SKIPPED + 1))
-    echo "  skip: $name (x86_64 only, no ARM64 match)"
+    cp "$x86_lib" "$STAGING/$name"
+    X86_64_ONLY=$((X86_64_ONLY + 1))
+    echo "  bundle x86_64-only: $name"
   fi
 done
 
@@ -123,4 +135,4 @@ done
 
 rm -rf "$ARM64_DIR" "$X86_64_DIR"
 
-echo "Created $MERGED universal dylibs ($SKIPPED skipped) in $STAGING"
+echo "Created $MERGED universal + $ARM64_ONLY arm64-only + $X86_64_ONLY x86_64-only dylibs in $STAGING"
