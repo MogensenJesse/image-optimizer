@@ -99,15 +99,43 @@ jobs:
 
       - name: Install libvips ARM64 (macOS)
         if: runner.os == 'macOS'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_INSTALL_CLEANUP: '1'
         run: |
           brew install vips
           echo "VIPS_DIR=$(brew --prefix vips)" >> $GITHUB_ENV
 
+      # Cache the x86_64 Homebrew installation (Homebrew repo + Cellar) so we don't
+      # re-run the install script and 'brew install vips' (+ ~40 transitive deps) on
+      # every run.  The cache key is pinned to "vips-v1"; bump to "vips-v2" when vips
+      # or a major dep updates and a fresh install is needed.
+      - name: Cache x86_64 Homebrew (macOS)
+        if: runner.os == 'macOS'
+        id: cache-x86-brew
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/Homebrew
+            /usr/local/Cellar
+          key: macos-x86-homebrew-vips-v1
+
       - name: Install libvips x86_64 (macOS, for universal build)
         if: runner.os == 'macOS'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_INSTALL_CLEANUP: '1'
         run: |
-          arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-          arch -x86_64 /usr/local/bin/brew install vips
+          if [ "${{ steps.cache-x86-brew.outputs.cache-hit }}" = "true" ]; then
+            # Recreate /usr/local/bin/brew symlink and re-link all formulae whose
+            # opt/lib/include symlinks are not preserved by the cache action.
+            ln -sf /usr/local/Homebrew/bin/brew /usr/local/bin/brew 2>/dev/null || true
+            arch -x86_64 /usr/local/bin/brew link \
+              $(arch -x86_64 /usr/local/bin/brew list --formula) 2>/dev/null || true
+          else
+            arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+            arch -x86_64 /usr/local/bin/brew install vips
+          fi
 
       - name: Stage universal dylibs (macOS)
         if: runner.os == 'macOS'
@@ -161,9 +189,6 @@ jobs:
 
       - name: Install dependencies (root)
         run: npm ci
-
-      - name: Build frontend
-        run: npm run build
 
       - name: Get changelog for release notes
         id: changelog
