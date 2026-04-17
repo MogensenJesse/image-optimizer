@@ -254,24 +254,41 @@ jobs:
         env:
           ARTIFACT_PATHS: ${{ steps.build-tauri.outputs.artifactPaths }}
         run: |
-          # Prefer tauri-action's artifactPaths output (JSON array).  It
-          # may contain paths with spaces ("Image Optimizer.app"), so parse
-          # with jq rather than ad-hoc tr/grep.  The .app isn't always in
-          # artifactPaths (often only the DMG is), so fall through to a
-          # filesystem search under src-tauri/target.
-          APP=""
+          # Tauri v2's DMG bundler deletes the .app from disk after
+          # packaging it (look for "Cleaning ... Image Optimizer.app"
+          # in the Build Tauri app log).  A plain `find src-tauri/target
+          # -type d -name "*.app"` therefore returns nothing by the
+          # time this step runs — the only .app that exists lives
+          # inside the .dmg.  Mount the DMG read-only and verify the
+          # .app inside it.
+          DMG=""
           if [ -n "${ARTIFACT_PATHS:-}" ] && command -v jq >/dev/null 2>&1; then
-            APP=$(printf '%s' "$ARTIFACT_PATHS" \
-              | jq -r '.[] | select(endswith(".app"))' 2>/dev/null \
+            DMG=$(printf '%s' "$ARTIFACT_PATHS" \
+              | jq -r '.[] | select(endswith(".dmg"))' 2>/dev/null \
               | head -1 || true)
           fi
-
-          if [ -z "$APP" ] || [ ! -d "$APP" ]; then
-            APP=$(find src-tauri/target -type d -name "*.app" 2>/dev/null | head -1)
+          if [ -z "$DMG" ] || [ ! -f "$DMG" ]; then
+            DMG=$(find src-tauri/target -type f -name "*.dmg" 2>/dev/null | head -1 || true)
           fi
+          if [ -z "$DMG" ] || [ ! -f "$DMG" ]; then
+            echo "::error::No DMG found to verify (searched artifactPaths and src-tauri/target)"
+            exit 1
+          fi
+          echo "Verifying DMG at: $DMG"
 
+          # mktemp -d gives us an empty dir that hdiutil is happy to
+          # use as an explicit mountpoint.  Picking our own mountpoint
+          # keeps cleanup predictable regardless of volume name.  The
+          # trap detaches on any exit (success, failure, or set -e
+          # abort) so a failing check never leaves a dangling mount.
+          MOUNT=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT" "$DMG" >/dev/null
+          trap 'hdiutil detach "$MOUNT" -quiet -force >/dev/null 2>&1 || true' EXIT
+
+          APP=$(find "$MOUNT" -maxdepth 2 -type d -name "*.app" 2>/dev/null | head -1 || true)
           if [ -z "$APP" ] || [ ! -d "$APP" ]; then
-            echo "::error::No .app bundle found to verify (searched artifactPaths and src-tauri/target)"
+            echo "::error::No .app bundle found inside mounted DMG"
+            ls -la "$MOUNT" || true
             exit 1
           fi
           echo "Verifying bundle at: $APP"
