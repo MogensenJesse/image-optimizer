@@ -2,17 +2,23 @@ name: Build Tauri App
 
 on:
   push:
+    # Tag pushes create the real release drafts.  `main` pushes also run
+    # the full build but skip release creation — they exist purely to
+    # populate caches (Rust target/, libvips, x86_64 Homebrew) on the
+    # default branch so subsequent tag pushes can restore from them.
+    # Without this, every tag is a fully cold build.
+    branches: [main]
     tags:
       - 'v*'
   workflow_dispatch:
 
-# Prevent concurrent release runs against the same ref (e.g. a re-tag or a
-# manual dispatch colliding with a tag push) from racing to create the same
-# draft release. Not cancelling in-progress runs: an aborted build can leave
-# a half-uploaded release asset behind.
+# Tag builds must never be cancelled mid-flight: an aborted run can leave a
+# half-uploaded release asset behind.  `main` and workflow_dispatch runs are
+# pure cache-warm / validation builds, so cancelling an older run when a
+# newer one arrives is safe and avoids queueing backlogs on rapid merges.
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 env:
   CARGO_INCREMENTAL: 0
@@ -82,6 +88,8 @@ jobs:
         with:
           path: vendor/libvips-native
           key: libvips-win64-8.18.0
+          restore-keys: |
+            libvips-win64-
 
       - name: Install libvips (Windows)
         if: runner.os == 'Windows' && steps.cache-vips.outputs.cache-hit != 'true'
@@ -113,19 +121,14 @@ jobs:
           Set-Content -Path platform-config.json -Value $json
           echo "config_args=--config platform-config.json" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
 
-      - name: Install libvips ARM64 (macOS)
-        if: runner.os == 'macOS'
-        env:
-          HOMEBREW_NO_AUTO_UPDATE: '1'
-          HOMEBREW_NO_INSTALL_CLEANUP: '1'
-        run: |
-          brew install vips
-          echo "VIPS_DIR=$(brew --prefix vips)" >> $GITHUB_ENV
-
       # Cache the x86_64 Homebrew installation (Homebrew repo + Cellar) so we don't
       # re-run the install script and 'brew install vips' (+ ~40 transitive deps) on
       # every run.  The cache key is pinned to "vips-v1"; bump to "vips-v2" when vips
-      # or a major dep updates and a fresh install is needed.
+      # or a major dep updates and a fresh install is needed.  `restore-keys`
+      # lets a future bump (e.g. vips-v2) still fall back to an older entry
+      # while the new cache populates, rather than going fully cold.
+      # This step is placed BEFORE the install step so the cache-hit output is
+      # available to the combined install script below.
       - name: Cache x86_64 Homebrew (macOS)
         if: runner.os == 'macOS'
         id: cache-x86-brew
@@ -135,13 +138,23 @@ jobs:
             /usr/local/Homebrew
             /usr/local/Cellar
           key: macos-x86-homebrew-vips-v1
+          restore-keys: |
+            macos-x86-homebrew-vips-
 
-      - name: Install libvips x86_64 (macOS, for universal build)
+      # Install vips for both architectures in parallel.  ARM64 install (~2m
+      # fresh, seconds when cached at the runner level) runs in the background
+      # while the x86_64 path runs in the foreground.  Overlapping these two
+      # saves ~2 minutes per cold build.  We `wait` on the ARM64 PID at the
+      # end so its exit code still fails the job.
+      - name: Install libvips for both arches in parallel (macOS)
         if: runner.os == 'macOS'
         env:
           HOMEBREW_NO_AUTO_UPDATE: '1'
           HOMEBREW_NO_INSTALL_CLEANUP: '1'
         run: |
+          brew install vips > arm64-brew.log 2>&1 &
+          ARM64_PID=$!
+
           if [ "${{ steps.cache-x86-brew.outputs.cache-hit }}" = "true" ]; then
             # Recreate /usr/local/bin/brew symlink and re-link all formulae whose
             # opt/lib/include symlinks are not preserved by the cache action.
@@ -156,12 +169,28 @@ jobs:
           # Hard-fail if the x86_64 vips prefix is missing — without this the
           # collect-universal-dylibs.sh script silently emits ::warning:: and
           # produces an ARM64-only DMG that breaks on Intel Macs.
+          # Assert before waiting on ARM64 so failure messages stay
+          # attributable to the right arch.
           X86_VIPS_PREFIX=$(arch -x86_64 /usr/local/bin/brew --prefix vips 2>/dev/null || true)
           if [ -z "$X86_VIPS_PREFIX" ] || [ ! -d "$X86_VIPS_PREFIX/lib" ]; then
             echo "::error::x86_64 Homebrew vips not available at expected prefix. Cache may be corrupt — bump the cache key (currently 'macos-x86-homebrew-vips-v1')."
             exit 1
           fi
           echo "x86_64 vips verified at $X86_VIPS_PREFIX"
+
+          # Wait for the backgrounded ARM64 install and surface its exit code.
+          if ! wait "$ARM64_PID"; then
+            echo "::error::ARM64 'brew install vips' failed — see log below"
+            cat arm64-brew.log || true
+            exit 1
+          fi
+          # Only print the ARM64 log on success if it contains warnings, to
+          # avoid drowning out the x86_64 output above on normal runs.
+          if grep -qiE 'warning|error' arm64-brew.log 2>/dev/null; then
+            echo "--- ARM64 brew install log ---"
+            cat arm64-brew.log
+          fi
+          echo "VIPS_DIR=$(brew --prefix vips)" >> $GITHUB_ENV
 
       - name: Stage universal dylibs (macOS)
         if: runner.os == 'macOS'
@@ -242,12 +271,17 @@ jobs:
             ${{ steps.stage-windows.outputs.config_args || '' }}
             ${{ steps.stage-macos.outputs.config_args || '' }}
           includeDebug: false
-          tagName: v__VERSION__
-          releaseName: 'Image Optimizer v__VERSION__'
-          releaseBody: ${{ steps.changelog.outputs.body }}
-          releaseDraft: true
+          # On non-tag runs (main pushes, workflow_dispatch) we want to build
+          # and verify the bundle — which warms all caches — but NOT publish a
+          # draft release.  tauri-action treats an empty tagName as "build
+          # only": no release is created or updated.  Release metadata inputs
+          # are gated on the same condition to keep behaviour symmetric.
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && 'v__VERSION__' || '' }}
+          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && 'Image Optimizer v__VERSION__' || '' }}
+          releaseBody: ${{ startsWith(github.ref, 'refs/tags/') && steps.changelog.outputs.body || '' }}
+          releaseDraft: ${{ startsWith(github.ref, 'refs/tags/') }}
           # Tags containing a hyphen (e.g. v0.7.0-beta.1) are treated as prereleases.
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          prerelease: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref_name, '-') }}
 
       - name: Verify bundled dylibs (macOS)
         if: runner.os == 'macOS'
