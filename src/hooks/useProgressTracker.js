@@ -76,7 +76,6 @@ function useProgressTracker() {
         stats.totalOriginalSize += Number(metadata.originalSize);
       }
 
-      const savedSizeMB = stats.totalSavedBytes / (1024 * 1024);
       const savedPercentage =
         stats.totalOriginalSize > 0
           ? Math.round((stats.totalSavedBytes / stats.totalOriginalSize) * 100)
@@ -97,7 +96,7 @@ function useProgressTracker() {
         totalTasks,
         progressPercentage,
         status,
-        savedSize: parseFloat(savedSizeMB.toFixed(1)),
+        savedSize: stats.totalSavedBytes,
         savedPercentage,
         processingTime,
       });

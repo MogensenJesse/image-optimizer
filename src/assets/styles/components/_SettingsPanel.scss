@@ -251,13 +251,13 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    opacity: 0.5;
     font-size: 9px;
     line-height: 1.6;
     letter-spacing: 0.02em;
+    color: rgba(v.$light, 0.5);
 
     strong {
-      opacity: 1;
+      color: v.$light;
       font-weight: bold;
     }
 
@@ -284,7 +284,7 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin: 0;
-    opacity: 1;
+    color: v.$light;
   }
 
   // Add spacing before section headers that follow any content

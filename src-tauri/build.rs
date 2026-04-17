@@ -80,13 +80,26 @@ fn link_libvips() {
             for flag in flags.split_whitespace() {
                 println!("cargo:rustc-link-arg={flag}");
             }
-        } else if lib_dir.exists() {
-            // Fallback when pkg-config is unavailable (e.g. vendored build).
-            println!("cargo:rustc-link-arg=-L{}", lib_dir.display());
-            println!("cargo:rustc-link-arg=-lvips");
-            println!("cargo:rustc-link-arg=-lgobject-2.0");
-            println!("cargo:rustc-link-arg=-lglib-2.0");
         } else {
+            // Fallback when pkg-config is unavailable or vips.pc is not found.
+            //
+            // For x86_64-apple-darwin cross-compilation on Apple Silicon CI
+            // runners, VIPS_DIR points to the ARM64 Homebrew prefix
+            // (/opt/homebrew/opt/vips) because that is what `brew --prefix vips`
+            // returns on the host machine.  Using that prefix for the x86_64
+            // linker is wrong in two ways:
+            //   1. The libraries are the wrong architecture.
+            //   2. libgobject-2.0 lives in the glib formula dir, not the vips
+            //      formula dir, so a single -L<vips>/lib is never sufficient.
+            // Use the x86_64 Homebrew prefix (/usr/local) explicitly in that
+            // case, adding both the vips and glib lib directories.
+            let target = std::env::var("TARGET").unwrap_or_default();
+            if target == "x86_64-apple-darwin" {
+                println!("cargo:rustc-link-arg=-L/usr/local/opt/vips/lib");
+                println!("cargo:rustc-link-arg=-L/usr/local/opt/glib/lib");
+            } else if lib_dir.exists() {
+                println!("cargo:rustc-link-arg=-L{}", lib_dir.display());
+            }
             println!("cargo:rustc-link-arg=-lvips");
             println!("cargo:rustc-link-arg=-lgobject-2.0");
             println!("cargo:rustc-link-arg=-lglib-2.0");
@@ -95,10 +108,33 @@ fn link_libvips() {
 }
 
 /// Runs `pkg-config --libs <package>` and returns the flags on success.
+///
+/// For universal macOS builds (`--target universal-apple-darwin`), Cargo
+/// invokes `build.rs` once per architecture.  ARM64 Homebrew lives at
+/// `/opt/homebrew/` while x86_64 Homebrew lives at `/usr/local/`.  We
+/// override `PKG_CONFIG_PATH` based on `TARGET` so the linker receives
+/// the correct library search paths for each slice.
 fn pkg_config_libs(package: &str) -> Option<String> {
-    std::process::Command::new("pkg-config")
-        .args(["--libs", package])
-        .output()
+    let mut cmd = std::process::Command::new("pkg-config");
+    cmd.args(["--libs", package]);
+
+    if let Ok(target) = std::env::var("TARGET") {
+        if target == "x86_64-apple-darwin" {
+            // On Apple Silicon CI runners (macos-latest), x86_64 Homebrew
+            // installs to /usr/local.  The top-level /usr/local/lib/pkgconfig
+            // may only contain a sparse set of symlinks, so include the
+            // formula-specific pkgconfig dirs for vips and glib (which
+            // provides gobject-2.0 and glib-2.0) so all Requires: entries
+            // in vips.pc can be resolved by a single pkg-config invocation.
+            let paths = "/usr/local/lib/pkgconfig\
+                        :/usr/local/opt/vips/lib/pkgconfig\
+                        :/usr/local/opt/glib/lib/pkgconfig";
+            cmd.env("PKG_CONFIG_PATH", paths);
+            cmd.env("PKG_CONFIG_LIBDIR", paths);
+        }
+    }
+
+    cmd.output()
         .ok()
         .filter(|o| o.status.success())
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())

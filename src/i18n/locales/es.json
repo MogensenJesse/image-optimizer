@@ -6,6 +6,7 @@
   "app.skippedFile": "Archivo no compatible omitido: {{name}}",
   "app.skippedFilesOne": "Archivos no compatibles omitidos: {{name}} y 1 más",
   "app.skippedFilesMany": "Archivos no compatibles omitidos: {{name}} y {{count}} más",
+  "app.options": "Opciones",
 
   "titlebar.title": "Image optimizer",
   "titlebar.settings": "Ajustes",
@@ -13,7 +14,10 @@
   "titlebar.close": "Cerrar",
 
   "progress.complete": "Optimización completada",
-  "progress.saved": "{{size}} MB / {{percent}}% ahorrado",
+  "progress.saved": "{{size}} / {{percent}}% ahorrado",
+  "progress.sizeB": "{{value}} B",
+  "progress.sizeKB": "{{value}} KB",
+  "progress.sizeMB": "{{value}} MB",
   "progress.summary": "{{count}} imágenes optimizadas en {{time}}",
   "progress.seconds": "{{value}}s",
   "progress.minutes": "{{min}}m {{sec}}s",

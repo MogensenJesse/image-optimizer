@@ -6,6 +6,7 @@
   "app.skippedFile": "Niet-ondersteund bestand overgeslagen: {{name}}",
   "app.skippedFilesOne": "Niet-ondersteunde bestanden overgeslagen: {{name}} en 1 ander",
   "app.skippedFilesMany": "Niet-ondersteunde bestanden overgeslagen: {{name}} en {{count}} andere",
+  "app.options": "Opties",
 
   "titlebar.title": "Image optimizer",
   "titlebar.settings": "Instellingen",
@@ -13,7 +14,10 @@
   "titlebar.close": "Sluiten",
 
   "progress.complete": "Optimalisatie voltooid",
-  "progress.saved": "{{size}} MB / {{percent}}% bespaard",
+  "progress.saved": "{{size}} / {{percent}}% bespaard",
+  "progress.sizeB": "{{value}} B",
+  "progress.sizeKB": "{{value}} KB",
+  "progress.sizeMB": "{{value}} MB",
   "progress.summary": "{{count}} afbeeldingen geoptimaliseerd in {{time}}",
   "progress.seconds": "{{value}}s",
   "progress.minutes": "{{min}}m {{sec}}s",

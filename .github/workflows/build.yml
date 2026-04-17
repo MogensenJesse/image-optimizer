@@ -6,6 +6,18 @@ on:
       - 'v*'
   workflow_dispatch:
 
+# Prevent concurrent release runs against the same ref (e.g. a re-tag or a
+# manual dispatch colliding with a tag push) from racing to create the same
+# draft release. Not cancelling in-progress runs: an aborted build can leave
+# a half-uploaded release asset behind.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+
 jobs:
   build-tauri:
     permissions:
@@ -15,39 +27,45 @@ jobs:
       matrix:
         include:
           - platform: 'macos-latest'
-            args: ''
+            args: '--target universal-apple-darwin'
+            rust_target: 'aarch64-apple-darwin,x86_64-apple-darwin'
+            cache_key: 'rust-universal-apple-darwin'
           - platform: 'windows-latest'
             args: ''
+            cache_key: 'rust-x86_64-pc-windows-msvc'
           # Use Ubuntu 22.04 for broader Linux compatibility (glibc 2.35)
           # This supports Debian 12+, Ubuntu 22.04+, Fedora 36+, etc.
           - platform: 'ubuntu-22.04'
             args: ''
-          - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin'
-            arch: 'arm64'
+            cache_key: 'rust-x86_64-unknown-linux-gnu'
 
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: 'npm'
 
+      # Install npm deps early so lockfile drift or a registry outage fails
+      # the job before we spend minutes on Homebrew / lipo / native-lib work.
+      - name: Install dependencies (root)
+        run: npm ci
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.args == '--target aarch64-apple-darwin' && 'aarch64-apple-darwin' || '' }}
+          targets: ${{ matrix.rust_target || '' }}
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "src-tauri -> target"
-          # Include target arch in cache key for cross-compilation
-          shared-key: ${{ matrix.args == '--target aarch64-apple-darwin' && 'macos-arm64' || '' }}
+          shared-key: ${{ matrix.cache_key }}
+          cache-on-failure: true
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -57,8 +75,16 @@ jobs:
             libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev \
             librsvg2-dev patchelf
 
-      - name: Install libvips (Windows)
+      - name: Cache libvips (Windows)
         if: runner.os == 'Windows'
+        id: cache-vips
+        uses: actions/cache@v5
+        with:
+          path: vendor/libvips-native
+          key: libvips-win64-8.18.0
+
+      - name: Install libvips (Windows)
+        if: runner.os == 'Windows' && steps.cache-vips.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           $vipsVersion = "8.18.0"
@@ -68,33 +94,142 @@ jobs:
           Move-Item vendor\libvips-extract\vips-dev-8.18 vendor\libvips-native
           Remove-Item vips.zip
           Remove-Item -Recurse vendor\libvips-extract
-          echo "${{ github.workspace }}\vendor\libvips-native\bin" | Out-File -Append -FilePath $env:GITHUB_PATH
 
-      - name: Install libvips (macOS)
+      - name: Add libvips to PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: echo "${{ github.workspace }}\vendor\libvips-native\bin" | Out-File -Append -FilePath $env:GITHUB_PATH
+
+      - name: Stage native DLLs (Windows)
+        if: runner.os == 'Windows'
+        id: stage-windows
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri\native-dlls
+          Copy-Item vendor\libvips-native\bin\*.dll src-tauri\native-dlls\
+          $count = (Get-ChildItem src-tauri\native-dlls\*.dll).Count
+          Write-Host "Staged $count DLLs for bundling"
+          $json = '{"bundle":{"resources":{"native-dlls/":"native-dlls"}}}'
+          Set-Content -Path platform-config.json -Value $json
+          echo "config_args=--config platform-config.json" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
+
+      - name: Install libvips ARM64 (macOS)
         if: runner.os == 'macOS'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_INSTALL_CLEANUP: '1'
         run: |
           brew install vips
           echo "VIPS_DIR=$(brew --prefix vips)" >> $GITHUB_ENV
 
-      - name: Install dependencies (root)
-        run: npm ci
+      # Cache the x86_64 Homebrew installation (Homebrew repo + Cellar) so we don't
+      # re-run the install script and 'brew install vips' (+ ~40 transitive deps) on
+      # every run.  The cache key is pinned to "vips-v1"; bump to "vips-v2" when vips
+      # or a major dep updates and a fresh install is needed.
+      - name: Cache x86_64 Homebrew (macOS)
+        if: runner.os == 'macOS'
+        id: cache-x86-brew
+        uses: actions/cache@v5
+        with:
+          path: |
+            /usr/local/Homebrew
+            /usr/local/Cellar
+          key: macos-x86-homebrew-vips-v1
 
-      - name: Build frontend
-        run: npm run build
+      - name: Install libvips x86_64 (macOS, for universal build)
+        if: runner.os == 'macOS'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_INSTALL_CLEANUP: '1'
+        run: |
+          if [ "${{ steps.cache-x86-brew.outputs.cache-hit }}" = "true" ]; then
+            # Recreate /usr/local/bin/brew symlink and re-link all formulae whose
+            # opt/lib/include symlinks are not preserved by the cache action.
+            ln -sf /usr/local/Homebrew/bin/brew /usr/local/bin/brew 2>/dev/null || true
+            arch -x86_64 /usr/local/bin/brew link \
+              $(arch -x86_64 /usr/local/bin/brew list --formula) 2>/dev/null || true
+          else
+            arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+            arch -x86_64 /usr/local/bin/brew install vips
+          fi
+
+          # Hard-fail if the x86_64 vips prefix is missing — without this the
+          # collect-universal-dylibs.sh script silently emits ::warning:: and
+          # produces an ARM64-only DMG that breaks on Intel Macs.
+          X86_VIPS_PREFIX=$(arch -x86_64 /usr/local/bin/brew --prefix vips 2>/dev/null || true)
+          if [ -z "$X86_VIPS_PREFIX" ] || [ ! -d "$X86_VIPS_PREFIX/lib" ]; then
+            echo "::error::x86_64 Homebrew vips not available at expected prefix. Cache may be corrupt — bump the cache key (currently 'macos-x86-homebrew-vips-v1')."
+            exit 1
+          fi
+          echo "x86_64 vips verified at $X86_VIPS_PREFIX"
+
+      - name: Stage universal dylibs (macOS)
+        if: runner.os == 'macOS'
+        id: stage-macos
+        run: |
+          chmod +x scripts/collect-universal-dylibs.sh
+          ./scripts/collect-universal-dylibs.sh src-tauri/native-libs
+          FRAMEWORKS=$(cd src-tauri && find native-libs -name "*.dylib" -maxdepth 1 \
+            | sort | sed 's/^/"/' | sed 's/$/"/' | paste -sd, -)
+          echo "{\"bundle\":{\"macOS\":{\"frameworks\":[$FRAMEWORKS]}}}" \
+            > platform-config.json
+          echo "config_args=--config platform-config.json" >> $GITHUB_OUTPUT
+
+      - name: Fix dylib install names for bundling (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          STAGING="src-tauri/native-libs"
+
+          # Phase 1 — Change install names in the Homebrew source dylibs before
+          # compilation.  The Rust linker records a dylib's ID verbatim into the
+          # binary's LC_LOAD_DYLIB; after this, it records @rpath/<name> instead
+          # of the absolute Homebrew path, so dyld finds the bundled copy at runtime.
+          for staged in "$STAGING"/*.dylib; do
+            [ -f "$staged" ] || continue
+            name=$(basename "$staged")
+            for brew_lib in \
+                /opt/homebrew/opt/*/lib/"$name" \
+                /usr/local/opt/*/lib/"$name"; do
+              [ -f "$brew_lib" ] && install_name_tool -id "@rpath/$name" "$brew_lib" || true
+            done
+          done
+
+          # Phase 2a — Fix each staged universal dylib's own ID.
+          for dylib in "$STAGING"/*.dylib; do
+            [ -f "$dylib" ] || continue
+            install_name_tool -id "@rpath/$(basename "$dylib")" "$dylib"
+          done
+
+          # Phase 2b — Rewrite references inside each staged dylib that point to
+          # other bundled dylibs from absolute Homebrew paths to @rpath/<name>.
+          # This fixes transitive loading (e.g. libvips -> libgobject-2.0).
+          for dylib in "$STAGING"/*.dylib; do
+            [ -f "$dylib" ] || continue
+            while IFS= read -r dep; do
+              depname=$(basename "$dep")
+              if [ -f "$STAGING/$depname" ]; then
+                install_name_tool -change "$dep" "@rpath/$depname" "$dylib" 2>/dev/null || true
+              fi
+            done < <(otool -L "$dylib" | awk 'NR>1 {print $1}')
+          done
 
       - name: Get changelog for release notes
         id: changelog
         shell: bash
         run: |
           if [ -f CHANGELOG.md ]; then
-            echo "body<<CHANGELOG_EOF" >> $GITHUB_OUTPUT
-            cat CHANGELOG.md >> $GITHUB_OUTPUT
-            echo "CHANGELOG_EOF" >> $GITHUB_OUTPUT
+            DELIMITER="CHANGELOG_$(openssl rand -hex 8)"
+            {
+              printf '%s\n' "body<<$DELIMITER"
+              tr -d '\r' < CHANGELOG.md
+              printf '\n%s\n' "$DELIMITER"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "body=See the assets to download this version and install." >> $GITHUB_OUTPUT
+            printf 'body=See the assets to download this version and install.\n' >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build Tauri app
+        id: build-tauri
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -102,12 +237,164 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: .
-          args: ${{ matrix.args }}
+          args: >-
+            ${{ matrix.args }}
+            ${{ steps.stage-windows.outputs.config_args || '' }}
+            ${{ steps.stage-macos.outputs.config_args || '' }}
           includeDebug: false
           tagName: v__VERSION__
           releaseName: 'Image Optimizer v__VERSION__'
           releaseBody: ${{ steps.changelog.outputs.body }}
           releaseDraft: true
-          prerelease: false
+          # Tags containing a hyphen (e.g. v0.7.0-beta.1) are treated as prereleases.
+          prerelease: ${{ contains(github.ref_name, '-') }}
 
+      - name: Verify bundled dylibs (macOS)
+        if: runner.os == 'macOS'
+        env:
+          ARTIFACT_PATHS: ${{ steps.build-tauri.outputs.artifactPaths }}
+        run: |
+          # Tauri v2's DMG bundler deletes the .app from disk after
+          # packaging it (look for "Cleaning ... Image Optimizer.app"
+          # in the Build Tauri app log).  A plain `find src-tauri/target
+          # -type d -name "*.app"` therefore returns nothing by the
+          # time this step runs — the only .app that exists lives
+          # inside the .dmg.  Mount the DMG read-only and verify the
+          # .app inside it.
+          DMG=""
+          if [ -n "${ARTIFACT_PATHS:-}" ] && command -v jq >/dev/null 2>&1; then
+            DMG=$(printf '%s' "$ARTIFACT_PATHS" \
+              | jq -r '.[] | select(endswith(".dmg"))' 2>/dev/null \
+              | head -1 || true)
+          fi
+          if [ -z "$DMG" ] || [ ! -f "$DMG" ]; then
+            DMG=$(find src-tauri/target -type f -name "*.dmg" 2>/dev/null | head -1 || true)
+          fi
+          if [ -z "$DMG" ] || [ ! -f "$DMG" ]; then
+            echo "::error::No DMG found to verify (searched artifactPaths and src-tauri/target)"
+            exit 1
+          fi
+          echo "Verifying DMG at: $DMG"
 
+          # mktemp -d gives us an empty dir that hdiutil is happy to
+          # use as an explicit mountpoint.  Picking our own mountpoint
+          # keeps cleanup predictable regardless of volume name.  The
+          # trap detaches on any exit (success, failure, or set -e
+          # abort) so a failing check never leaves a dangling mount.
+          MOUNT=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT" "$DMG" >/dev/null
+          trap 'hdiutil detach "$MOUNT" -quiet -force >/dev/null 2>&1 || true' EXIT
+
+          APP=$(find "$MOUNT" -maxdepth 2 -type d -name "*.app" 2>/dev/null | head -1 || true)
+          if [ -z "$APP" ] || [ ! -d "$APP" ]; then
+            echo "::error::No .app bundle found inside mounted DMG"
+            ls -la "$MOUNT" || true
+            exit 1
+          fi
+          echo "Verifying bundle at: $APP"
+
+          BIN="$APP/Contents/MacOS/$(basename "$APP" .app)"
+          FRAMEWORKS="$APP/Contents/Frameworks"
+
+          if [ ! -d "$FRAMEWORKS" ]; then
+            echo "::error::No Frameworks directory in bundle — native-libs were not bundled"
+            exit 1
+          fi
+
+          DYLIB_COUNT=$(find "$FRAMEWORKS" -maxdepth 1 -name "*.dylib" | wc -l | tr -d ' ')
+          echo "Frameworks contains $DYLIB_COUNT dylibs"
+          if [ "$DYLIB_COUNT" -eq 0 ]; then
+            echo "::error::No dylibs bundled in Frameworks/"
+            exit 1
+          fi
+
+          FAIL=0
+
+          # Check 1: no absolute Homebrew paths in the main binary or any
+          # bundled dylib — those indicate install_name_tool rewrites were
+          # missed and the app will fail to launch on machines without
+          # Homebrew at the exact same path.
+          if otool -L "$BIN" | grep -E '(/opt/homebrew|/usr/local)/' ; then
+            echo "::error::Main binary references absolute Homebrew paths; install_name fixup is incomplete"
+            FAIL=1
+          fi
+          for dylib in "$FRAMEWORKS"/*.dylib; do
+            if otool -L "$dylib" | tail -n +2 | grep -E '(/opt/homebrew|/usr/local)/' ; then
+              echo "::error::$(basename "$dylib") references absolute Homebrew paths"
+              FAIL=1
+            fi
+          done
+
+          # Check 2: every @rpath/@loader_path/@executable_path reference
+          # in the main binary and each bundled dylib must have a matching
+          # file in Frameworks/.  This catches transitive deps that the
+          # collect script failed to follow (e.g. libwebp -> libsharpyuv).
+          check_rpath_refs() {
+            local target="$1"
+            local target_name
+            target_name=$(basename "$target")
+            local local_fail=0
+            local dep
+            while IFS= read -r dep; do
+              case "$dep" in
+                @rpath/*|@loader_path/*|@executable_path/*)
+                  local base
+                  base=$(basename "$dep")
+                  # A dylib's own ID shows up as the first otool line; skip
+                  # self-references.
+                  if [ "$base" = "$target_name" ]; then
+                    continue
+                  fi
+                  if [ ! -f "$FRAMEWORKS/$base" ]; then
+                    echo "::error::$target_name references $dep but Frameworks/$base is missing"
+                    local_fail=1
+                  fi
+                  ;;
+              esac
+            done < <(otool -L "$target" | tail -n +2 | awk '{print $1}')
+            return $local_fail
+          }
+
+          check_rpath_refs "$BIN" || FAIL=1
+          for dylib in "$FRAMEWORKS"/*.dylib; do
+            check_rpath_refs "$dylib" || FAIL=1
+          done
+
+          if [ "$FAIL" -ne 0 ]; then
+            echo "::error::Bundle verification failed — see errors above"
+            exit 1
+          fi
+          echo "OK: all @rpath references resolve inside the bundle and no absolute Homebrew paths remain"
+
+      - name: Verify native DLLs in bundle (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $nsis = "src-tauri\target\release\bundle\nsis"
+          if (Test-Path $nsis) {
+            $dlls = Get-ChildItem "$nsis\*.dll" -Recurse -ErrorAction SilentlyContinue
+            Write-Host "Found $($dlls.Count) DLLs in NSIS bundle"
+          }
+          $dlls = Get-ChildItem "src-tauri\target\release\native-dlls\*.dll" -ErrorAction SilentlyContinue
+          if ($dlls) {
+            Write-Host "OK: $($dlls.Count) native DLLs staged for bundling"
+          } else {
+            Write-Host "::warning::No native DLLs found in target — check bundle.resources config"
+          }
+
+      - name: Verify AppImage contains native libs (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          APPIMAGE=$(find src-tauri/target/release/bundle/appimage -name "*.AppImage" 2>/dev/null | head -1)
+          if [ -z "$APPIMAGE" ]; then
+            echo "::warning::No AppImage found to verify"
+            exit 0
+          fi
+          chmod +x "$APPIMAGE"
+          "$APPIMAGE" --appimage-extract > /dev/null 2>&1
+          if find squashfs-root -name "libvips*" | grep -q .; then
+            echo "OK: libvips found in AppImage"
+          else
+            echo "::warning::libvips NOT found in AppImage — users without system libvips will fail"
+          fi
+          rm -rf squashfs-root

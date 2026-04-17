@@ -7,7 +7,7 @@ import { useTranslation } from "../i18n";
  * @param {number} props.completedTasks - Number of completed tasks
  * @param {number} props.totalTasks - Total number of tasks
  * @param {number} props.progressPercentage - The calculated progress percentage (0-100)
- * @param {number} props.savedSize - Size saved in MB (optional)
+ * @param {number} props.savedSize - Size saved in bytes (optional)
  * @param {number} props.savedPercentage - Percentage of size saved (optional)
  * @param {number} props.processingTime - Time elapsed in seconds since processing started
  */
@@ -31,11 +31,11 @@ function ProgressBar({
   // Gradient ID for the SVG
   const gradientId = "progressGradient";
 
-  // Format file size to human-readable format
-  const _formatFileSize = (bytes) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  const formatFileSize = (bytes) => {
+    if (bytes < 1024) return t("progress.sizeB", { value: bytes });
+    if (bytes < 1024 * 1024)
+      return t("progress.sizeKB", { value: (bytes / 1024).toFixed(1) });
+    return t("progress.sizeMB", { value: (bytes / (1024 * 1024)).toFixed(2) });
   };
 
   const formatTime = (seconds) => {
@@ -95,7 +95,7 @@ function ProgressBar({
         </h2>
         <p className="progress-circle__percentage-label">
           {t("progress.saved", {
-            size: savedSize.toFixed(2),
+            size: formatFileSize(savedSize),
             percent: savedPercentage,
           })}
         </p>

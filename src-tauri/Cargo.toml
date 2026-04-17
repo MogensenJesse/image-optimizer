@@ -1,6 +1,6 @@
 [package]
 name = "image-optimizer"
-version = "0.6.0"
+version = "0.6.9"
 description = "A Tauri-based Image Optimization App"
 authors = ["you"]
 edition = "2024"
@@ -23,7 +23,7 @@ cc = "1"
 codegen-units = 1
 panic = "abort"
 opt-level = 3   # Maximize speed for image processing
-lto = true      # Enable link-time optimization
+lto = "thin"    # ThinLTO: avoids fat-LTO bitcode failures with objc2 on macOS
 strip = true    # Strip debug symbols
 
 # Speed up debug builds
@@ -56,6 +56,8 @@ thiserror = "2.0"
 anyhow = "1.0"
 window-vibrancy = "0.7"
 libvips = { package = "libvips-rs", version = "=8.15.1" }
+oxvg_optimiser = "0.0.5"
+oxvg_ast = { version = "0.0.5", features = ["roxmltree"] }
 
 # Auto-update and persistent settings
 tauri-plugin-updater = "2"
