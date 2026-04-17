@@ -1,7 +1,7 @@
 {
   "name": "image-optimizer",
   "private": true,
-  "version": "0.6.9-citest.2",
+  "version": "0.6.8",
   "type": "module",
   "scripts": {
     "dev": "vite",
