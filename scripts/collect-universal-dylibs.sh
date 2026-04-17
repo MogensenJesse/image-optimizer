@@ -23,10 +23,53 @@ X86_64_DIR="$STAGING/tmp-x86_64"
 mkdir -p "$STAGING" "$ARM64_DIR" "$X86_64_DIR"
 
 # --- Shared collection logic: recursively walks otool -L references ----
+#
+# Modern Homebrew bottles are relocatable: deps are recorded as
+# @rpath/<name>, @loader_path/<name>, or @executable_path/<name> rather
+# than absolute Cellar paths.  For those we look up the real file by
+# (1) checking the referencing dylib's own directory (covers the common
+# intra-formula case like libwebp -> libsharpyuv living in the same lib
+# dir), and (2) walking the Homebrew opt tree for that prefix.
+#
+# Callers pass the Homebrew prefix that owns the starting lib so the
+# fallback search targets the right arch (/opt/homebrew for arm64,
+# /usr/local for x86_64).
+
+resolve_dep() {
+  local dep="$1"
+  local src_lib="$2"
+  local brew_opt_root="$3"
+  local base
+  base=$(basename "$dep")
+
+  case "$dep" in
+    @rpath/*|@loader_path/*|@executable_path/*)
+      local src_dir
+      src_dir=$(dirname "$src_lib")
+      if [[ -f "$src_dir/$base" ]]; then
+        echo "$src_dir/$base"
+        return 0
+      fi
+      local candidate
+      for candidate in "$brew_opt_root"/opt/*/lib/"$base"; do
+        if [[ -f "$candidate" ]]; then
+          echo "$candidate"
+          return 0
+        fi
+      done
+      return 0
+      ;;
+    *)
+      echo "$dep"
+      return 0
+      ;;
+  esac
+}
 
 collect() {
   local lib="$1"
   local dest="$2"
+  local brew_opt_root="$3"
   local name
   name=$(basename "$lib")
 
@@ -46,9 +89,11 @@ collect() {
   deps=$(otool -L "$lib" | awk 'NR>1 {print $1}')
 
   local dep
+  local resolved
   for dep in $deps; do
-    if [[ -f "$dep" ]]; then
-      collect "$dep" "$dest"
+    resolved=$(resolve_dep "$dep" "$lib" "$brew_opt_root")
+    if [[ -n "$resolved" && -f "$resolved" ]]; then
+      collect "$resolved" "$dest" "$brew_opt_root"
     fi
   done
 
@@ -61,7 +106,7 @@ ARM64_VIPS=$(/opt/homebrew/bin/brew --prefix vips 2>/dev/null || true)
 if [[ -n "$ARM64_VIPS" ]]; then
   for lib in "$ARM64_VIPS"/lib/libvips*.dylib; do
     if [[ -f "$lib" ]]; then
-      collect "$lib" "$ARM64_DIR"
+      collect "$lib" "$ARM64_DIR" "/opt/homebrew"
     fi
   done
   ARM64_COUNT=$(find "$ARM64_DIR" -name "*.dylib" -maxdepth 1 | wc -l | tr -d ' ')
@@ -76,7 +121,7 @@ X86_64_VIPS=$(arch -x86_64 /usr/local/bin/brew --prefix vips 2>/dev/null || true
 if [[ -n "$X86_64_VIPS" ]]; then
   for lib in "$X86_64_VIPS"/lib/libvips*.dylib; do
     if [[ -f "$lib" ]]; then
-      collect "$lib" "$X86_64_DIR"
+      collect "$lib" "$X86_64_DIR" "/usr/local"
     fi
   done
   X86_64_COUNT=$(find "$X86_64_DIR" -name "*.dylib" -maxdepth 1 | wc -l | tr -d ' ')
