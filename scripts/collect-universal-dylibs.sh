@@ -22,7 +22,7 @@ X86_64_DIR="$STAGING/tmp-x86_64"
 
 mkdir -p "$STAGING" "$ARM64_DIR" "$X86_64_DIR"
 
-# --- Shared collection logic (same as collect-macos-dylibs.sh) ----------
+# --- Shared collection logic: recursively walks otool -L references ----
 
 collect() {
   local lib="$1"

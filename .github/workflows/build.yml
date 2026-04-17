@@ -6,6 +6,14 @@ on:
       - 'v*'
   workflow_dispatch:
 
+# Prevent concurrent release runs against the same ref (e.g. a re-tag or a
+# manual dispatch colliding with a tag push) from racing to create the same
+# draft release. Not cancelling in-progress runs: an aborted build can leave
+# a half-uploaded release asset behind.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
@@ -21,12 +29,15 @@ jobs:
           - platform: 'macos-latest'
             args: '--target universal-apple-darwin'
             rust_target: 'aarch64-apple-darwin,x86_64-apple-darwin'
+            cache_key: 'rust-universal-apple-darwin'
           - platform: 'windows-latest'
             args: ''
+            cache_key: 'rust-x86_64-pc-windows-msvc'
           # Use Ubuntu 22.04 for broader Linux compatibility (glibc 2.35)
           # This supports Debian 12+, Ubuntu 22.04+, Fedora 36+, etc.
           - platform: 'ubuntu-22.04'
             args: ''
+            cache_key: 'rust-x86_64-unknown-linux-gnu'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -39,6 +50,11 @@ jobs:
           node-version: '24'
           cache: 'npm'
 
+      # Install npm deps early so lockfile drift or a registry outage fails
+      # the job before we spend minutes on Homebrew / lipo / native-lib work.
+      - name: Install dependencies (root)
+        run: npm ci
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -48,7 +64,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "src-tauri -> target"
-          shared-key: ${{ contains(matrix.rust_target, ',') && 'rust-universal-apple-darwin' || (matrix.rust_target && format('rust-{0}', matrix.rust_target) || '') }}
+          shared-key: ${{ matrix.cache_key }}
           cache-on-failure: true
 
       - name: Install Linux dependencies
@@ -137,6 +153,16 @@ jobs:
             arch -x86_64 /usr/local/bin/brew install vips
           fi
 
+          # Hard-fail if the x86_64 vips prefix is missing — without this the
+          # collect-universal-dylibs.sh script silently emits ::warning:: and
+          # produces an ARM64-only DMG that breaks on Intel Macs.
+          X86_VIPS_PREFIX=$(arch -x86_64 /usr/local/bin/brew --prefix vips 2>/dev/null || true)
+          if [ -z "$X86_VIPS_PREFIX" ] || [ ! -d "$X86_VIPS_PREFIX/lib" ]; then
+            echo "::error::x86_64 Homebrew vips not available at expected prefix. Cache may be corrupt — bump the cache key (currently 'macos-x86-homebrew-vips-v1')."
+            exit 1
+          fi
+          echo "x86_64 vips verified at $X86_VIPS_PREFIX"
+
       - name: Stage universal dylibs (macOS)
         if: runner.os == 'macOS'
         id: stage-macos
@@ -187,9 +213,6 @@ jobs:
             done < <(otool -L "$dylib" | awk 'NR>1 {print $1}')
           done
 
-      - name: Install dependencies (root)
-        run: npm ci
-
       - name: Get changelog for release notes
         id: changelog
         shell: bash
@@ -222,7 +245,54 @@ jobs:
           releaseName: 'Image Optimizer v__VERSION__'
           releaseBody: ${{ steps.changelog.outputs.body }}
           releaseDraft: true
-          prerelease: false
+          # Tags containing a hyphen (e.g. v0.7.0-beta.1) are treated as prereleases.
+          prerelease: ${{ contains(github.ref_name, '-') }}
+
+      - name: Verify bundled dylibs (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          # Find the built .app bundle (universal builds land under the
+          # universal-apple-darwin target dir).
+          APP=$(find src-tauri/target/universal-apple-darwin/release/bundle/macos \
+            -maxdepth 2 -name "*.app" 2>/dev/null | head -1)
+          if [ -z "$APP" ]; then
+            echo "::warning::No .app bundle found to verify"
+            exit 0
+          fi
+
+          BIN="$APP/Contents/MacOS/$(basename "$APP" .app)"
+          FRAMEWORKS="$APP/Contents/Frameworks"
+
+          if [ ! -d "$FRAMEWORKS" ]; then
+            echo "::error::No Frameworks directory in bundle — native-libs were not bundled"
+            exit 1
+          fi
+
+          DYLIB_COUNT=$(find "$FRAMEWORKS" -maxdepth 1 -name "*.dylib" | wc -l | tr -d ' ')
+          echo "Frameworks contains $DYLIB_COUNT dylibs"
+          if [ "$DYLIB_COUNT" -eq 0 ]; then
+            echo "::error::No dylibs bundled in Frameworks/"
+            exit 1
+          fi
+
+          # Assert the main binary does not reference absolute Homebrew paths —
+          # those indicate install_name_tool rewrites were missed and the app
+          # will fail to launch on machines without Homebrew.
+          if otool -L "$BIN" | grep -E '(/opt/homebrew|/usr/local)/' ; then
+            echo "::error::Main binary still references absolute Homebrew paths; install_name fixup is incomplete"
+            exit 1
+          fi
+
+          # Same check for every bundled dylib.
+          FAIL=0
+          for dylib in "$FRAMEWORKS"/*.dylib; do
+            if otool -L "$dylib" | tail -n +2 | grep -E '(/opt/homebrew|/usr/local)/' ; then
+              echo "::error::$(basename "$dylib") references absolute Homebrew paths"
+              FAIL=1
+            fi
+          done
+          [ "$FAIL" -eq 0 ] || exit 1
+          echo "OK: all bundled dylibs use @rpath references"
 
       - name: Verify native DLLs in bundle (Windows)
         if: runner.os == 'Windows'
