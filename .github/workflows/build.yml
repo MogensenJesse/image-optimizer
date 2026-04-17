@@ -229,6 +229,7 @@ jobs:
           fi
 
       - name: Build Tauri app
+        id: build-tauri
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -250,15 +251,30 @@ jobs:
 
       - name: Verify bundled dylibs (macOS)
         if: runner.os == 'macOS'
+        env:
+          ARTIFACT_PATHS: ${{ steps.build-tauri.outputs.artifactPaths }}
         run: |
-          # Find the built .app bundle (universal builds land under the
-          # universal-apple-darwin target dir).
-          APP=$(find src-tauri/target/universal-apple-darwin/release/bundle/macos \
-            -maxdepth 2 -name "*.app" 2>/dev/null | head -1)
-          if [ -z "$APP" ]; then
-            echo "::warning::No .app bundle found to verify"
-            exit 0
+          # Prefer tauri-action's artifactPaths output (JSON array).  It
+          # may contain paths with spaces ("Image Optimizer.app"), so parse
+          # with jq rather than ad-hoc tr/grep.  The .app isn't always in
+          # artifactPaths (often only the DMG is), so fall through to a
+          # filesystem search under src-tauri/target.
+          APP=""
+          if [ -n "${ARTIFACT_PATHS:-}" ] && command -v jq >/dev/null 2>&1; then
+            APP=$(printf '%s' "$ARTIFACT_PATHS" \
+              | jq -r '.[] | select(endswith(".app"))' 2>/dev/null \
+              | head -1 || true)
           fi
+
+          if [ -z "$APP" ] || [ ! -d "$APP" ]; then
+            APP=$(find src-tauri/target -type d -name "*.app" 2>/dev/null | head -1)
+          fi
+
+          if [ -z "$APP" ] || [ ! -d "$APP" ]; then
+            echo "::error::No .app bundle found to verify (searched artifactPaths and src-tauri/target)"
+            exit 1
+          fi
+          echo "Verifying bundle at: $APP"
 
           BIN="$APP/Contents/MacOS/$(basename "$APP" .app)"
           FRAMEWORKS="$APP/Contents/Frameworks"
@@ -275,24 +291,63 @@ jobs:
             exit 1
           fi
 
-          # Assert the main binary does not reference absolute Homebrew paths —
-          # those indicate install_name_tool rewrites were missed and the app
-          # will fail to launch on machines without Homebrew.
-          if otool -L "$BIN" | grep -E '(/opt/homebrew|/usr/local)/' ; then
-            echo "::error::Main binary still references absolute Homebrew paths; install_name fixup is incomplete"
-            exit 1
-          fi
-
-          # Same check for every bundled dylib.
           FAIL=0
+
+          # Check 1: no absolute Homebrew paths in the main binary or any
+          # bundled dylib — those indicate install_name_tool rewrites were
+          # missed and the app will fail to launch on machines without
+          # Homebrew at the exact same path.
+          if otool -L "$BIN" | grep -E '(/opt/homebrew|/usr/local)/' ; then
+            echo "::error::Main binary references absolute Homebrew paths; install_name fixup is incomplete"
+            FAIL=1
+          fi
           for dylib in "$FRAMEWORKS"/*.dylib; do
             if otool -L "$dylib" | tail -n +2 | grep -E '(/opt/homebrew|/usr/local)/' ; then
               echo "::error::$(basename "$dylib") references absolute Homebrew paths"
               FAIL=1
             fi
           done
-          [ "$FAIL" -eq 0 ] || exit 1
-          echo "OK: all bundled dylibs use @rpath references"
+
+          # Check 2: every @rpath/@loader_path/@executable_path reference
+          # in the main binary and each bundled dylib must have a matching
+          # file in Frameworks/.  This catches transitive deps that the
+          # collect script failed to follow (e.g. libwebp -> libsharpyuv).
+          check_rpath_refs() {
+            local target="$1"
+            local target_name
+            target_name=$(basename "$target")
+            local local_fail=0
+            local dep
+            while IFS= read -r dep; do
+              case "$dep" in
+                @rpath/*|@loader_path/*|@executable_path/*)
+                  local base
+                  base=$(basename "$dep")
+                  # A dylib's own ID shows up as the first otool line; skip
+                  # self-references.
+                  if [ "$base" = "$target_name" ]; then
+                    continue
+                  fi
+                  if [ ! -f "$FRAMEWORKS/$base" ]; then
+                    echo "::error::$target_name references $dep but Frameworks/$base is missing"
+                    local_fail=1
+                  fi
+                  ;;
+              esac
+            done < <(otool -L "$target" | tail -n +2 | awk '{print $1}')
+            return $local_fail
+          }
+
+          check_rpath_refs "$BIN" || FAIL=1
+          for dylib in "$FRAMEWORKS"/*.dylib; do
+            check_rpath_refs "$dylib" || FAIL=1
+          done
+
+          if [ "$FAIL" -ne 0 ]; then
+            echo "::error::Bundle verification failed — see errors above"
+            exit 1
+          fi
+          echo "OK: all @rpath references resolve inside the bundle and no absolute Homebrew paths remain"
 
       - name: Verify native DLLs in bundle (Windows)
         if: runner.os == 'Windows'
