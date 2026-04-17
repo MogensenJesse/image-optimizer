@@ -27,16 +27,31 @@ cargoContent = cargoContent.replace(
 writeFileSync(cargoPath, cargoContent);
 console.log("  ✓ Updated src-tauri/Cargo.toml");
 
-// Update src-tauri/Cargo.lock (keep lockfile in sync with Cargo.toml)
+// Update src-tauri/Cargo.lock (keep lockfile in sync with Cargo.toml).
+// The regex tolerates CRLF line endings: on Windows Cargo.lock is written
+// with \r\n, so a regex using only \n would silently fail to match.  We
+// also track whether the regex actually matched so any future drift
+// surfaces as a loud error rather than a stale lockfile — a pure
+// before/after compare would false-negative when the version is already
+// up to date (idempotent run).
 const cargoLockPath = join(rootDir, "src-tauri", "Cargo.lock");
 if (existsSync(cargoLockPath)) {
-  let lockContent = readFileSync(cargoLockPath, "utf8");
-  // Match the [[package]] block for our crate and update its version
-  lockContent = lockContent.replace(
-    /(name = "image-optimizer"\nversion = ")[^"]+"/,
-    `$1${version}"`,
+  const lockContent = readFileSync(cargoLockPath, "utf8");
+  let matched = false;
+  const lockAfter = lockContent.replace(
+    /(name = "image-optimizer"\r?\nversion = ")[^"]+"/,
+    (_, prefix) => {
+      matched = true;
+      return `${prefix}${version}"`;
+    },
   );
-  writeFileSync(cargoLockPath, lockContent);
+  if (!matched) {
+    throw new Error(
+      "Cargo.lock version pattern did not match; refusing to silently no-op. " +
+        "Check that the [[package]] block for 'image-optimizer' still exists in src-tauri/Cargo.lock.",
+    );
+  }
+  writeFileSync(cargoLockPath, lockAfter);
   console.log("  ✓ Updated src-tauri/Cargo.lock");
 }
 
