@@ -169,8 +169,25 @@ jobs:
             # opt/, lib/, include/ symlinks are restored from the cached Cellar.
             ln -sf /usr/local/Homebrew/bin/brew /usr/local/bin/brew
             FORMULAE=$(arch -x86_64 /usr/local/bin/brew list --formula)
-            echo "Re-linking $(echo "$FORMULAE" | wc -w | tr -d ' ') cached formulae…"
-            arch -x86_64 /usr/local/bin/brew link --overwrite $FORMULAE
+            COUNT=$(echo "$FORMULAE" | wc -w | tr -d ' ')
+            echo "Cached formulae: $COUNT — filtering out keg-only…"
+            # Single batch json call to identify keg-only formulae, then
+            # only link the ones Homebrew is willing to link.  This avoids
+            # noisy "Refusing to link macOS provided/shadowed software"
+            # warnings for sqlite, readline, libxml2, etc.
+            LINKABLE=$(arch -x86_64 /usr/local/bin/brew info --json=v2 $FORMULAE \
+              | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for f in data.get('formulae', []):
+    if not f.get('keg_only'):
+        print(f['name'])
+")
+            LINK_COUNT=$(echo "$LINKABLE" | grep -c . || true)
+            echo "Re-linking $LINK_COUNT linkable formulae…"
+            if [ -n "$LINKABLE" ]; then
+              arch -x86_64 /usr/local/bin/brew link --overwrite $LINKABLE
+            fi
           else
             arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
             arch -x86_64 /usr/local/bin/brew install vips
