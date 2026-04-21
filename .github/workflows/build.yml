@@ -176,13 +176,7 @@ jobs:
             # noisy "Refusing to link macOS provided/shadowed software"
             # warnings for sqlite, readline, libxml2, etc.
             LINKABLE=$(arch -x86_64 /usr/local/bin/brew info --json=v2 $FORMULAE \
-              | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-for f in data.get('formulae', []):
-    if not f.get('keg_only'):
-        print(f['name'])
-")
+              | python3 -c 'import json,sys;[print(f["name"]) for f in json.load(sys.stdin).get("formulae",[]) if not f.get("keg_only")]')
             LINK_COUNT=$(echo "$LINKABLE" | grep -c . || true)
             echo "Re-linking $LINK_COUNT linkable formulae…"
             if [ -n "$LINKABLE" ]; then
