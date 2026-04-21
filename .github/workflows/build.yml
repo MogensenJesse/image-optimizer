@@ -128,8 +128,7 @@ jobs:
       - name: Prepare /usr/local for x86_64 Homebrew cache (macOS)
         if: runner.os == 'macOS'
         run: |
-          sudo mkdir -p /usr/local/{Homebrew,Cellar,opt,lib,include,bin,share}
-          sudo chown -R "$(whoami)" /usr/local/{Homebrew,Cellar,opt,lib,include,bin,share}
+          sudo chown -R "$(whoami)" /usr/local
 
       # Cache the x86_64 Homebrew installation (Homebrew repo + Cellar) so we don't
       # re-run the install script and 'brew install vips' (+ ~40 transitive deps) on
