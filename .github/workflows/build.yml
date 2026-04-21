@@ -121,6 +121,16 @@ jobs:
           Set-Content -Path platform-config.json -Value $json
           echo "config_args=--config platform-config.json" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
 
+      # Newer macOS runner images don't have /usr/local writable by the
+      # runner user.  The cache action extracts with gtar (no sudo), so
+      # every mkdir under /usr/local fails with "Permission denied" unless
+      # we create the target dirs and hand them to the runner first.
+      - name: Prepare /usr/local for x86_64 Homebrew cache (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          sudo mkdir -p /usr/local/Homebrew /usr/local/Cellar
+          sudo chown -R "$(whoami)" /usr/local/Homebrew /usr/local/Cellar
+
       # Cache the x86_64 Homebrew installation (Homebrew repo + Cellar) so we don't
       # re-run the install script and 'brew install vips' (+ ~40 transitive deps) on
       # every run.  The cache key is pinned to "vips-v1"; bump to "vips-v2" when vips
