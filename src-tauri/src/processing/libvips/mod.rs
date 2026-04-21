@@ -16,16 +16,19 @@ pub use executor::NativeExecutor;
 
 use std::ffi::CStr;
 
-/// Reads the global libvips error buffer for diagnostic messages.
+/// Reads the global libvips error buffer and clears it to prevent stale
+/// messages from leaking into subsequent error reports.
 pub(crate) fn vips_error_buffer_string() -> String {
     unsafe {
         let ptr = libvips::bindings::vips_error_buffer();
         if ptr.is_null() {
             return "unknown error".to_string();
         }
-        CStr::from_ptr(ptr)
+        let msg = CStr::from_ptr(ptr)
             .to_string_lossy()
             .trim()
-            .to_string()
+            .to_string();
+        libvips::bindings::vips_error_clear();
+        msg
     }
 }

@@ -1,6 +1,5 @@
 //! Tauri command handlers for image optimization.
 
-use std::time::Instant;
 use tauri::State;
 use tracing::debug;
 use crate::core::{AppState, ImageSettings, OptimizationResult};
@@ -49,7 +48,6 @@ pub async fn optimize_images(
     tasks: Vec<ImageTask>,
 ) -> OptimizerResult<Vec<OptimizationResult>> {
     let job_total = tasks.len();
-    let job_start = Instant::now();
     debug!("Received optimize_images command for {} images", job_total);
     
     for task in &tasks {
@@ -66,7 +64,7 @@ pub async fn optimize_images(
     
     for (i, chunk) in chunks.iter().enumerate() {
         debug!("Processing chunk {}/{} ({} images)", i + 1, chunks.len(), chunk.len());
-        let results = executor.execute_batch(chunk, offset, job_total, job_start).await?;
+        let results = executor.execute_batch(chunk, offset, job_total).await?;
         offset += chunk.len();
         all_results.extend(results);
         debug!("Completed chunk {}/{} ({}/{})", i + 1, chunks.len(), offset, job_total);

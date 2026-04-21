@@ -21,75 +21,48 @@ pub fn needs_resize(settings: &ResizeSettings) -> bool {
 /// for JPEG, libjpeg can skip decoding most DCT coefficients when
 /// downsizing by integer factors (2x, 4x, 8x), making large-image
 /// resizes significantly faster than loading first and resizing second.
+///
+/// For "width" and "height" modes, the target dimension is set directly
+/// without probing the image first. The "longest" and "shortest" modes
+/// require a probe to determine aspect ratio orientation.
 pub fn load_and_resize(path: &str, settings: &ResizeSettings) -> Result<VipsImage> {
     let size = settings.size.unwrap_or(0) as i32;
     if size <= 0 {
         return Err(OptimizerError::processing("No target size for resize".to_string()));
     }
 
-    let probe = VipsImage::new_from_file(path)
-        .map_err(|_| OptimizerError::processing(format!(
-            "Failed to probe '{}': {}", path, vips_error_buffer_string()
-        )))?;
-    let orig_w = probe.get_width();
-    let orig_h = probe.get_height();
+    // libvips thumbnail treats height=1 as "unconstrained by height" (the
+    // default).  For height-only mode we pass the documented max width
+    // (10 000 000) so the width constraint never fires.
+    const UNCONSTRAINED: i32 = 10_000_000;
 
     match settings.mode.as_str() {
-        "width" => thumbnail_file(path, size, orig_h, "width"),
-        "height" => thumbnail_file(path, orig_w, size, "height"),
-        "longest" => {
-            if orig_w >= orig_h {
-                thumbnail_file(path, size, orig_h, "longest")
-            } else {
-                thumbnail_file(path, orig_w, size, "longest")
-            }
-        }
-        "shortest" => {
-            if orig_w <= orig_h {
-                thumbnail_file(path, size, orig_h, "shortest")
-            } else {
-                thumbnail_file(path, orig_w, size, "shortest")
-            }
-        }
-        unknown => Err(OptimizerError::processing(format!(
-            "Unknown resize mode: {unknown}"
-        ))),
-    }
-}
+        "width" => thumbnail_file(path, size, 1, "width"),
+        "height" => thumbnail_file(path, UNCONSTRAINED, size, "height"),
+        "longest" | "shortest" => {
+            let probe = VipsImage::new_from_file(path)
+                .map_err(|_| OptimizerError::processing(format!(
+                    "Failed to probe '{}': {}", path, vips_error_buffer_string()
+                )))?;
+            let orig_w = probe.get_width();
+            let orig_h = probe.get_height();
 
-/// Applies the resize specified in `settings` to an already-loaded `image`.
-///
-/// Returns the original image unchanged when the mode is "none" or no
-/// target size is provided. Prefer [`load_and_resize`] when the image has
-/// not been loaded yet, as it enables shrink-on-load optimizations.
-pub fn apply_resize(image: VipsImage, settings: &ResizeSettings) -> Result<VipsImage> {
-    if settings.mode == "none" {
-        return Ok(image);
-    }
-
-    let size = match settings.size {
-        Some(s) if s > 0 => s as i32,
-        _ => return Ok(image),
-    };
-
-    let orig_w = image.get_width();
-    let orig_h = image.get_height();
-
-    match settings.mode.as_str() {
-        "width" => thumbnail_image(&image, size, orig_h, "width"),
-        "height" => thumbnail_image(&image, orig_w, size, "height"),
-        "longest" => {
-            if orig_w >= orig_h {
-                thumbnail_image(&image, size, orig_h, "longest")
-            } else {
-                thumbnail_image(&image, orig_w, size, "longest")
-            }
-        }
-        "shortest" => {
-            if orig_w <= orig_h {
-                thumbnail_image(&image, size, orig_h, "shortest")
-            } else {
-                thumbnail_image(&image, orig_w, size, "shortest")
+            match settings.mode.as_str() {
+                "longest" => {
+                    if orig_w >= orig_h {
+                        thumbnail_file(path, size, orig_h, "longest")
+                    } else {
+                        thumbnail_file(path, orig_w, size, "longest")
+                    }
+                }
+                "shortest" => {
+                    if orig_w <= orig_h {
+                        thumbnail_file(path, size, orig_h, "shortest")
+                    } else {
+                        thumbnail_file(path, orig_w, size, "shortest")
+                    }
+                }
+                _ => unreachable!(),
             }
         }
         unknown => Err(OptimizerError::processing(format!(
@@ -111,24 +84,6 @@ fn thumbnail_file(path: &str, target_w: i32, target_h: i32, mode: &str) -> Resul
     };
 
     ops::thumbnail_with_opts(path, target_w, &opts)
-        .map_err(|_| OptimizerError::processing(format!(
-            "Resize ({mode}) failed: {}",
-            vips_error_buffer_string()
-        )))
-}
-
-/// Image-based thumbnail for already-loaded images.
-fn thumbnail_image(image: &VipsImage, target_w: i32, target_h: i32, mode: &str) -> Result<VipsImage> {
-    use ops::{Size, ThumbnailImageOptions};
-
-    let opts = ThumbnailImageOptions {
-        height: target_h,
-        size: Size::Down,
-        import_profile: "sRGB".to_string(),
-        ..ThumbnailImageOptions::default()
-    };
-
-    ops::thumbnail_image_with_opts(image, target_w, &opts)
         .map_err(|_| OptimizerError::processing(format!(
             "Resize ({mode}) failed: {}",
             vips_error_buffer_string()

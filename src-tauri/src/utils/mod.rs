@@ -10,5 +10,8 @@ pub mod validation;
 pub mod formats;
 
 pub use error::{OptimizerError, OptimizerResult};
-pub use validation::{validate_task, extract_filename};
-pub use formats::{ImageFormat, format_from_extension, normalize_format}; 
+pub use validation::validate_task;
+pub use formats::{
+    ImageFormat, format_from_extension,
+    extract_filename, resolve_output_format, ensure_correct_extension,
+};

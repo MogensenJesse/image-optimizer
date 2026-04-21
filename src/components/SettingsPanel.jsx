@@ -175,12 +175,12 @@ function SettingsPanel({ show, onClose }) {
   /** Render inline markdown (**bold**, `code`) as React elements. */
   const renderInline = (text) => {
     const parts = text.split(/(\*\*.+?\*\*|`.+?`)/g);
-    return parts.map((part, i) => {
+    return parts.map((part) => {
       if (part.startsWith("**") && part.endsWith("**")) {
-        return <strong key={i}>{part.slice(2, -2)}</strong>;
+        return <strong key={`b-${part}`}>{part.slice(2, -2)}</strong>;
       }
       if (part.startsWith("`") && part.endsWith("`")) {
-        return <code key={i}>{part.slice(1, -1)}</code>;
+        return <code key={`c-${part}`}>{part.slice(1, -1)}</code>;
       }
       return part;
     });

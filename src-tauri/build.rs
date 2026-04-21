@@ -118,20 +118,20 @@ fn pkg_config_libs(package: &str) -> Option<String> {
     let mut cmd = std::process::Command::new("pkg-config");
     cmd.args(["--libs", package]);
 
-    if let Ok(target) = std::env::var("TARGET") {
-        if target == "x86_64-apple-darwin" {
-            // On Apple Silicon CI runners (macos-latest), x86_64 Homebrew
-            // installs to /usr/local.  The top-level /usr/local/lib/pkgconfig
-            // may only contain a sparse set of symlinks, so include the
-            // formula-specific pkgconfig dirs for vips and glib (which
-            // provides gobject-2.0 and glib-2.0) so all Requires: entries
-            // in vips.pc can be resolved by a single pkg-config invocation.
-            let paths = "/usr/local/lib/pkgconfig\
-                        :/usr/local/opt/vips/lib/pkgconfig\
-                        :/usr/local/opt/glib/lib/pkgconfig";
-            cmd.env("PKG_CONFIG_PATH", paths);
-            cmd.env("PKG_CONFIG_LIBDIR", paths);
-        }
+    if let Ok(target) = std::env::var("TARGET")
+        && target == "x86_64-apple-darwin"
+    {
+        // On Apple Silicon CI runners (macos-latest), x86_64 Homebrew
+        // installs to /usr/local.  The top-level /usr/local/lib/pkgconfig
+        // may only contain a sparse set of symlinks, so include the
+        // formula-specific pkgconfig dirs for vips and glib (which
+        // provides gobject-2.0 and glib-2.0) so all Requires: entries
+        // in vips.pc can be resolved by a single pkg-config invocation.
+        let paths = "/usr/local/lib/pkgconfig\
+                    :/usr/local/opt/vips/lib/pkgconfig\
+                    :/usr/local/opt/glib/lib/pkgconfig";
+        cmd.env("PKG_CONFIG_PATH", paths);
+        cmd.env("PKG_CONFIG_LIBDIR", paths);
     }
 
     cmd.output()

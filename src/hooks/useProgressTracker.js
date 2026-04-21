@@ -81,13 +81,11 @@ function useProgressTracker() {
           ? Math.round((stats.totalSavedBytes / stats.totalOriginalSize) * 100)
           : 0;
 
-      // Use the backend's wall-clock duration on the final event
-      let processingTime = stats.startTime
+      const processingTime = stats.startTime
         ? (Date.now() - stats.startTime) / 1000
         : 0;
 
-      if (status === "complete" && metadata?.totalDuration) {
-        processingTime = parseFloat(metadata.totalDuration);
+      if (status === "complete") {
         stopTimer();
       }
 

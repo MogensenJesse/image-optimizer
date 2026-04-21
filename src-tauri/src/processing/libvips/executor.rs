@@ -1,73 +1,101 @@
 // src-tauri/src/processing/libvips/executor.rs
 
-//! Native executor for batch image and SVG optimization.
+//! Native executor for batch image optimization.
 //!
-//! Raster images are processed via libvips; SVG files are optimized with
-//! oxvg (a high-performance Rust port of SVGO). Each task runs inside a
+//! Raster images are processed via libvips; SVG files are dispatched to the
+//! [`crate::processing::svg`] module. Each task runs inside a
 //! `tokio::task::spawn_blocking` call so the async runtime is never blocked.
 
 use std::path::Path;
-use std::time::Instant;
+use std::sync::Arc;
 use tauri::AppHandle;
 use tauri::Emitter;
+use tokio::sync::Semaphore;
+use tokio::task::JoinSet;
 use tracing::{debug, warn};
 
 use libvips::VipsImage;
 use libvips::ops::Access;
 
 use crate::core::{ImageTask, OptimizationResult};
-use crate::utils::{ImageFormat, OptimizerError, OptimizerResult, extract_filename, format_from_extension, normalize_format};
+use crate::utils::{
+    ImageFormat, OptimizerError, OptimizerResult,
+    extract_filename, format_from_extension,
+    resolve_output_format, ensure_correct_extension,
+};
 
 use super::formats::save_image_as;
-use super::resize::{apply_resize, needs_resize, load_and_resize};
+use super::resize::{needs_resize, load_and_resize};
+use crate::processing::svg::optimize_svg;
 
 /// Executor that processes images directly via libvips with no subprocess overhead.
 pub struct NativeExecutor {
     app: AppHandle,
+    max_concurrent: usize,
 }
 
 impl NativeExecutor {
-    pub fn new(app: AppHandle) -> Self {
-        Self { app }
+    pub fn new(app: AppHandle, max_concurrent: usize) -> Self {
+        Self { app, max_concurrent }
     }
 
-    /// Processes a chunk of tasks, emitting progress events with **overall** job counts.
+    /// Processes a chunk of tasks with bounded concurrency, emitting progress
+    /// events with **overall** job counts.
     ///
     /// `offset` is the number of tasks already completed in prior chunks so that
     /// `completedTasks` and `totalTasks` in emitted events reflect the full job,
     /// not just this chunk.
     ///
-    /// libvips uses its own internal thread pool for within-image parallelism, so
-    /// sequential dispatch here is intentional and avoids thread oversubscription.
+    /// Progress events are emitted **as each image finishes** (not after the
+    /// entire batch), so the frontend sees a smooth incremental bar.
     pub async fn execute_batch(
         &self,
         tasks: &[ImageTask],
         offset: usize,
         job_total: usize,
-        job_start: Instant,
     ) -> OptimizerResult<Vec<OptimizationResult>> {
-        let mut results = Vec::with_capacity(tasks.len());
+        let semaphore = Arc::new(Semaphore::new(self.max_concurrent));
+        let mut join_set = JoinSet::new();
 
+        // Spawn all tasks up-front; each task acquires a semaphore permit
+        // internally so that at most MAX_CONCURRENT run at once.  This lets
+        // the spawning loop finish immediately so we reach the join_next()
+        // collection loop — which emits progress events — right away.
         for (idx, task) in tasks.iter().enumerate() {
-            let overall_completed = offset + idx + 1;
+            let sem = semaphore.clone();
             let task_clone = task.clone();
 
-            let result = tokio::task::spawn_blocking(move || optimize_single(&task_clone))
-                .await
+            join_set.spawn(async move {
+                let _permit = sem.acquire_owned().await;
+                let result =
+                    tokio::task::spawn_blocking(move || optimize_single(&task_clone)).await;
+                (idx, result)
+            });
+        }
+
+        let mut indexed_results: Vec<(usize, OptimizationResult)> =
+            Vec::with_capacity(tasks.len());
+        let mut completed_count = 0usize;
+
+        while let Some(join_result) = join_set.join_next().await {
+            let (idx, inner) = join_result
                 .map_err(|e| OptimizerError::processing(format!("Task panicked: {e}")))?;
 
-            match result {
-                Ok(opt_result) => {
-                    self.emit_progress(overall_completed, job_total, job_start, task, &opt_result);
-                    results.push(opt_result);
+            completed_count += 1;
+            let overall_completed = offset + completed_count;
+            let task = &tasks[idx];
+
+            match inner {
+                Ok(Ok(opt_result)) => {
+                    self.emit_progress(overall_completed, job_total, task, &opt_result);
+                    indexed_results.push((idx, opt_result));
                 }
-                Err(e) => {
+                Ok(Err(e)) => {
                     let error_msg = e.to_string();
                     warn!("Optimization failed for {}: {}", task.input_path, error_msg);
-
                     self.emit_error_progress(overall_completed, job_total, task, &error_msg);
 
-                    results.push(OptimizationResult {
+                    indexed_results.push((idx, OptimizationResult {
                         original_path: task.input_path.clone(),
                         optimized_path: task.output_path.clone(),
                         original_size: std::fs::metadata(&task.input_path)
@@ -78,21 +106,40 @@ impl NativeExecutor {
                         error: Some(error_msg),
                         saved_bytes: 0,
                         compression_ratio: 0.0,
-                    });
+                    }));
+                }
+                Err(e) => {
+                    let error_msg = format!("Task panicked: {e}");
+                    warn!("Optimization failed for {}: {}", task.input_path, error_msg);
+                    self.emit_error_progress(overall_completed, job_total, task, &error_msg);
+
+                    indexed_results.push((idx, OptimizationResult {
+                        original_path: task.input_path.clone(),
+                        optimized_path: task.output_path.clone(),
+                        original_size: std::fs::metadata(&task.input_path)
+                            .map(|m| m.len())
+                            .unwrap_or(0),
+                        optimized_size: 0,
+                        success: false,
+                        error: Some(error_msg),
+                        saved_bytes: 0,
+                        compression_ratio: 0.0,
+                    }));
                 }
             }
         }
 
+        indexed_results.sort_by_key(|(idx, _)| *idx);
+        let results = indexed_results.into_iter().map(|(_, r)| r).collect();
         Ok(results)
     }
 
-    // ── Progress emission ────────────────────────────────────────────────────────────
+    // -- Progress emission ----------------------------------------------------
 
     fn emit_progress(
         &self,
         completed: usize,
         total: usize,
-        job_start: Instant,
         task: &ImageTask,
         result: &OptimizationResult,
     ) {
@@ -108,7 +155,7 @@ impl NativeExecutor {
 
         debug!("{formatted_msg}");
 
-        let mut metadata = serde_json::json!({
+        let metadata = serde_json::json!({
             "formattedMessage": formatted_msg,
             "fileName": file_name,
             "originalSize": result.original_size,
@@ -116,11 +163,6 @@ impl NativeExecutor {
             "savedBytes": result.saved_bytes,
             "compressionRatio": format!("{:.2}", result.compression_ratio),
         });
-
-        if is_final {
-            let duration_secs = job_start.elapsed().as_secs_f64();
-            metadata["totalDuration"] = serde_json::json!(format!("{duration_secs:.2}"));
-        }
 
         let payload = serde_json::json!({
             "completedTasks": completed,
@@ -130,7 +172,9 @@ impl NativeExecutor {
             "metadata": metadata,
         });
 
-        let _ = self.app.emit("image_optimization_progress", payload);
+        if let Err(e) = self.app.emit("image_optimization_progress", payload) {
+            warn!("Failed to emit progress event: {e}");
+        }
     }
 
     fn emit_error_progress(&self, completed: usize, total: usize, task: &ImageTask, error: &str) {
@@ -141,20 +185,22 @@ impl NativeExecutor {
             "completedTasks": completed,
             "totalTasks": total,
             "progressPercentage": percentage,
-            "status": if completed == total { "complete" } else { "error" },
+            "status": "error",
             "metadata": {
                 "fileName": file_name,
                 "error": error,
             },
         });
 
-        let _ = self.app.emit("image_optimization_progress", payload);
+        if let Err(e) = self.app.emit("image_optimization_progress", payload) {
+            warn!("Failed to emit error progress event: {e}");
+        }
     }
 }
 
-// ── Blocking processing (runs on tokio's blocking thread pool) ────────────────────────
+// -- Blocking processing (runs on tokio's blocking thread pool) ---------------
 
-/// Optimises one task synchronously — dispatches to SVG or raster pipeline.
+/// Optimises one task synchronously -- dispatches to SVG or raster pipeline.
 fn optimize_single(task: &ImageTask) -> OptimizerResult<OptimizationResult> {
     let format = format_from_extension(&task.input_path)?;
     if format == ImageFormat::SVG {
@@ -163,94 +209,7 @@ fn optimize_single(task: &ImageTask) -> OptimizerResult<OptimizationResult> {
     optimize_raster(task)
 }
 
-// ── SVG optimization ──────────────────────────────────────────────────────────────────
-
-/// Maps the global quality setting (1–100) to SVG float precision (0–8).
-///
-/// Higher quality preserves more decimal places in coordinates; lower quality
-/// rounds more aggressively for smaller files at the cost of path fidelity.
-fn quality_to_precision(quality: u32) -> u8 {
-    match quality {
-        95..=100 => 8,
-        85..=94 => 3,
-        70..=84 => 2,
-        40..=69 => 1,
-        _ => 0,
-    }
-}
-
-/// Optimises an SVG file using oxvg (high-performance Rust port of SVGO).
-///
-/// Parses the SVG into an AST, runs the default SVGO-equivalent jobs with
-/// float precision derived from the quality slider, and writes the result.
-fn optimize_svg(task: &ImageTask) -> OptimizerResult<OptimizationResult> {
-    use oxvg_ast::{parse::roxmltree::parse, serialize::Node as _, visitor::Info};
-    use oxvg_optimiser::Jobs;
-
-    let input_path = &task.input_path;
-    let precision = quality_to_precision(task.settings.quality.global);
-
-    let svg_content = std::fs::read_to_string(input_path)
-        .map_err(|e| OptimizerError::processing(format!("Cannot read SVG file: {e}")))?;
-
-    let original_size = svg_content.len() as u64;
-
-    let precision_overrides: Jobs = serde_json::from_value(serde_json::json!({
-        "cleanupNumericValues": { "floatPrecision": precision },
-        "convertPathData": { "floatPrecision": precision },
-        "cleanupListOfValues": { "floatPrecision": precision },
-    }))
-    .map_err(|e| OptimizerError::processing(format!("SVG jobs config failed: {e}")))?;
-
-    let mut jobs = Jobs::default();
-    jobs.extend(&precision_overrides);
-
-    let optimized_svg = parse(&svg_content, |dom, allocator| {
-        jobs.run(dom, &Info::new(allocator))
-            .map_err(|e| e.to_string())?;
-        dom.serialize().map_err(|e| e.to_string())
-    })
-    .map_err(|e| OptimizerError::processing(format!("SVG parsing failed: {e}")))?
-    .map_err(|e| OptimizerError::processing(format!("SVG optimization failed: {e}")))?;
-
-    let output_path = &task.output_path;
-    if let Some(parent) = Path::new(output_path).parent() {
-        std::fs::create_dir_all(parent).map_err(|e| {
-            OptimizerError::processing(format!("Cannot create output directory: {e}"))
-        })?;
-    }
-
-    std::fs::write(output_path, &optimized_svg)
-        .map_err(|e| OptimizerError::processing(format!("Cannot write optimized SVG: {e}")))?;
-
-    let optimized_size = optimized_svg.len() as u64;
-    let saved_bytes = original_size as i64 - optimized_size as i64;
-    let compression_ratio = if original_size > 0 {
-        saved_bytes as f64 / original_size as f64 * 100.0
-    } else {
-        0.0
-    };
-
-    debug!(
-        "'{}' → {} bytes saved ({:.1}%)",
-        extract_filename(input_path),
-        saved_bytes,
-        compression_ratio
-    );
-
-    Ok(OptimizationResult {
-        original_path: input_path.clone(),
-        optimized_path: output_path.clone(),
-        original_size,
-        optimized_size,
-        success: true,
-        error: None,
-        saved_bytes,
-        compression_ratio,
-    })
-}
-
-// ── Raster image optimization ─────────────────────────────────────────────────────────
+// -- Raster image optimization ------------------------------------------------
 
 /// Optimises one raster image task synchronously via libvips.
 fn optimize_raster(task: &ImageTask) -> OptimizerResult<OptimizationResult> {
@@ -273,7 +232,7 @@ fn optimize_raster(task: &ImageTask) -> OptimizerResult<OptimizationResult> {
     let image = if needs_resize(&settings.resize) {
         let img = load_and_resize(input_path, &settings.resize)?;
         debug!(
-            "Loaded+resized '{}': {}×{}",
+            "Loaded+resized '{}': {}x{}",
             extract_filename(input_path),
             img.get_width(),
             img.get_height()
@@ -286,12 +245,12 @@ fn optimize_raster(task: &ImageTask) -> OptimizerResult<OptimizationResult> {
                 super::vips_error_buffer_string()
             )))?;
         debug!(
-            "Loaded '{}': {}×{}",
+            "Loaded '{}': {}x{}",
             extract_filename(input_path),
             img.get_width(),
             img.get_height()
         );
-        apply_resize(img, &settings.resize)?
+        img
     };
 
     save_image_as(&image, &output_path, &output_format, &settings.quality)?;
@@ -324,59 +283,4 @@ fn optimize_raster(task: &ImageTask) -> OptimizerResult<OptimizationResult> {
         saved_bytes,
         compression_ratio,
     })
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────────────
-
-/// Resolves "original" to the actual input format and normalizes "jpg" → "jpeg".
-fn resolve_output_format(input_path: &str, requested: &str) -> OptimizerResult<String> {
-    if requested == "original" {
-        let ext = Path::new(input_path)
-            .extension()
-            .and_then(|e| e.to_str())
-            .ok_or_else(|| OptimizerError::format("Input file has no extension"))?;
-
-        return Ok(normalize_format(ext));
-    }
-
-    Ok(normalize_format(requested))
-}
-
-/// Returns `output_path` with the extension corrected to match `format`.
-///
-/// When the output format differs from the extension already on `output_path`
-/// (e.g. converting foo.jpg → webp), the extension is replaced.
-fn ensure_correct_extension(output_path: &str, input_path: &str, format: &str) -> String {
-    let new_ext = match format {
-        "jpeg" => "jpg",
-        other => other,
-    };
-
-    let path = Path::new(output_path);
-    let current_ext = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_lowercase();
-
-    if normalize_format(&current_ext) == format {
-        return output_path.to_string();
-    }
-
-    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-    let parent = path.parent().unwrap_or(Path::new(""));
-
-    let stem = if stem.is_empty() {
-        Path::new(input_path)
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("output")
-    } else {
-        stem
-    };
-
-    parent
-        .join(format!("{stem}.{new_ext}"))
-        .to_string_lossy()
-        .to_string()
 }

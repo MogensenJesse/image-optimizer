@@ -51,9 +51,7 @@ tauri-plugin-os = "2"
 tokio = { version = "1.42", default-features = false, features = ["rt-multi-thread", "fs"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-lazy_static = "1.5"
 thiserror = "2.0"
-anyhow = "1.0"
 window-vibrancy = "0.7"
 libvips = { package = "libvips-rs", version = "=8.15.1" }
 oxvg_optimiser = "0.0.5"

@@ -37,18 +37,24 @@ pub struct QualitySettings {
 /// Resize settings for image dimensions.
 ///
 /// Supports multiple resize modes: width, height, longest side, shortest side.
+///
+/// The `mode` + `size` pair drives all resize logic. The `width`, `height`,
+/// and `maintain_aspect` fields are accepted from the frontend for API
+/// compatibility but are not currently used by the processing pipeline.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResizeSettings {
-    /// Target width in pixels
+    /// Reserved: accepted from frontend but not used in processing.
+    #[serde(default)]
     pub width: Option<u32>,
-    /// Target height in pixels
+    /// Reserved: accepted from frontend but not used in processing.
+    #[serde(default)]
     pub height: Option<u32>,
-    /// Whether to maintain aspect ratio when resizing
-    #[serde(rename = "maintainAspect")]
+    /// Reserved: accepted from frontend but not used in processing.
+    #[serde(default, rename = "maintainAspect")]
     pub maintain_aspect: bool,
     /// Resize mode: "none", "width", "height", "longest", "shortest"
     pub mode: String,
-    /// Target size for longest/shortest side modes
+    /// Target size in pixels for the dimension selected by `mode`
     pub size: Option<u32>,
 }
 

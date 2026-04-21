@@ -6,14 +6,6 @@ use crate::utils::{ImageFormat, OptimizerResult, format_from_extension};
 use crate::utils::error::ValidationError;
 use tokio::fs;
 
-/// Extract filename from a path
-pub fn extract_filename(path: &str) -> &str {
-    Path::new(path)
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or(path)
-}
-
 /// Validates an image processing task.
 ///
 /// SVG tasks only validate path existence (quality is used for precision
@@ -33,10 +25,10 @@ pub async fn validate_task(task: &ImageTask) -> OptimizerResult<()> {
 /// Returns the detected `ImageFormat` so callers can branch on SVG vs raster.
 pub async fn validate_input_path(path: impl AsRef<Path>) -> OptimizerResult<ImageFormat> {
     let path = path.as_ref();
-    if !path.exists() {
-        return Err(ValidationError::path_not_found(path).into());
-    }
-    if !path.is_file() {
+    let metadata = fs::metadata(path).await.map_err(|_| {
+        ValidationError::path_not_found(path)
+    })?;
+    if !metadata.is_file() {
         return Err(ValidationError::not_a_file(path).into());
     }
     let path_str = path.to_str()
@@ -48,28 +40,39 @@ pub async fn validate_input_path(path: impl AsRef<Path>) -> OptimizerResult<Imag
 /// Validates that an output path has a valid parent directory.
 ///
 /// The output extension is not validated here because format conversions
-/// (e.g., .jpg → .webp) correct the extension downstream in the executor.
+/// (e.g., .jpg to .webp) correct the extension downstream in the executor.
 pub async fn validate_output_path(path: impl AsRef<Path>) -> OptimizerResult<()> {
     let path = path.as_ref();
-    if let Some(parent) = path.parent()
-        && !parent.exists()
-    {
-        fs::create_dir_all(parent).await.map_err(|e| {
-            ValidationError::Path(e.into())
-        })?;
+    if let Some(parent) = path.parent() {
+        let exists = fs::try_exists(parent).await.unwrap_or(false);
+        if !exists {
+            fs::create_dir_all(parent).await.map_err(|e| {
+                ValidationError::Path(e.into())
+            })?;
+        }
     }
     Ok(())
 }
 
-/// Validates raster image settings for quality and resize parameters.
+/// Valid resize modes accepted by the processing pipeline.
+const VALID_RESIZE_MODES: &[&str] = &["none", "width", "height", "longest", "shortest"];
+
+/// Validates raster image settings for quality, resize, and output format.
 ///
 /// Not called for SVG tasks since quality, resize, and format conversion
 /// do not apply to vector graphics.
 pub fn validate_settings(settings: &crate::core::ImageSettings) -> OptimizerResult<()> {
-    if settings.quality.global == 0 || settings.quality.global > 100 {
-        return Err(ValidationError::settings(
-            format!("Invalid quality: {}. Must be between 1 and 100", settings.quality.global)
-        ).into());
+    validate_quality_range("global", settings.quality.global)?;
+
+    for (name, value) in [
+        ("jpeg", settings.quality.jpeg),
+        ("png", settings.quality.png),
+        ("webp", settings.quality.webp),
+        ("avif", settings.quality.avif),
+    ] {
+        if let Some(v) = value {
+            validate_quality_range(name, v)?;
+        }
     }
 
     let format = settings.output_format.to_lowercase();
@@ -79,15 +82,20 @@ pub fn validate_settings(settings: &crate::core::ImageSettings) -> OptimizerResu
         ).into());
     }
 
-    if let Some(width) = settings.resize.width
-        && width == 0
-    {
-        return Err(ValidationError::settings("Width cannot be 0").into());
+    if !VALID_RESIZE_MODES.contains(&settings.resize.mode.as_str()) {
+        return Err(ValidationError::settings(
+            format!("Unknown resize mode: '{}'. Must be one of: {}", settings.resize.mode, VALID_RESIZE_MODES.join(", "))
+        ).into());
     }
-    if let Some(height) = settings.resize.height
-        && height == 0
-    {
-        return Err(ValidationError::settings("Height cannot be 0").into());
+
+    Ok(())
+}
+
+fn validate_quality_range(name: &str, value: u32) -> OptimizerResult<()> {
+    if value == 0 || value > 100 {
+        return Err(ValidationError::settings(
+            format!("Invalid {name} quality: {value}. Must be between 1 and 100")
+        ).into());
     }
     Ok(())
 }

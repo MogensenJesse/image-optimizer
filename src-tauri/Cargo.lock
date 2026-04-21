@@ -1913,9 +1913,7 @@ dependencies = [
 name = "image-optimizer"
 version = "0.6.10"
 dependencies = [
- "anyhow",
  "cc",
- "lazy_static",
  "libvips-rs",
  "oxvg_ast",
  "oxvg_optimiser",
