@@ -122,14 +122,14 @@ jobs:
           echo "config_args=--config platform-config.json" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
 
       # Newer macOS runner images don't have /usr/local writable by the
-      # runner user.  The cache action extracts with gtar (no sudo), so
-      # every mkdir under /usr/local fails with "Permission denied" unless
-      # we create the target dirs and hand them to the runner first.
+      # runner user.  The cache action extracts with gtar (no sudo), and
+      # `brew link` creates symlinks in opt/, lib/, include/, bin/, share/.
+      # Pre-create all of these and hand them to the runner.
       - name: Prepare /usr/local for x86_64 Homebrew cache (macOS)
         if: runner.os == 'macOS'
         run: |
-          sudo mkdir -p /usr/local/Homebrew /usr/local/Cellar
-          sudo chown -R "$(whoami)" /usr/local/Homebrew /usr/local/Cellar
+          sudo mkdir -p /usr/local/{Homebrew,Cellar,opt,lib,include,bin,share}
+          sudo chown -R "$(whoami)" /usr/local/{Homebrew,Cellar,opt,lib,include,bin,share}
 
       # Cache the x86_64 Homebrew installation (Homebrew repo + Cellar) so we don't
       # re-run the install script and 'brew install vips' (+ ~40 transitive deps) on
@@ -166,11 +166,12 @@ jobs:
           ARM64_PID=$!
 
           if [ "${{ steps.cache-x86-brew.outputs.cache-hit }}" = "true" ]; then
-            # Recreate /usr/local/bin/brew symlink and re-link all formulae whose
-            # opt/lib/include symlinks are not preserved by the cache action.
-            ln -sf /usr/local/Homebrew/bin/brew /usr/local/bin/brew 2>/dev/null || true
-            arch -x86_64 /usr/local/bin/brew link \
-              $(arch -x86_64 /usr/local/bin/brew list --formula) 2>/dev/null || true
+            # Recreate /usr/local/bin/brew symlink and re-link all formulae so
+            # opt/, lib/, include/ symlinks are restored from the cached Cellar.
+            ln -sf /usr/local/Homebrew/bin/brew /usr/local/bin/brew
+            FORMULAE=$(arch -x86_64 /usr/local/bin/brew list --formula)
+            echo "Re-linking $(echo "$FORMULAE" | wc -w | tr -d ' ') cached formulae…"
+            arch -x86_64 /usr/local/bin/brew link --overwrite $FORMULAE
           else
             arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
             arch -x86_64 /usr/local/bin/brew install vips
