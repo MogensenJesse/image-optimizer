@@ -37,14 +37,10 @@ jobs:
           # Newest Ubuntu: libvips 8.18, what the release build is made with
           - platform: "ubuntu-26.04"
           # Oldest libvips we still try to support (8.12). Guards the version
-          # checks in the vendored savers; not a release platform. It may not
-          # fail the run until it has been seen green once; then drop
-          # `experimental`.
+          # checks in the vendored savers; not a release platform.
           - platform: "ubuntu-22.04"
-            experimental: true
           - platform: "macos-latest"
     runs-on: ${{ matrix.platform }}
-    continue-on-error: ${{ matrix.experimental || false }}
     permissions:
       contents: read
     steps:
@@ -590,10 +586,8 @@ jobs:
 
       # A bundle can contain every library and still fail to start. Run it on a
       # virtual display and check it is still alive after a while.
-      # continue-on-error until this step has been seen green on a real run.
       - name: Launch smoke test (Linux)
         if: runner.os == 'Linux'
-        continue-on-error: true
         run: |
           APPIMAGE=$(find src-tauri/target/release/bundle/appimage -name "*.AppImage" | head -1)
           if [ -z "$APPIMAGE" ]; then
@@ -618,7 +612,6 @@ jobs:
 
       - name: Launch smoke test (macOS)
         if: runner.os == 'macOS'
-        continue-on-error: true
         run: |
           DMG=$(find src-tauri/target -type f -name "*.dmg" | head -1)
           if [ -z "$DMG" ]; then

@@ -22,13 +22,13 @@ Push the branch, then start the workflow on it from the Actions tab (Run workflo
 
 Runs on `ubuntu-26.04`, `ubuntu-22.04` and `macos-latest`. Each leg builds the frontend (the Tauri macro needs `dist/` at compile time), then runs `cargo clippy --all-targets -- -D warnings` and `cargo test`. The tests call libvips, so every leg also checks how the code behaves with the libvips of that platform. Biome (`npx biome check .`) runs once, on the 26.04 leg.
 
-| Leg            | libvips                   | Purpose                                                                                                                |
-| -------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `ubuntu-26.04` | 8.18 (apt)                | What the Linux release build is made with                                                                              |
-| `ubuntu-22.04` | 8.12 (apt)                | Oldest libvips we still try to support. Checks that the savers leave out options an old libvips lacks (`experimental`) |
-| `macos-latest` | current Homebrew (`vips`) | Linking through `pkg-config` and the encoders on macOS                                                                 |
+| Leg            | libvips                   | Purpose                                                                                               |
+| -------------- | ------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `ubuntu-26.04` | 8.18 (apt)                | What the Linux release build is made with                                                             |
+| `ubuntu-22.04` | 8.12 (apt)                | Oldest libvips we still try to support. Checks that the savers leave out options an old libvips lacks |
+| `macos-latest` | current Homebrew (`vips`) | Linking through `pkg-config` and the encoders on macOS                                                |
 
-The job is independent of the build job, so a failure does not block a release. Remove `experimental` from the 22.04 leg once it has been seen green.
+The job is independent of the build job, so a failure does not block a release. A failing leg does fail the run.
 
 ### `build-tauri` (matrix)
 
@@ -66,7 +66,7 @@ libheif loads its AV1 encoder and decoder as plugins at run time, which linuxdep
 
 #### Launch smoke test (Linux and macOS)
 
-A bundle can contain every library and still fail to start, so after the build the app is started and must still be running 15 seconds later. On Linux the AppImage is unpacked and run on a virtual display (`xvfb-run`); on macOS the app inside the `.dmg` is run directly on the runner's desktop session. On failure the app's output is printed. Both steps are `continue-on-error` until they have been seen green on a real run; then remove that line. They only prove that the app starts, not that it works or looks right.
+A bundle can contain every library and still fail to start, so after the build the app is started and must still be running 15 seconds later. On Linux the AppImage is unpacked and run on a virtual display (`xvfb-run`); on macOS the app inside the `.dmg` is run directly on the runner's desktop session. On failure the app's output is printed and the build job fails. They only prove that the app starts, not that it works or looks right.
 
 ## Release notes
 
