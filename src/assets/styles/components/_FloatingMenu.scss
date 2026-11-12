@@ -1,4 +1,5 @@
-@use '../base/variables' as v;
+@use "../base/select" as s;
+@use "../base/variables" as v;
 
 .floating-menu {
   position: absolute;
@@ -67,7 +68,7 @@
       flex-direction: column;
       gap: 16px;
     }
-    
+
     .value {
       opacity: 0.8;
     }
@@ -121,7 +122,7 @@
       transform: translateX(-50%) translateY(0);
     }
   }
-  
+
   // Slider container - wraps input for cross-browser pseudo-element support
   // WebKitGTK (Linux) doesn't support ::before/::after on input elements
   .slider-container {
@@ -130,10 +131,10 @@
     position: relative;
     width: 100%;
     height: 10px;
-    
+
     // Custom colored track (gradient fill)
     &::before {
-      content: '';
+      content: "";
       position: absolute;
       height: 3px;
       width: var(--slider-value);
@@ -149,10 +150,10 @@
       z-index: 1;
       pointer-events: none;
     }
-    
+
     // Background track
     &::after {
-      content: '';
+      content: "";
       position: absolute;
       height: 3px;
       width: 100%;
@@ -168,7 +169,7 @@
   // Form controls - consolidated inside floating-menu
   .menu-control {
     color: v.$light;
-    
+
     // Range slider input
     &--range {
       appearance: none;
@@ -180,14 +181,14 @@
       position: relative;
       background: transparent;
       z-index: 2; // Above the container's pseudo-elements
-      
+
       // WebKit track (macOS, Linux WebKitGTK)
       &::-webkit-slider-runnable-track {
         background: transparent;
         height: 3px;
         border-radius: 10px;
       }
-      
+
       // Hide thumb by default - WebKit (macOS, Linux/Windows Chromium)
       &::-webkit-slider-thumb {
         appearance: none;
@@ -197,13 +198,15 @@
         border-radius: 50%;
         background: v.$light;
         cursor: pointer;
-        transition: opacity 0.2s ease, transform 0.2s ease;
+        transition:
+          opacity 0.2s ease,
+          transform 0.2s ease;
         margin-top: -5px;
         opacity: 0;
         position: relative;
         z-index: 3;
       }
-      
+
       // Show thumb on hover and focus
       &:hover,
       &:focus-visible {
@@ -218,7 +221,7 @@
       opacity: 0.5;
       margin-right: 4px;
     }
-    
+
     // Select and input fields - shared styles
     &--select,
     &--input {
@@ -233,18 +236,18 @@
       cursor: pointer;
       transition: opacity 0.2s ease;
       position: relative;
-      
+
       &:focus-visible {
         outline: 1px solid rgba(v.$light, 0.35);
         outline-offset: 2px;
         border-radius: 4px;
       }
-      
+
       &:hover {
         opacity: 0.9;
       }
     }
-    
+
     // Select specific styles
     &--select {
       background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e0e0e0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
@@ -254,13 +257,15 @@
       padding-right: 20px;
       border-bottom: 1px solid rgba(v.$light, 0);
       padding-bottom: 3px;
-      
+
       option {
         background-color: v.$night;
         color: v.$light;
       }
+
+      @include s.picker(flex-end);
     }
-    
+
     // Input specific styles
     &--input {
       color: rgba(v.$light, 0.9);
@@ -268,14 +273,14 @@
       text-align: center;
       border-bottom: 1px solid rgba(v.$light, 0.2);
       padding-bottom: 3px;
-      
+
       &:hover,
       &:focus {
         border-bottom-color: rgba(v.$light, 0.4);
       }
-      
+
       // Remove spinner arrows for number inputs
-      &[type="number"] {        
+      &[type="number"] {
         // Chrome, Safari, Edge, Opera
         &::-webkit-outer-spin-button,
         &::-webkit-inner-spin-button {
@@ -283,41 +288,41 @@
           margin: 0;
         }
       }
-      
+
       &::placeholder {
         color: rgba(v.$light, 0.5);
       }
     }
   }
-  
+
   // Control group (replaces resize-controls)
   .control-group {
     display: flex;
     flex-direction: row;
     align-items: center;
     gap: 12px;
-    
-    // When both select and input are present
-    .menu-control--select + .input-with-unit {
-      margin-left: 4px;
-    }
-    
+
     // Input with unit wrapper
     .input-with-unit {
       display: flex;
       align-items: center;
       position: relative;
       min-width: 80px;
-      
+
       .unit {
         margin-left: 4px;
         color: rgba(v.$light, 0.7);
       }
-      
+
       // Hide input when resize mode is "none"
       &:empty {
         display: none;
       }
+    }
+
+    // When both select and input are present
+    .menu-control--select + .input-with-unit {
+      margin-left: 4px;
     }
   }
 }

@@ -1,39 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from "react";
 import closeIcon from "../assets/icons/close.svg";
 import { useTranslation } from "../i18n";
 
-function FloatingMenu({
-  settings,
-  onSettingsChange,
-  disabled: _disabled,
-  show,
-  onClose,
-}) {
+// Slider colour runs from #d7bb21 (low quality) to #62cd20 (high quality)
+const GRADIENT_START = [215, 187, 33];
+const GRADIENT_END = [98, 205, 32];
+
+function gradientColor(percentage) {
+  const [r, g, b] = GRADIENT_START.map((start, i) =>
+    Math.round(start + (GRADIENT_END[i] - start) * (percentage / 100)),
+  );
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function FloatingMenu({ settings, onSettingsChange, show, onClose }) {
   const { t } = useTranslation();
-  const [resizeMode, setResizeMode] = useState(settings.resize.mode || "none");
 
-  // Memoized function to calculate gradient color based on percentage
-  const calculateGradientColor = useMemo(() => {
-    return (percentage) => {
-      // Start color: #d7bb21 (215, 187, 33)
-      const startR = 215,
-        startG = 187,
-        startB = 33;
-      // End color: #62cd20 (98, 205, 32)
-      const endR = 98,
-        endG = 205,
-        endB = 32;
-
-      // Calculate the color at the current percentage
-      const r = Math.round(startR + (endR - startR) * (percentage / 100));
-      const g = Math.round(startG + (endG - startG) * (percentage / 100));
-      const b = Math.round(startB + (endB - startB) * (percentage / 100));
-
-      return `rgb(${r}, ${g}, ${b})`;
-    };
-  }, []); // Empty dependency array means this is only calculated once
-
-  // Function to get quality label based on slider value
   const getQualityLabel = (value) => {
     if (value === 100) return t("menu.quality.lossless");
     if (value >= 90) return t("menu.quality.nearLossless");
@@ -44,65 +25,16 @@ function FloatingMenu({
     return t("menu.quality.broken");
   };
 
-  const sliderContainerRef = useRef(null);
-
-  // Update the CSS variables when the quality value changes
-  useEffect(() => {
-    if (sliderContainerRef.current) {
-      const percentage = settings.quality.global;
-      const currentColor = calculateGradientColor(percentage);
-
-      sliderContainerRef.current.style.setProperty(
-        "--slider-value",
-        `${percentage}%`,
-      );
-      sliderContainerRef.current.style.setProperty(
-        "--slider-color",
-        currentColor,
-      );
-    }
-  }, [settings.quality.global, calculateGradientColor]);
-
-  const handleQualityChange = (value) => {
-    const qualityValue = parseInt(value, 10);
-
-    // Update the CSS variables directly for immediate visual feedback
-    if (sliderContainerRef.current) {
-      const currentColor = calculateGradientColor(qualityValue);
-
-      sliderContainerRef.current.style.setProperty(
-        "--slider-value",
-        `${qualityValue}%`,
-      );
-      sliderContainerRef.current.style.setProperty(
-        "--slider-color",
-        currentColor,
-      );
-    }
-
-    onSettingsChange({
-      ...settings,
-      quality: {
-        ...settings.quality,
-        global: qualityValue,
-      },
-    });
-  };
-
   const handleResizeChange = (mode, value) => {
-    const newResize = {
-      width: null,
-      height: null,
-      maintainAspect: true,
-      mode: mode,
-      size: value ? parseInt(value, 10) : null,
-    };
-
+    // Empty, zero and negative input all mean "no size yet"
+    const parsed = Number.parseInt(value, 10);
     onSettingsChange({
       ...settings,
-      resize: newResize,
+      resize: { mode, size: parsed > 0 ? parsed : null },
     });
   };
+
+  const resizeMode = settings.resize.mode;
 
   return (
     <>
@@ -121,9 +53,13 @@ function FloatingMenu({
         role="button"
         tabIndex={0}
         aria-label={t("menu.close")}
+        inert={!show}
       />
 
-      <div className={`floating-menu ${show ? "floating-menu--open" : ""}`}>
+      <div
+        className={`floating-menu ${show ? "floating-menu--open" : ""}`}
+        inert={!show}
+      >
         <div className="floating-menu__panel">
           <div className="floating-menu__item">
             <div className="floating-menu__content floating-menu__content--column">
@@ -131,19 +67,30 @@ function FloatingMenu({
                 <span>{t("menu.quality")}</span>
                 <span className="value">
                   <span className="menu-control--label">
-                    {getQualityLabel(settings.quality.global)}
+                    {getQualityLabel(settings.quality)}
                   </span>{" "}
-                  {settings.quality.global}%
+                  {settings.quality}%
                 </span>
               </div>
-              <div ref={sliderContainerRef} className="slider-container">
+              <div
+                className="slider-container"
+                style={{
+                  "--slider-value": `${settings.quality}%`,
+                  "--slider-color": gradientColor(settings.quality),
+                }}
+              >
                 <input
                   className="menu-control--range"
                   type="range"
-                  min="0"
+                  min="1"
                   max="100"
-                  value={settings.quality.global}
-                  onChange={(e) => handleQualityChange(e.target.value)}
+                  value={settings.quality}
+                  onChange={(e) =>
+                    onSettingsChange({
+                      ...settings,
+                      quality: Number.parseInt(e.target.value, 10),
+                    })
+                  }
                 />
               </div>
             </div>
@@ -172,10 +119,9 @@ function FloatingMenu({
                 )}
                 <select
                   value={resizeMode}
-                  onChange={(e) => {
-                    setResizeMode(e.target.value);
-                    handleResizeChange(e.target.value, settings.resize.size);
-                  }}
+                  onChange={(e) =>
+                    handleResizeChange(e.target.value, settings.resize.size)
+                  }
                   className="menu-control--select"
                 >
                   <option value="none">{t("menu.resize.none")}</option>

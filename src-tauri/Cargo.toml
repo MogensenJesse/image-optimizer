@@ -2,17 +2,9 @@
 name = "image-optimizer"
 version = "0.6.10"
 description = "A Tauri-based Image Optimization App"
-authors = ["you"]
 edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[lib]
-# The `_lib` suffix may seem redundant but it is necessary
-# to make the lib name unique and wouldn't conflict with the bin name.
-# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "image_optimizer_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -21,7 +13,7 @@ cc = "1"
 # Optimize release builds
 [profile.release]
 codegen-units = 1
-panic = "abort"
+panic = "unwind"  # a panicking task must fail one file, not abort the app
 opt-level = 3   # Maximize speed for image processing
 lto = "thin"    # ThinLTO: avoids fat-LTO bitcode failures with objc2 on macOS
 strip = true    # Strip debug symbols
@@ -41,23 +33,19 @@ debug = false
 tauri = { version = "2", features = ["macos-private-api"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-process = "2"
-tauri-plugin-opener = "2"
 tauri-plugin-os = "2"
-# Minimal Tokio surface: spawn_blocking + async fs. Tauri merges its own tokio features;
+# Minimal Tokio surface: spawn_blocking. Tauri merges its own tokio features;
 # avoid `full` so we do not force compilation of unused modules (no runtime downside).
-tokio = { version = "1.42", default-features = false, features = ["rt-multi-thread", "fs"] }
+tokio = { version = "1.42", default-features = false, features = ["rt-multi-thread"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-lazy_static = "1.5"
 thiserror = "2.0"
-anyhow = "1.0"
-window-vibrancy = "0.7"
+window-vibrancy = "0.8"
 libvips = { package = "libvips-rs", version = "=8.15.1" }
-oxvg_optimiser = "0.0.5"
-oxvg_ast = { version = "0.0.5", features = ["roxmltree"] }
+oxvg_optimiser = "0.0.9"
+oxvg_ast = { version = "0.0.9", features = ["roxmltree"] }
 
 # Auto-update and persistent settings
 tauri-plugin-updater = "2"

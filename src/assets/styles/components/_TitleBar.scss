@@ -1,5 +1,5 @@
 // TitleBar Component
-@use '../base/variables' as v;
+@use "../base/variables" as v;
 
 .title-bar {
   display: flex;
@@ -12,7 +12,7 @@
   padding: 0 10px 0 20px;
   left: 0;
   top: 0;
-  
+
   &-title {
     color: v.$light;
     pointer-events: none;
@@ -43,13 +43,13 @@
   cursor: pointer;
   transition: background-color 0.2s;
   position: relative;
-  
+
   img {
     width: 10px;
     height: 10px;
     opacity: 0.8;
   }
-  
+
   &:focus-visible {
     outline: 1px solid rgba(v.$light, 0.35);
     outline-offset: 2px;
@@ -57,16 +57,13 @@
   }
 
   &:hover {
-    
     img {
       opacity: 1;
     }
   }
-}
 
-// Settings button - slightly larger icon for the cog
-.window-control-settings {
-  img {
+  // Settings button - slightly larger icon for the cog
+  &.window-control-settings img {
     width: 13px;
     height: 13px;
   }

@@ -1,19 +1,18 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-// This is the primary entry point for the Image Optimizer application.
-// The lib.rs file serves only as a public API for external consumers.
+// Entry point of the Image Optimizer application.
 
-mod utils;
-mod core;
-mod processing;
 mod commands;
+mod error;
+mod optimize;
+mod types;
 
 use tracing::{debug, info};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 use tauri::Manager;
-use crate::core::AppState;
-use crate::commands::{optimize_image, optimize_images};
+use crate::commands::optimize_images;
+use crate::optimize::VipsRuntime;
 
 // Import the window-vibrancy crate only on macOS
 #[cfg(target_os = "macos")]
@@ -54,19 +53,13 @@ fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![
-            optimize_image,
-            optimize_images,
-        ])
+        .invoke_handler(tauri::generate_handler![optimize_images])
         .setup(|app| {
-            // Initialize AppState with app handle
-            let app_handle = app.app_handle().clone();
-            app.manage(AppState::new(app_handle));
-            debug!("✓ AppState initialized");
+            // Initializes libvips and keeps it alive for the whole app lifetime
+            app.manage(VipsRuntime::init());
+            debug!("✓ libvips runtime initialized");
 
             // Register updater plugin (desktop only)
             #[cfg(desktop)]

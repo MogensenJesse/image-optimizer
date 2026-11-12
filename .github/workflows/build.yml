@@ -9,7 +9,7 @@ on:
     # Without this, every tag is a fully cold build.
     branches: [main]
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
 
 # Tag builds must never be cancelled mid-flight: an aborted run can leave a
@@ -25,6 +25,59 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # Formatting, lint and tests. Independent of the release build below, so a
+  # lint failure never blocks a release, but it shows up on every push.
+  # ubuntu-24.04 ships libvips 8.15, the version the Rust bindings target.
+  lint:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Install dependencies (root)
+        run: npm ci
+
+      - name: Biome (format + lint)
+        run: npx biome check .
+
+      # tauri::generate_context!() needs the built frontend at compile time.
+      - name: Build frontend
+        run: npm run build
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvips-dev pkg-config \
+            libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+          shared-key: rust-lint-x86_64-unknown-linux-gnu
+
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Tests
+        working-directory: src-tauri
+        run: cargo test
+
   build-tauri:
     permissions:
       contents: write
@@ -32,18 +85,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest'
-            args: '--target universal-apple-darwin'
-            rust_target: 'aarch64-apple-darwin,x86_64-apple-darwin'
-            cache_key: 'rust-universal-apple-darwin'
-          - platform: 'windows-latest'
-            args: ''
-            cache_key: 'rust-x86_64-pc-windows-msvc'
+          - platform: "macos-latest"
+            args: "--target universal-apple-darwin"
+            rust_target: "aarch64-apple-darwin,x86_64-apple-darwin"
+            cache_key: "rust-universal-apple-darwin"
+          - platform: "windows-latest"
+            args: ""
+            cache_key: "rust-x86_64-pc-windows-msvc"
           # Use Ubuntu 22.04 for broader Linux compatibility (glibc 2.35)
           # This supports Debian 12+, Ubuntu 22.04+, Fedora 36+, etc.
-          - platform: 'ubuntu-22.04'
-            args: ''
-            cache_key: 'rust-x86_64-unknown-linux-gnu'
+          - platform: "ubuntu-22.04"
+            args: ""
+            cache_key: "rust-x86_64-unknown-linux-gnu"
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -53,8 +106,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
-          cache: 'npm'
+          node-version: "24"
+          cache: "npm"
 
       # Install npm deps early so lockfile drift or a registry outage fails
       # the job before we spend minutes on Homebrew / lipo / native-lib work.
@@ -87,7 +140,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: vendor/libvips-native
-          key: libvips-win64-8.18.0
+          key: libvips-win64-8.18.7
           restore-keys: |
             libvips-win64-
 
@@ -95,8 +148,8 @@ jobs:
         if: runner.os == 'Windows' && steps.cache-vips.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          $vipsVersion = "8.18.0"
-          $url = "https://github.com/libvips/build-win64-mxe/releases/download/v${vipsVersion}/vips-dev-w64-web-${vipsVersion}.zip"
+          $vipsVersion = "8.18.7"
+          $url = "https://github.com/libvips/build-win64-mxe/releases/download/v${vipsVersion}/vips-dev-x64-web-${vipsVersion}.zip"
           Invoke-WebRequest -Uri $url -OutFile vips.zip
           Expand-Archive -Path vips.zip -DestinationPath vendor\libvips-extract
           Move-Item vendor\libvips-extract\vips-dev-8.18 vendor\libvips-native
@@ -158,8 +211,8 @@ jobs:
       - name: Install libvips for both arches in parallel (macOS)
         if: runner.os == 'macOS'
         env:
-          HOMEBREW_NO_AUTO_UPDATE: '1'
-          HOMEBREW_NO_INSTALL_CLEANUP: '1'
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
         run: |
           brew install vips > arm64-brew.log 2>&1 &
           ARM64_PID=$!
@@ -263,6 +316,8 @@ jobs:
             done < <(otool -L "$dylib" | awk 'NR>1 {print $1}')
           done
 
+      # Release notes (and the in-app changelog) are the newest section only:
+      # everything above the first `---` line of CHANGELOG.md.
       - name: Get changelog for release notes
         id: changelog
         shell: bash
@@ -271,7 +326,7 @@ jobs:
             DELIMITER="CHANGELOG_$(openssl rand -hex 8)"
             {
               printf '%s\n' "body<<$DELIMITER"
-              tr -d '\r' < CHANGELOG.md
+              tr -d '\r' < CHANGELOG.md | sed '/^---$/,$d'
               printf '\n%s\n' "$DELIMITER"
             } >> "$GITHUB_OUTPUT"
           else

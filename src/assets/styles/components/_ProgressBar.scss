@@ -1,5 +1,5 @@
 // ProgressBar Component Styles
-@use '../base/variables' as v;
+@use "../base/variables" as v;
 
 // Progress circle - the semi-circular progress visualization
 .progress-circle {
@@ -13,7 +13,7 @@
   align-items: center;
   justify-content: center;
   gap: 16px;
-  
+
   &__svg {
     position: absolute;
     top: -20px;
@@ -21,17 +21,17 @@
     width: 100%;
     height: 100%;
   }
-  
+
   &__background {
     stroke: v.$night;
     stroke-linecap: round;
   }
-  
+
   &__progress {
     transition: stroke-dashoffset 0.15s ease-out;
     stroke-linecap: round;
   }
-  
+
   &__percentage {
     position: absolute;
     top: 50%;
@@ -39,20 +39,20 @@
     transform: translate(-50%, -20%);
     text-align: center;
     width: 80%; // Add width to contain longer text
-    
+
     &-value {
       font-size: 18px;
       font-weight: bold;
       letter-spacing: 0.05em;
       margin: 0 0 5px 0;
       white-space: nowrap;
-      
+
       // Style for the completion message
       &.complete {
         font-size: 16px;
       }
     }
-    
+
     &-label {
       opacity: 0.5;
       margin: 0;

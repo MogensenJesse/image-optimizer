@@ -1,8 +1,4 @@
-# Force LF line endings for shell scripts (they break with CRLF on macOS/Linux)
-*.sh text eol=lf
-
-# NSIS scripts are Windows-only but LF works fine there too
-*.nsh text eol=lf
-
-# Markdown files are consumed by CI (heredoc outputs); CRLF breaks GitHub Actions
-*.md text eol=lf
+# One line ending everywhere: LF in the repo and in every checkout.
+# Shell scripts break with CRLF on macOS/Linux, CI heredocs read the Markdown
+# files, and Biome formats with LF, so Windows must not convert.
+* text=auto eol=lf

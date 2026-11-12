@@ -1,33 +1,29 @@
 // src/components/Toast.jsx
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 const AUTO_DISMISS_MS = 5000;
-const EXIT_ANIMATION_MS = 250;
 
 function Toast({ message, type = "warning", onClose }) {
   const [dismissing, setDismissing] = useState(false);
-  const timerRef = useRef(null);
 
-  const handleDismiss = useCallback(() => {
-    if (dismissing) return;
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setDismissing(true);
-    timerRef.current = setTimeout(onClose, EXIT_ANIMATION_MS);
-  }, [onClose, dismissing]);
-
+  // Runs once per mount; parent re-renders must not restart the timer.
   useEffect(() => {
-    timerRef.current = setTimeout(handleDismiss, AUTO_DISMISS_MS);
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [handleDismiss]);
+    const timer = setTimeout(() => setDismissing(true), AUTO_DISMISS_MS);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <div
       className={`toast toast--${type}${dismissing ? " toast--dismissing" : ""}`}
+      // The entry animation also fires animationend; only the exit unmounts.
+      onAnimationEnd={() => dismissing && onClose()}
     >
       <span className="toast__message">{message}</span>
-      <button type="button" className="toast__close" onClick={handleDismiss}>
+      <button
+        type="button"
+        className="toast__close"
+        onClick={() => setDismissing(true)}
+      >
         ×
       </button>
     </div>

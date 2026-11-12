@@ -20,9 +20,7 @@
         "decorations": false,
         "dragDropEnabled": true,
         "windowEffects": {
-          "effects": [
-            "acrylic"
-          ],
+          "effects": ["acrylic"],
           "radius": 10
         }
       }
@@ -34,20 +32,13 @@
   "bundle": {
     "createUpdaterArtifacts": true,
     "active": true,
-    "targets": [
-      "nsis",
-      "dmg",
-      "deb",
-      "appimage"
-    ],
+    "targets": ["nsis", "dmg", "deb", "appimage"],
     "macOS": {
       "minimumSystemVersion": "10.13"
     },
     "linux": {
       "deb": {
-        "depends": [
-          "libvips42"
-        ]
+        "depends": ["libvips42"]
       }
     },
     "windows": {

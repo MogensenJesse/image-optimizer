@@ -1,9 +1,9 @@
 // src/components/SettingsPanel.jsx
 
-import { load } from "@tauri-apps/plugin-store";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import closeIcon from "../assets/icons/close.svg";
 import { LANGUAGES, useTranslation } from "../i18n";
+import { settingsStore } from "../utils/store";
 import { checkForUpdate, downloadAndInstall } from "../utils/updater";
 
 const STORE_KEY = "autoCheckUpdates";
@@ -15,23 +15,42 @@ const UPDATE_STATE = {
   AVAILABLE: "available",
   DOWNLOADING: "downloading",
   UP_TO_DATE: "upToDate",
+  CHECK_ERROR: "checkError",
   ERROR: "error",
 };
 
-// DEV ONLY — mock update data so the changelog UI is visible during development
-const _DEV_MOCK_UPDATE = {
-  version: "0.3.5",
-  body: '### Auto-Update System\n- Added in-app update checking and installation via tauri-plugin-updater\n- App checks for updates automatically on startup (configurable)\n- Manual "Check now" button in settings for on-demand update checks\n- Updates are downloaded, verified against a signed public key, and installed with a single click\n- Signed release artifacts (.sig files) for update authenticity verification\n\n### Settings Panel\n- New settings panel accessible via the cog icon in the title bar\n- Toggle for enabling/disabling automatic update checks on startup\n- Update status display with download progress\n- Preference persistence via tauri-plugin-store\n\n### Title Bar\n- Added settings button with cog icon\n- Green notification badge appears when an update is available\n\n### Build & Release\n- Streamlined version management: npm version patch now syncs package.json, Cargo.toml, Cargo.lock, and tauri.conf.json automatically\n- Release tags always match the built app version\n- Signed builds via TAURI_SIGNING_PRIVATE_KEY in CI',
-  date: null,
-  _update: null,
-};
+const STATUS_RESET_MS = 4000;
 
-function SettingsPanel({ show, onClose }) {
+function SettingsPanel({ show, onClose, startupUpdate }) {
   const { t, language, setLanguage } = useTranslation();
   const [autoCheck, setAutoCheck] = useState(true);
   const [updateState, setUpdateState] = useState(UPDATE_STATE.IDLE);
   const [updateInfo, setUpdateInfo] = useState(null);
   const [downloadProgress, setDownloadProgress] = useState(0);
+
+  // One reset timer for all transient statuses, so an old timer can never
+  // overwrite a newer state.
+  const resetTimerRef = useRef(null);
+  const clearResetTimer = useCallback(() => {
+    clearTimeout(resetTimerRef.current);
+  }, []);
+  const resetStatusLater = useCallback(() => {
+    clearTimeout(resetTimerRef.current);
+    resetTimerRef.current = setTimeout(
+      () => setUpdateState(UPDATE_STATE.IDLE),
+      STATUS_RESET_MS,
+    );
+  }, []);
+  useEffect(() => clearResetTimer, [clearResetTimer]);
+
+  // The startup check already found an update: show it without checking again
+  useEffect(() => {
+    if (!startupUpdate) return;
+    setUpdateInfo(startupUpdate);
+    setUpdateState((s) =>
+      s === UPDATE_STATE.IDLE ? UPDATE_STATE.AVAILABLE : s,
+    );
+  }, [startupUpdate]);
 
   // Load persisted preference on mount
   useEffect(() => {
@@ -39,7 +58,7 @@ function SettingsPanel({ show, onClose }) {
 
     (async () => {
       try {
-        const store = await load("settings.json", { autoSave: true });
+        const store = await settingsStore;
         const value = await store.get(STORE_KEY);
         if (!cancelled && value !== null && value !== undefined) {
           setAutoCheck(value);
@@ -60,7 +79,7 @@ function SettingsPanel({ show, onClose }) {
     setAutoCheck(newValue);
 
     try {
-      const store = await load("settings.json", { autoSave: true });
+      const store = await settingsStore;
       await store.set(STORE_KEY, newValue);
     } catch (error) {
       console.error("Failed to save settings:", error);
@@ -69,20 +88,26 @@ function SettingsPanel({ show, onClose }) {
 
   // Manual update check
   const handleCheckForUpdates = useCallback(async () => {
+    clearResetTimer();
     setUpdateState(UPDATE_STATE.CHECKING);
     setUpdateInfo(null);
 
-    const result = await checkForUpdate();
+    try {
+      const result = await checkForUpdate();
 
-    if (result) {
-      setUpdateInfo(result);
-      setUpdateState(UPDATE_STATE.AVAILABLE);
-    } else {
-      setUpdateState(UPDATE_STATE.UP_TO_DATE);
-      // Reset after a few seconds
-      setTimeout(() => setUpdateState(UPDATE_STATE.IDLE), 4000);
+      if (result) {
+        setUpdateInfo(result);
+        setUpdateState(UPDATE_STATE.AVAILABLE);
+      } else {
+        setUpdateState(UPDATE_STATE.UP_TO_DATE);
+        resetStatusLater();
+      }
+    } catch (error) {
+      console.error("Failed to check for updates:", error);
+      setUpdateState(UPDATE_STATE.CHECK_ERROR);
+      resetStatusLater();
     }
-  }, []);
+  }, [clearResetTimer, resetStatusLater]);
 
   // Install the available update
   const handleInstallUpdate = useCallback(async () => {
@@ -103,9 +128,9 @@ function SettingsPanel({ show, onClose }) {
     } catch (error) {
       console.error("Failed to install update:", error);
       setUpdateState(UPDATE_STATE.ERROR);
-      setTimeout(() => setUpdateState(UPDATE_STATE.IDLE), 4000);
+      resetStatusLater();
     }
-  }, [updateInfo]);
+  }, [updateInfo, resetStatusLater]);
 
   const renderUpdateStatus = () => {
     switch (updateState) {
@@ -125,6 +150,12 @@ function SettingsPanel({ show, onClose }) {
         return (
           <span className="settings-panel__status">
             {t("settings.installing", { percent: downloadProgress })}
+          </span>
+        );
+      case UPDATE_STATE.CHECK_ERROR:
+        return (
+          <span className="settings-panel__status settings-panel__status--error">
+            {t("settings.checkFailed")}
           </span>
         );
       case UPDATE_STATE.ERROR:
@@ -177,9 +208,11 @@ function SettingsPanel({ show, onClose }) {
     const parts = text.split(/(\*\*.+?\*\*|`.+?`)/g);
     return parts.map((part, i) => {
       if (part.startsWith("**") && part.endsWith("**")) {
+        // biome-ignore lint/suspicious/noArrayIndexKey: parts of an immutable string
         return <strong key={i}>{part.slice(2, -2)}</strong>;
       }
       if (part.startsWith("`") && part.endsWith("`")) {
+        // biome-ignore lint/suspicious/noArrayIndexKey: parts of an immutable string
         return <code key={i}>{part.slice(1, -1)}</code>;
       }
       return part;
@@ -221,7 +254,7 @@ function SettingsPanel({ show, onClose }) {
 
   return (
     <div className={`settings-panel ${show ? "settings-panel--open" : ""}`}>
-      <div className="settings-panel__surface" aria-hidden={!show}>
+      <div className="settings-panel__surface" inert={!show}>
         <div className="settings-panel__header">
           <span>{t("settings.title")}</span>
           <button

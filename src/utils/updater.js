@@ -7,24 +7,21 @@ import { check } from "@tauri-apps/plugin-updater";
 
 /**
  * Check for an available update.
- * @returns {{ version: string, body: string | null, date: string | null } | null}
+ * Rejects when the check itself fails, so callers can tell "no update"
+ * (resolves `null`) from "could not check".
+ * @returns {Promise<{ version: string, body: string | null, date: string | null } | null>}
  */
 export async function checkForUpdate() {
-  try {
-    const update = await check();
-    if (!update) return null;
+  const update = await check();
+  if (!update) return null;
 
-    return {
-      version: update.version,
-      body: update.body ?? null,
-      date: update.date ?? null,
-      // Keep the raw update object so we can download/install later
-      _update: update,
-    };
-  } catch (error) {
-    console.error("Failed to check for updates:", error);
-    return null;
-  }
+  return {
+    version: update.version,
+    body: update.body ?? null,
+    date: update.date ?? null,
+    // Keep the raw update object so we can download/install later
+    _update: update,
+  };
 }
 
 /**

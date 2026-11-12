@@ -6,6 +6,9 @@
   "app.skippedFile": "Пропущен неподдерживаемый файл: {{name}}",
   "app.skippedFilesOne": "Пропущены неподдерживаемые файлы: {{name}} и 1 другой",
   "app.skippedFilesMany": "Пропущены неподдерживаемые файлы: {{name}} и {{count}} других",
+  "app.failedFilesOne": "Не удалось оптимизировать {{name}}: {{error}}",
+  "app.failedFiles": "Не удалось оптимизировать {{name}} и ещё {{count}}",
+  "app.batchFailed": "Ошибка оптимизации: {{error}}",
   "app.options": "Параметры",
 
   "titlebar.title": "Image optimizer",
@@ -19,8 +22,10 @@
   "progress.sizeKB": "{{value}} КБ",
   "progress.sizeMB": "{{value}} МБ",
   "progress.summary": "{{count}} изображений оптимизировано за {{time}}",
+  "progress.summaryOne": "1 изображение оптимизировано за {{time}}",
   "progress.seconds": "{{value}}с",
   "progress.minutes": "{{min}}м {{sec}}с",
+  "progress.aria": "Прогресс: {{percent}}%",
 
   "menu.quality": "Качество",
   "menu.quality.lossless": "Без потерь",
@@ -55,5 +60,6 @@
   "settings.upToDate": "Актуальная версия",
   "settings.versionAvailable": "v{{version}} доступна",
   "settings.updateFailed": "Ошибка обновления",
+  "settings.checkFailed": "Не удалось проверить обновления",
   "settings.changelog": "v{{version}} Список изменений"
 }

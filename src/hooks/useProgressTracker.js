@@ -2,138 +2,61 @@
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const TIMER_INTERVAL_MS = 100;
+const IDLE = {
+  completed: 0,
+  total: 0,
+  failed: 0,
+  savedBytes: 0,
+  originalBytes: 0,
+  startTime: null,
+  durationMs: null,
+};
 
 /**
- * Tracks progress of image optimization.
+ * Tracks progress of an image optimization batch.
  *
- * The backend emits `image_optimization_progress` events with overall
- * (not per-chunk) `completedTasks` / `totalTasks` counts, so this hook
- * simply forwards those values into React state.
+ * The backend emits `image_optimization_progress` events carrying running
+ * totals (`completed`, `total`, `failed`, `savedBytes`, `originalBytes`), so
+ * the hook just stores the latest one. `finish` stores the final summary the
+ * `optimize_images` command resolves with, which also carries `durationMs`.
  *
- * @returns {{ progress: Object, initProgress: Function, processingRef: React.MutableRefObject<boolean> }}
+ * @returns {{
+ *   progress: Object,
+ *   start: (total: number) => void,
+ *   finish: (summary: Object) => void,
+ *   reset: () => void,
+ *   processingRef: React.MutableRefObject<boolean>,
+ * }}
  */
 function useProgressTracker() {
   const processingRef = useRef(false);
-  const [progress, setProgress] = useState({
-    completedTasks: 0,
-    totalTasks: 0,
-    progressPercentage: 0,
-    status: "idle",
-    savedSize: 0,
-    savedPercentage: 0,
-    processingTime: 0,
-  });
-
-  const statsRef = useRef({
-    totalSavedBytes: 0,
-    totalOriginalSize: 0,
-    startTime: null,
-  });
-
-  const timerRef = useRef(null);
-
-  // Elapsed-time ticker — runs from initProgress until the final event
-  // arrives, independent of the FADE_IN / PROCESSING state machine.
-  const startTimer = () => {
-    stopTimer();
-    timerRef.current = setInterval(() => {
-      const { startTime } = statsRef.current;
-      if (!startTime) return;
-      const elapsed = (Date.now() - startTime) / 1000;
-      setProgress((prev) => ({ ...prev, processingTime: elapsed }));
-    }, TIMER_INTERVAL_MS);
-  };
-
-  const stopTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-  }, []);
-
-  // Clean up timer on unmount
-  useEffect(() => stopTimer, [stopTimer]);
+  const [progress, setProgress] = useState(IDLE);
 
   // Single event listener — registered once on mount
   useEffect(() => {
     const unsubscribe = listen("image_optimization_progress", (event) => {
       if (!processingRef.current) return;
-
-      const {
-        completedTasks,
-        totalTasks,
-        progressPercentage,
-        status,
-        metadata,
-      } = event.payload;
-
-      const stats = statsRef.current;
-
-      // Accumulate per-image size stats when present
-      if (metadata?.savedBytes != null && metadata?.originalSize != null) {
-        stats.totalSavedBytes += Number(metadata.savedBytes);
-        stats.totalOriginalSize += Number(metadata.originalSize);
-      }
-
-      const savedPercentage =
-        stats.totalOriginalSize > 0
-          ? Math.round((stats.totalSavedBytes / stats.totalOriginalSize) * 100)
-          : 0;
-
-      // Use the backend's wall-clock duration on the final event
-      let processingTime = stats.startTime
-        ? (Date.now() - stats.startTime) / 1000
-        : 0;
-
-      if (status === "complete" && metadata?.totalDuration) {
-        processingTime = parseFloat(metadata.totalDuration);
-        stopTimer();
-      }
-
-      setProgress({
-        completedTasks,
-        totalTasks,
-        progressPercentage,
-        status,
-        savedSize: stats.totalSavedBytes,
-        savedPercentage,
-        processingTime,
-      });
+      setProgress((prev) => ({ ...prev, ...event.payload }));
     });
 
     return () => {
       unsubscribe.then((fn) => fn());
     };
-  }, [stopTimer]);
+  }, []);
 
-  /**
-   * Reset all tracking state and start the elapsed-time timer.
-   * Called by App before invoking the backend command.
-   *
-   * @param {number} fileCount - Number of files to process
-   */
-  const initProgress = (fileCount) => {
-    statsRef.current = {
-      totalSavedBytes: 0,
-      totalOriginalSize: 0,
-      startTime: Date.now(),
-    };
+  /** Reset all tracking state for a batch of `total` files. */
+  const start = useCallback((total) => {
+    setProgress({ ...IDLE, total, startTime: Date.now() });
+  }, []);
 
-    setProgress({
-      completedTasks: 0,
-      totalTasks: fileCount,
-      progressPercentage: 0,
-      status: "idle",
-      savedSize: 0,
-      savedPercentage: 0,
-      processingTime: 0,
-    });
+  /** Store the final summary returned by the backend. */
+  const finish = useCallback((summary) => {
+    setProgress((prev) => ({ ...prev, ...summary }));
+  }, []);
 
-    startTimer();
-  };
+  const reset = useCallback(() => setProgress(IDLE), []);
 
-  return { progress, initProgress, processingRef };
+  return { progress, start, finish, reset, processingRef };
 }
 
 export default useProgressTracker;

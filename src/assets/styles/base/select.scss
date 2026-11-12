@@ -1,0 +1,97 @@
+@use "variables" as v;
+
+// Styled dropdown list for a <select>.
+//
+// Uses the customizable select (`appearance: base-select`), which draws the
+// list in CSS instead of with the OS. Engines without it (WebKit on macOS and
+// Linux) ignore the whole block and keep their native list.
+// `$align` is where the text sits: `flex-start` (left) or `flex-end` (right).
+@mixin picker($align: flex-start) {
+  // Right-aligned text hangs the list from the select's right edge
+  $span: span-inline-end;
+  @if $align == flex-end {
+    $span: span-inline-start;
+  }
+
+  @supports (appearance: base-select) {
+    &,
+    &::picker(select) {
+      appearance: base-select;
+    }
+
+    justify-content: $align;
+
+    // The chevron is already drawn as the select's own background image
+    &::picker-icon {
+      display: none;
+    }
+
+    // Open below the select like a native list; flip above only when it does
+    // not fit (Chromium otherwise picks whichever side has more room)
+    &::picker(select) {
+      position-area: block-end $span;
+      position-try-order: normal;
+      position-try-fallbacks: flip-block;
+      margin-block: 6px;
+      padding: 4px;
+      background: v.$night;
+      border: 1px solid rgba(v.$light, 0.12);
+      border-radius: v.$radius-sm;
+      box-shadow: 0 12px 32px rgba(#000, 0.5);
+      opacity: 0;
+      transform: translateY(-4px);
+      transition:
+        opacity 0.2s ease,
+        transform 0.2s v.$ease-out,
+        overlay 0.2s allow-discrete,
+        display 0.2s allow-discrete;
+    }
+
+    &:open::picker(select) {
+      opacity: 1;
+      transform: none;
+    }
+
+    @starting-style {
+      &:open::picker(select) {
+        opacity: 0;
+        transform: translateY(-4px);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      &::picker(select) {
+        transition: none;
+      }
+    }
+
+    option {
+      display: flex;
+      justify-content: $align;
+      padding: 8px 12px;
+      border-radius: 4px;
+      background: transparent;
+      color: rgba(v.$light, 0.7);
+      cursor: pointer;
+      outline: none; // the highlight below replaces the focus ring
+      transition:
+        background-color 0.15s ease,
+        color 0.15s ease;
+
+      // The tick is replaced by colouring the chosen option
+      &::checkmark {
+        display: none;
+      }
+
+      &:hover,
+      &:focus-visible {
+        background: rgba(v.$light, 0.08);
+        color: v.$light;
+      }
+
+      &:checked {
+        color: v.$green;
+      }
+    }
+  }
+}

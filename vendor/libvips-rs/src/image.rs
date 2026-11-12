@@ -259,6 +259,32 @@ impl VipsImage {
         unsafe { bindings::vips_image_get_height(self.ctx) }
     }
 
+    /// EXIF orientation, 1..=8 (1 = upright, also returned when no tag is set).
+    pub fn get_orientation(&self) -> i32 {
+        unsafe { bindings::vips_image_get_orientation(self.ctx) }
+    }
+
+    /// True when the orientation swaps width and height (values 5..=8).
+    pub fn orientation_swaps_dims(&self) -> bool {
+        unsafe { bindings::vips_image_get_orientation_swap(self.ctx) != 0 }
+    }
+
+    /// True when an ICC profile is embedded.
+    pub fn has_icc_profile(&self) -> bool {
+        unsafe { bindings::vips_image_get_typeof(self.ctx, c"icc-profile-data".as_ptr()) != 0 }
+    }
+
+    /// Sets an integer metadata field such as `"orientation"`.
+    ///
+    /// Only call this on a fresh image (e.g. the result of `ops::copy`): images
+    /// returned by cached operations are shared, and changing them leaks the
+    /// change into other users.
+    pub fn set_int(&self, name: &str, value: i32) -> Result<()> {
+        let name = utils::new_c_string(name)?;
+        unsafe { bindings::vips_image_set_int(self.ctx, name.as_ptr(), value) };
+        Ok(())
+    }
+
     pub fn get_xoffset(&self) -> i32 {
         unsafe { bindings::vips_image_get_xoffset(self.ctx) }
     }

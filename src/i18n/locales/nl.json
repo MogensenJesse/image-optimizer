@@ -6,6 +6,9 @@
   "app.skippedFile": "Niet-ondersteund bestand overgeslagen: {{name}}",
   "app.skippedFilesOne": "Niet-ondersteunde bestanden overgeslagen: {{name}} en 1 ander",
   "app.skippedFilesMany": "Niet-ondersteunde bestanden overgeslagen: {{name}} en {{count}} andere",
+  "app.failedFilesOne": "Kon {{name}} niet optimaliseren: {{error}}",
+  "app.failedFiles": "Kon {{name}} en {{count}} andere niet optimaliseren",
+  "app.batchFailed": "Optimalisatie mislukt: {{error}}",
   "app.options": "Opties",
 
   "titlebar.title": "Image optimizer",
@@ -19,8 +22,10 @@
   "progress.sizeKB": "{{value}} KB",
   "progress.sizeMB": "{{value}} MB",
   "progress.summary": "{{count}} afbeeldingen geoptimaliseerd in {{time}}",
+  "progress.summaryOne": "1 afbeelding geoptimaliseerd in {{time}}",
   "progress.seconds": "{{value}}s",
   "progress.minutes": "{{min}}m {{sec}}s",
+  "progress.aria": "Voortgang: {{percent}}%",
 
   "menu.quality": "Kwaliteit",
   "menu.quality.lossless": "Lossless",
@@ -55,5 +60,6 @@
   "settings.upToDate": "Up-to-date",
   "settings.versionAvailable": "v{{version}} beschikbaar",
   "settings.updateFailed": "Update mislukt",
+  "settings.checkFailed": "Controleren op updates mislukt",
   "settings.changelog": "v{{version}} Wijzigingen"
 }

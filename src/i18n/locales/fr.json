@@ -6,6 +6,9 @@
   "app.skippedFile": "Fichier non pris en charge ignoré : {{name}}",
   "app.skippedFilesOne": "Fichiers non pris en charge ignorés : {{name}} et 1 autre",
   "app.skippedFilesMany": "Fichiers non pris en charge ignorés : {{name}} et {{count}} autres",
+  "app.failedFilesOne": "Impossible d’optimiser {{name}} : {{error}}",
+  "app.failedFiles": "Impossible d’optimiser {{name}} et {{count}} autres",
+  "app.batchFailed": "Échec de l’optimisation : {{error}}",
   "app.options": "Options",
 
   "titlebar.title": "Image optimizer",
@@ -19,8 +22,10 @@
   "progress.sizeKB": "{{value}} Ko",
   "progress.sizeMB": "{{value}} Mo",
   "progress.summary": "{{count}} images optimisées en {{time}}",
+  "progress.summaryOne": "1 image optimisée en {{time}}",
   "progress.seconds": "{{value}}s",
   "progress.minutes": "{{min}}m {{sec}}s",
+  "progress.aria": "Progression : {{percent}} %",
 
   "menu.quality": "Qualité",
   "menu.quality.lossless": "Sans perte",
@@ -55,5 +60,6 @@
   "settings.upToDate": "À jour",
   "settings.versionAvailable": "v{{version}} disponible",
   "settings.updateFailed": "Échec de la mise à jour",
+  "settings.checkFailed": "Échec de la recherche de mises à jour",
   "settings.changelog": "v{{version}} Notes de version"
 }

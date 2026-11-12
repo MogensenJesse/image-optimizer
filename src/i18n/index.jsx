@@ -1,5 +1,4 @@
 // src/i18n/index.jsx
-import { load } from "@tauri-apps/plugin-store";
 import {
   createContext,
   useCallback,
@@ -7,6 +6,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { settingsStore } from "../utils/store";
 
 import de from "./locales/de.json";
 import en from "./locales/en.json";
@@ -51,7 +51,7 @@ export function I18nProvider({ children }) {
     let cancelled = false;
     (async () => {
       try {
-        const store = await load("settings.json", { autoSave: true });
+        const store = await settingsStore;
         const persisted = await store.get(STORE_KEY);
         if (!cancelled) {
           setLanguageState(
@@ -73,7 +73,7 @@ export function I18nProvider({ children }) {
     if (!catalogs[code]) return;
     setLanguageState(code);
     try {
-      const store = await load("settings.json", { autoSave: true });
+      const store = await settingsStore;
       await store.set(STORE_KEY, code);
     } catch {
       // persist is best-effort
@@ -87,6 +87,11 @@ export function I18nProvider({ children }) {
     },
     [language],
   );
+
+  // Screen readers and hyphenation follow the chosen language
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
 
   if (!ready) return null;
 

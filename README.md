@@ -1,16 +1,18 @@
 # Image Optimizer
 
-![Image Optimizer Screenshot](./screenshot.png) 
+![Image Optimizer Screenshot](./screenshot.png)
 
 Image Optimizer is a high-performance desktop application designed to streamline image compression and optimization without compromising visual quality. It offers advanced tools for rapid batch processing of images, including resizing, format conversion, and compression.
 
 ## Features
 
 - **Visual Quality Preservation**: Optimizes file size while maintaining perceptual image quality
-- **Format Conversion**: Seamlessly convert between image formats while maintaining visual quality
-- **Intelligent Resizing**: Multiple resize modes including width, height, longest and shortest side and aspect ratio preservation
-- **Quality Control**: Fine-tune compression levels with format-specific quality settings
-- **Batch Processing**: Process multiple images in parallel for maximum efficiency
+- **Format Conversion**: Convert between JPEG, PNG, WebP and AVIF while maintaining visual quality (SVG files are minified and keep their format)
+- **Intelligent Resizing**: Multiple resize modes including width, height, longest and shortest side; the aspect ratio is always preserved and images are never enlarged
+- **Quality Control**: One quality slider (1-100) that is translated into the right encoder settings for each format
+- **Batch Processing**: Optimizes several images at once across your CPU cores
+- **Non-destructive**: Originals are never touched; results are written to an `optimized` folder next to the source files
+- **Color and Orientation Safe**: Photos taken in portrait are saved upright and wide-gamut colour profiles are converted to sRGB
 - **Cross-Platform**: Available for Windows, macOS and Linux
 
 ## Use Cases
@@ -29,12 +31,37 @@ Image Optimizer is a high-performance desktop application designed to streamline
 - **React**: Component-based UI with hooks for state management
 - **SCSS**: Modular styling system with variables
 - **Rust**: High-performance, memory-safe language for the core application logic
-- **Tokio**: Asynchronous runtime for non-blocking operations
 - **libvips**: High-performance image processing via vendored native Rust bindings
+- **oxvg**: SVG minification (a Rust port of SVGO)
+
+## Development Setup
+
+You need Node.js 24, a recent stable Rust toolchain and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your OS. The app also needs the libvips native library (the Rust bindings target libvips 8.15 or newer).
+
+### libvips
+
+- **Windows**: download `vips-dev-x64-web-8.18.7.zip` from the [libvips build-win64-mxe release](https://github.com/libvips/build-win64-mxe/releases/tag/v8.18.7) and extract it so that `vendor/libvips-native/` contains `bin/`, `lib/` and `include/`. Set `VIPS_DIR` to use another location. Debug builds copy the DLLs next to the executables automatically, so PATH needs no changes.
+- **macOS**: `brew install vips pkg-config`
+- **Linux**: install `libvips-dev` (8.15 or newer) and `pkg-config`, plus the Tauri system packages (`libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf`)
+
+### Run and check
+
+```bash
+npm install
+npm run tauri:dev
+```
+
+```bash
+npm run lint
+```
+
+`npm run lint` runs Biome (format and lint) and Clippy; `npm run lint:fix` also applies Biome's fixes. Run the Rust tests from `src-tauri/` with `cargo test`. Close the dev app first, because it keeps the build files locked on Windows.
 
 ## Documentation
 
-For detailed technical information about the architecture, components, and implementation details, please refer to the [Architecture Documentation](./ARCHITECTURE.md).
+- [Architecture](./ARCHITECTURE.md): components, the batch pipeline, native libraries and the release process
+- [GitHub Actions](./GITHUB_ACTIONS.md): the CI/CD workflow
+- [Changelog](./CHANGELOG.md)
 
 ## Security
 
@@ -44,7 +71,7 @@ For detailed technical information about the architecture, components, and imple
   - **Windows**: You might see a "Windows protected your PC" message. Click "More info" and then "Run anyway" to proceed.
   - **macOS**: You may need to right-click (or Control-click) the app and select "Open" from the context menu, then click "Open" in the dialog that appears.
 
-- **No Network Requirements**: Image Optimizer processes all images locally without sending any data to external servers.
+- **Local Processing**: Image Optimizer processes all images locally and never uploads them. The only network access is the update check, which contacts GitHub Releases on startup and can be turned off in the settings panel.
 
 ## Roadmap
 
@@ -59,6 +86,3 @@ For detailed technical information about the architecture, components, and imple
 - [ ] Design product logo & icons
 - [ ] Implement code signing for Windows and macOS builds
 - [x] Add multi-language support
-
-## License
-This project is licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). Please review the license terms before using or distributing this software.

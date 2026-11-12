@@ -1,6 +1,7 @@
 // src/assets/styles/components/_SettingsPanel.scss
 // SettingsPanel Component
-@use '../base/variables' as v;
+@use "../base/select" as s;
+@use "../base/variables" as v;
 
 .settings-panel {
   $panel-width: 300px;
@@ -45,11 +46,6 @@
     justify-content: space-between;
     align-items: center;
     text-transform: uppercase;
-  }
-  
-  &__title {
-    font-size: 10px;
-    letter-spacing: 0.05em;
   }
 
   &__close-btn {
@@ -129,7 +125,9 @@
     border-radius: 50px;
     cursor: pointer;
     padding: 3px;
-    transition: background-color 0.25s ease, border-color 0.25s ease;
+    transition:
+      background-color 0.25s ease,
+      border-color 0.25s ease;
     flex-shrink: 0;
     display: flex;
     align-items: center;
@@ -188,6 +186,8 @@
       background: v.$onyx;
       color: v.$light;
     }
+
+    @include s.picker;
   }
 
   &__check-btn {

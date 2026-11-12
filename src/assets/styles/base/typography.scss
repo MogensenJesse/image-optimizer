@@ -1,16 +1,16 @@
-@use '../base/variables.scss' as v;
+@use "../base/variables.scss" as v;
 
 @font-face {
-  font-family: 'Switzer';
-  src: url('/fonts/Switzer-Bold.woff2') format('woff2');
+  font-family: "Switzer";
+  src: url("/fonts/Switzer-Bold.woff2") format("woff2");
   font-weight: bold;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Switzer';
-  src: url('/fonts/Switzer-Medium.woff2') format('woff2');
+  font-family: "Switzer";
+  src: url("/fonts/Switzer-Medium.woff2") format("woff2");
   font-weight: 500;
   font-style: normal;
   font-display: swap;
@@ -18,12 +18,19 @@
 
 // Typography styles
 body {
-  font-family: "Switzer", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    "Switzer",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
   font-size: 16px;
   line-height: 1.5;
 }
 
-h1, select, input {
+h1,
+select,
+input {
   font-size: 11px;
   font-weight: 500;
   color: v.$light;

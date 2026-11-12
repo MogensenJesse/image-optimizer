@@ -53,7 +53,8 @@ select {
   html:focus-within {
     scroll-behavior: auto;
   }
-  
+
+  /* biome-ignore-start lint/complexity/noImportantStyles: must beat the duration of every component rule */
   *,
   *::before,
   *::after {
@@ -62,31 +63,108 @@ select {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  /* biome-ignore-end lint/complexity/noImportantStyles: see the matching start */
 }
 
 /* Traditional reset rules */
-html, body, div, span, applet, object, iframe,
-h1, h2, h3, h4, h5, h6, p, blockquote, pre,
-a, abbr, acronym, address, big, cite, code,
-del, dfn, em, img, ins, kbd, q, s, samp,
-small, strike, strong, sub, sup, tt, var,
-b, u, i, center,
-dl, dt, dd, ol, ul, li,
-fieldset, form, label, legend,
-table, caption, tbody, tfoot, thead, tr, th, td,
-article, aside, canvas, details, embed, 
-figure, figcaption, footer, header, hgroup, 
-menu, nav, output, ruby, section, summary,
-time, mark, audio, video {
+html,
+body,
+div,
+span,
+applet,
+object,
+iframe,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+blockquote,
+pre,
+a,
+abbr,
+acronym,
+address,
+big,
+cite,
+code,
+del,
+dfn,
+em,
+img,
+ins,
+kbd,
+q,
+s,
+samp,
+small,
+strike,
+strong,
+sub,
+sup,
+tt,
+var,
+b,
+u,
+i,
+center,
+dl,
+dt,
+dd,
+ol,
+ul,
+li,
+fieldset,
+form,
+label,
+legend,
+table,
+caption,
+tbody,
+tfoot,
+thead,
+tr,
+th,
+td,
+article,
+aside,
+canvas,
+details,
+embed,
+figure,
+figcaption,
+footer,
+header,
+hgroup,
+menu,
+nav,
+output,
+ruby,
+section,
+summary,
+time,
+mark,
+audio,
+video {
   border: 0;
-  font-size: 100%;
   font: inherit;
   vertical-align: baseline;
 }
 
 /* HTML5 display-role reset */
-article, aside, details, figcaption, figure, 
-footer, header, hgroup, menu, nav, section {
+article,
+aside,
+details,
+figcaption,
+figure,
+footer,
+header,
+hgroup,
+menu,
+nav,
+section {
   display: block;
 }
 
@@ -97,12 +175,12 @@ table {
 }
 
 /* Quote reset */
-blockquote, q {
+blockquote,
+q {
   quotes: none;
-  
+
   &:before,
   &:after {
-    content: '';
     content: none;
   }
 }
