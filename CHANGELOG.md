@@ -21,10 +21,13 @@
 - Fixed toast messages never leaving the screen
 - Fixed "1 images optimized" for a single image
 - Fixed an unexpected crash while processing one file taking down the whole app
+- Fixed saving and resizing images with the older libvips that Linux builds can run on (8.12 and up), which failed on options that libvips only knows from 8.13 to 8.15
 
 ### Under the hood
 
 - One `optimize_images` call per batch with typed progress events, replacing hundreds of small calls from the UI
+- Release builds use the newest runner images and libvips 8.18 on every platform. The Linux packages are now built on Ubuntu 26.04 and need a distribution of about that age
+- macOS now has one download for Apple Silicon and one for Intel instead of a universal binary, because Homebrew no longer provides Intel builds of libvips
 - Removed unused commands, plugins and settings, and flattened the Rust modules
 - Linting and tests now run in CI, and the Windows dev build copies the libvips DLLs itself
 

@@ -2,9 +2,12 @@
 use crate::bindings;
 use crate::bindings::{VipsArrayDouble, VipsArrayImage, VipsArrayInt};
 use crate::error::Error;
+use crate::ops::ForeignKeep;
 use crate::Result;
 use crate::VipsImage;
+use std::ffi::c_char;
 use std::ffi::c_void;
+use std::ffi::CStr;
 use std::ffi::CString;
 
 pub(crate) struct VipsArrayIntWrapper {
@@ -82,6 +85,51 @@ pub fn result<T>(res: i32, output: T, error: Error) -> Result<T> {
 #[inline]
 pub(crate) fn new_c_string(string: &str) -> Result<CString> {
     CString::new(string).map_err(|_| Error::InitializationError("Error initializing C string."))
+}
+
+/// True when the linked libvips is at least `major.minor`.
+pub(crate) fn libvips_at_least(major: i32, minor: i32) -> bool {
+    let linked = unsafe { (bindings::vips_version(0), bindings::vips_version(1)) };
+    linked >= (major, minor)
+}
+
+/// Name of an optional libvips argument, for the C name/value varargs.
+///
+/// `as_ptr` is NULL when the argument is not `used` (the linked libvips lacks
+/// it, or its value is unset). A NULL name ends libvips' list, so everything
+/// after it is ignored: put such arguments last, oldest first, so skipping one
+/// only ever skips arguments that are newer still.
+pub(crate) struct OptName {
+    name: CString,
+    used: bool,
+}
+
+impl OptName {
+    pub(crate) fn new(name: &str, used: bool) -> Result<Self> {
+        Ok(OptName {
+            name: new_c_string(name)?,
+            used,
+        })
+    }
+
+    pub(crate) fn as_ptr(&self) -> *const c_char {
+        if self.used {
+            self.name.as_ptr()
+        } else {
+            std::ptr::null()
+        }
+    }
+}
+
+/// The metadata argument of a saver: `keep` (libvips 8.15 and later) or its
+/// predecessor `strip`. Both take an int; older libvips can only drop all
+/// metadata or keep all of it.
+pub(crate) fn keep_option(keep: ForeignKeep) -> (&'static CStr, i32) {
+    if libvips_at_least(8, 15) {
+        (c"keep", keep as i32)
+    } else {
+        (c"strip", matches!(keep, ForeignKeep::None) as i32)
+    }
 }
 
 #[inline]

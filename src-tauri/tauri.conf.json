@@ -38,7 +38,7 @@
     },
     "linux": {
       "deb": {
-        "depends": ["libvips42"]
+        "depends": ["libvips42t64 | libvips42"]
       }
     },
     "windows": {

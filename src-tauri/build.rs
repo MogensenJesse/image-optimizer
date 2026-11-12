@@ -88,22 +88,9 @@ fn link_libvips() {
             }
         } else {
             // Fallback when pkg-config is unavailable or vips.pc is not found.
-            //
-            // For x86_64-apple-darwin cross-compilation on Apple Silicon CI
-            // runners, VIPS_DIR points to the ARM64 Homebrew prefix
-            // (/opt/homebrew/opt/vips) because that is what `brew --prefix vips`
-            // returns on the host machine.  Using that prefix for the x86_64
-            // linker is wrong in two ways:
-            //   1. The libraries are the wrong architecture.
-            //   2. libgobject-2.0 lives in the glib formula dir, not the vips
-            //      formula dir, so a single -L<vips>/lib is never sufficient.
-            // Use the x86_64 Homebrew prefix (/usr/local) explicitly in that
-            // case, adding both the vips and glib lib directories.
-            let target = std::env::var("TARGET").unwrap_or_default();
-            if target == "x86_64-apple-darwin" {
-                println!("cargo:rustc-link-arg=-L/usr/local/opt/vips/lib");
-                println!("cargo:rustc-link-arg=-L/usr/local/opt/glib/lib");
-            } else if lib_dir.exists() {
+            // VIPS_DIR is the Homebrew prefix of vips; libgobject lives in the
+            // glib formula dir, so -L<vips>/lib alone does not always find it.
+            if lib_dir.exists() {
                 println!("cargo:rustc-link-arg=-L{}", lib_dir.display());
             }
             println!("cargo:rustc-link-arg=-lvips");

@@ -17941,8 +17941,7 @@ pub fn pngsave_with_opts(
         let effort_in: i32 = pngsave_options.effort;
         let effort_in_name = utils::new_c_string("effort")?;
 
-        let keep_in: i32 = pngsave_options.keep as i32;
-        let keep_in_name = utils::new_c_string("keep")?;
+        let (keep_in_name, keep_in) = utils::keep_option(pngsave_options.keep);
 
         let background_wrapper =
             utils::VipsArrayDoubleWrapper::from(&pngsave_options.background[..]);
@@ -17952,8 +17951,10 @@ pub fn pngsave_with_opts(
         let page_height_in: i32 = pngsave_options.page_height;
         let page_height_in_name = utils::new_c_string("page-height")?;
 
+        // Last in the call and left out when empty: libvips would load "" as a file
         let profile_in: CString = utils::new_c_string(&pngsave_options.profile)?;
-        let profile_in_name = utils::new_c_string("profile")?;
+        let profile_in_name =
+            utils::OptName::new("profile", !pngsave_options.profile.is_empty())?;
 
         let vips_op_response = bindings::vips_pngsave(
             inp_in,
@@ -18479,8 +18480,7 @@ pub fn jpegsave_with_opts(
         let restart_interval_in: i32 = jpegsave_options.restart_interval;
         let restart_interval_in_name = utils::new_c_string("restart-interval")?;
 
-        let keep_in: i32 = jpegsave_options.keep as i32;
-        let keep_in_name = utils::new_c_string("keep")?;
+        let (keep_in_name, keep_in) = utils::keep_option(jpegsave_options.keep);
 
         let background_wrapper =
             utils::VipsArrayDoubleWrapper::from(&jpegsave_options.background[..]);
@@ -18490,8 +18490,10 @@ pub fn jpegsave_with_opts(
         let page_height_in: i32 = jpegsave_options.page_height;
         let page_height_in_name = utils::new_c_string("page-height")?;
 
+        // Last in the call and left out when empty: libvips would load "" as a file
         let profile_in: CString = utils::new_c_string(&jpegsave_options.profile)?;
-        let profile_in_name = utils::new_c_string("profile")?;
+        let profile_in_name =
+            utils::OptName::new("profile", !jpegsave_options.profile.is_empty())?;
 
         let vips_op_response = bindings::vips_jpegsave(
             inp_in,
@@ -19260,11 +19262,12 @@ pub fn webpsave_with_opts(
         let effort_in: i32 = webpsave_options.effort;
         let effort_in_name = utils::new_c_string("effort")?;
 
+        // `mixed` is new in libvips 8.13; the options after it in the call are
+        // dropped together with it on older versions
         let mixed_in: i32 = if webpsave_options.mixed { 1 } else { 0 };
-        let mixed_in_name = utils::new_c_string("mixed")?;
+        let mixed_in_name = utils::OptName::new("mixed", utils::libvips_at_least(8, 13))?;
 
-        let keep_in: i32 = webpsave_options.keep as i32;
-        let keep_in_name = utils::new_c_string("keep")?;
+        let (keep_in_name, keep_in) = utils::keep_option(webpsave_options.keep);
 
         let background_wrapper =
             utils::VipsArrayDoubleWrapper::from(&webpsave_options.background[..]);
@@ -19274,8 +19277,10 @@ pub fn webpsave_with_opts(
         let page_height_in: i32 = webpsave_options.page_height;
         let page_height_in_name = utils::new_c_string("page-height")?;
 
+        // Left out when empty: libvips would load "" as a file
         let profile_in: CString = utils::new_c_string(&webpsave_options.profile)?;
-        let profile_in_name = utils::new_c_string("profile")?;
+        let profile_in_name =
+            utils::OptName::new("profile", !webpsave_options.profile.is_empty())?;
 
         let vips_op_response = bindings::vips_webpsave(
             inp_in,
@@ -19300,14 +19305,14 @@ pub fn webpsave_with_opts(
             kmax_in,
             effort_in_name.as_ptr(),
             effort_in,
-            mixed_in_name.as_ptr(),
-            mixed_in,
             keep_in_name.as_ptr(),
             keep_in,
             background_in_name.as_ptr(),
             background_in,
             page_height_in_name.as_ptr(),
             page_height_in,
+            mixed_in_name.as_ptr(),
+            mixed_in,
             profile_in_name.as_ptr(),
             profile_in.as_ptr(),
             NULL,
@@ -21080,8 +21085,11 @@ pub fn heifsave_with_opts(
         let q_in: i32 = heifsave_options.q;
         let q_in_name = utils::new_c_string("Q")?;
 
+        // `encoder` (8.14), `bitdepth` and `profile` (checked from 8.15 on) are
+        // missing in older libvips. They go last, oldest first, so an older
+        // libvips drops them and everything newer.
         let bitdepth_in: i32 = heifsave_options.bitdepth;
-        let bitdepth_in_name = utils::new_c_string("bitdepth")?;
+        let bitdepth_in_name = utils::OptName::new("bitdepth", utils::libvips_at_least(8, 15))?;
 
         let lossless_in: i32 = if heifsave_options.lossless { 1 } else { 0 };
         let lossless_in_name = utils::new_c_string("lossless")?;
@@ -21096,10 +21104,9 @@ pub fn heifsave_with_opts(
         let subsample_mode_in_name = utils::new_c_string("subsample-mode")?;
 
         let encoder_in: i32 = heifsave_options.encoder as i32;
-        let encoder_in_name = utils::new_c_string("encoder")?;
+        let encoder_in_name = utils::OptName::new("encoder", utils::libvips_at_least(8, 14))?;
 
-        let keep_in: i32 = heifsave_options.keep as i32;
-        let keep_in_name = utils::new_c_string("keep")?;
+        let (keep_in_name, keep_in) = utils::keep_option(heifsave_options.keep);
 
         let background_wrapper =
             utils::VipsArrayDoubleWrapper::from(&heifsave_options.background[..]);
@@ -21109,16 +21116,18 @@ pub fn heifsave_with_opts(
         let page_height_in: i32 = heifsave_options.page_height;
         let page_height_in_name = utils::new_c_string("page-height")?;
 
+        // Also left out when empty: libvips would load "" as a file
         let profile_in: CString = utils::new_c_string(&heifsave_options.profile)?;
-        let profile_in_name = utils::new_c_string("profile")?;
+        let profile_in_name = utils::OptName::new(
+            "profile",
+            utils::libvips_at_least(8, 15) && !heifsave_options.profile.is_empty(),
+        )?;
 
         let vips_op_response = bindings::vips_heifsave(
             inp_in,
             filename_in.as_ptr(),
             q_in_name.as_ptr(),
             q_in,
-            bitdepth_in_name.as_ptr(),
-            bitdepth_in,
             lossless_in_name.as_ptr(),
             lossless_in,
             compression_in_name.as_ptr(),
@@ -21127,14 +21136,16 @@ pub fn heifsave_with_opts(
             effort_in,
             subsample_mode_in_name.as_ptr(),
             subsample_mode_in,
-            encoder_in_name.as_ptr(),
-            encoder_in,
             keep_in_name.as_ptr(),
             keep_in,
             background_in_name.as_ptr(),
             background_in,
             page_height_in_name.as_ptr(),
             page_height_in,
+            encoder_in_name.as_ptr(),
+            encoder_in,
+            bitdepth_in_name.as_ptr(),
+            bitdepth_in,
             profile_in_name.as_ptr(),
             profile_in.as_ptr(),
             NULL,
@@ -22333,8 +22344,10 @@ pub fn thumbnail_with_opts(
         let intent_in: i32 = thumbnail_options.intent as i32;
         let intent_in_name = utils::new_c_string("intent")?;
 
+        // `fail-on` is new in libvips 8.13; it is last in every call below, so
+        // older versions simply stop before it
         let fail_on_in: i32 = thumbnail_options.fail_on as i32;
-        let fail_on_in_name = utils::new_c_string("fail-on")?;
+        let fail_on_in_name = utils::OptName::new("fail-on", utils::libvips_at_least(8, 13))?;
 
         let has_import = !thumbnail_options.import_profile.is_empty();
         let has_export = !thumbnail_options.export_profile.is_empty();

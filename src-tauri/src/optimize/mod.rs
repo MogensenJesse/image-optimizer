@@ -376,6 +376,35 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
+    /// CI runs this against libvips 8.12 up to the newest: the save and thumbnail
+    /// wrappers must leave out the options an older libvips does not know.
+    #[test]
+    fn every_format_saves_with_and_without_resize() {
+        init_vips();
+        let dir = unique_dir("formats");
+        let input = dir.join("in.jpg");
+        ops::jpegsave(&ops::black(64, 48).unwrap(), input.to_str().unwrap()).unwrap();
+
+        for ext in ["jpg", "png", "webp", "avif"] {
+            for resize in [
+                Resize { mode: ResizeMode::None, size: None },
+                Resize { mode: ResizeMode::Longest, size: Some(16) },
+            ] {
+                let output = dir.join(format!("out-{}.{ext}", resize.is_active()));
+                let settings = ImageSettings { resize, ..settings() };
+                raster::optimize(input.to_str().unwrap(), output.to_str().unwrap(), &settings)
+                    .unwrap_or_else(|e| panic!("{ext} (resize {}): {e}", settings.resize.is_active()));
+
+                let out = VipsImage::new_from_file(output.to_str().unwrap()).unwrap();
+                if settings.resize.is_active() {
+                    assert_eq!((out.get_width(), out.get_height()), (16, 12), "{ext}");
+                }
+            }
+        }
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     #[test]
     fn batch_reports_each_failure_and_finishes_the_rest() {
         init_vips();

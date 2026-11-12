@@ -42,7 +42,7 @@ You need Node.js 24, a recent stable Rust toolchain and the [Tauri prerequisites
 
 - **Windows**: download `vips-dev-x64-web-8.18.7.zip` from the [libvips build-win64-mxe release](https://github.com/libvips/build-win64-mxe/releases/tag/v8.18.7) and extract it so that `vendor/libvips-native/` contains `bin/`, `lib/` and `include/`. Set `VIPS_DIR` to use another location. Debug builds copy the DLLs next to the executables automatically, so PATH needs no changes.
 - **macOS**: `brew install vips pkg-config`
-- **Linux**: install `libvips-dev` (8.15 or newer) and `pkg-config`, plus the Tauri system packages (`libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf`)
+- **Linux**: install `libvips-dev` (8.15 or newer) and `pkg-config`, plus the Tauri system packages (`libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, `patchelf`)
 
 ### Run and check
 

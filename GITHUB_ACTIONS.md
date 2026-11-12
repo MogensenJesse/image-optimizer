@@ -20,23 +20,24 @@ Push the branch, then start the workflow on it from the Actions tab (Run workflo
 
 ### `lint` (matrix)
 
-Runs on `ubuntu-24.04`, `ubuntu-22.04` and `macos-latest`. Each leg builds the frontend (the Tauri macro needs `dist/` at compile time), then runs `cargo clippy --all-targets -- -D warnings` and `cargo test`. The tests call libvips, so every leg also checks how the code behaves with the libvips of that platform. Biome (`npx biome check .`) runs once, on the 24.04 leg.
+Runs on `ubuntu-26.04`, `ubuntu-22.04` and `macos-latest`. Each leg builds the frontend (the Tauri macro needs `dist/` at compile time), then runs `cargo clippy --all-targets -- -D warnings` and `cargo test`. The tests call libvips, so every leg also checks how the code behaves with the libvips of that platform. Biome (`npx biome check .`) runs once, on the 26.04 leg.
 
-| Leg            | libvips                   | Purpose                                                                                                   |
-| -------------- | ------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `ubuntu-24.04` | 8.15 (apt)                | The version the Rust bindings target                                                                      |
-| `ubuntu-22.04` | 8.12 (apt)                | What the Linux release build bundles. Marked `experimental` because its save options are expected to fail |
-| `macos-latest` | current Homebrew (`vips`) | Linking through `pkg-config` and the encoders on macOS                                                    |
+| Leg            | libvips                   | Purpose                                                                                                                |
+| -------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `ubuntu-26.04` | 8.18 (apt)                | What the Linux release build is made with                                                                              |
+| `ubuntu-22.04` | 8.12 (apt)                | Oldest libvips we still try to support. Checks that the savers leave out options an old libvips lacks (`experimental`) |
+| `macos-latest` | current Homebrew (`vips`) | Linking through `pkg-config` and the encoders on macOS                                                                 |
 
-The job is independent of the build job, so a failure does not block a release. Once the Linux libvips question is settled, remove `experimental` from the 22.04 leg (or move the release build to 24.04 and drop the leg).
+The job is independent of the build job, so a failure does not block a release. Remove `experimental` from the 22.04 leg once it has been seen green.
 
 ### `build-tauri` (matrix)
 
-| Platform         | Output              | Notes                                                                                        |
-| ---------------- | ------------------- | -------------------------------------------------------------------------------------------- |
-| `windows-latest` | NSIS installer      | x64                                                                                          |
-| `macos-latest`   | `.dmg` and `.app`   | universal binary (`aarch64` + `x86_64`)                                                      |
-| `ubuntu-22.04`   | AppImage and `.deb` | Ubuntu 22.04 (glibc 2.35) keeps the build usable on Debian 12+, Ubuntu 22.04+ and Fedora 36+ |
+| Platform         | Output              | Notes                                                                                                    |
+| ---------------- | ------------------- | -------------------------------------------------------------------------------------------------------- |
+| `windows-latest` | NSIS installer      | x64                                                                                                      |
+| `macos-latest`   | `.dmg` and `.app`   | Apple Silicon (`aarch64`), libvips from a Homebrew bottle                                                |
+| `macos-15-intel` | `.dmg` and `.app`   | Intel (`x86_64`); Homebrew has no Intel bottles, so libvips is compiled (see below)                      |
+| `ubuntu-26.04`   | AppImage and `.deb` | Newest Ubuntu, so libvips 8.18. The glibc requirement is high: only about as new as Ubuntu 26.04 runs it |
 
 Common steps, in order: checkout, Node.js 24 (npm cache), `npm ci`, Rust toolchain, Rust cache, then the platform steps below, the changelog step and `tauri-action`.
 
@@ -49,15 +50,17 @@ Common steps, in order: checkout, Node.js 24 (npm cache), `npm ci`, Rust toolcha
 
 #### macOS
 
-1. Give the runner user ownership of `/usr/local` and restore the cached x86_64 Homebrew
-2. Install libvips for both architectures in parallel (ARM64 in the background) and fail if the x86_64 prefix is missing
-3. `scripts/collect-universal-dylibs.sh` merges the two sets into universal dylibs, and a `--config` override lists them as bundle frameworks
+Apple Silicon and Intel are built on separate native runners, so the release has one `.dmg` per architecture (the updater picks the right one). There is no universal binary: it would need an Intel libvips on the Apple Silicon runner.
+
+1. Intel only: give the runner user ownership of `/usr/local` and restore the cached Homebrew kegs
+2. `brew install vips pkgconf`. On Apple Silicon this installs a bottle in about two minutes. Homebrew has no Intel bottles, so on Intel it compiles libvips and all its dependencies, which takes well over an hour; the kegs of libvips and its dependencies are then packed into `~/homebrew-kegs.tar.gz` and saved to the cache straight away, so a later failure does not lose them
+3. `scripts/collect-macos-dylibs.sh` copies libvips and its dependency dylibs into `src-tauri/native-libs`, and a `--config` override lists them as bundle frameworks
 4. Rewrite the install names to `@rpath/...` so dyld finds the bundled copies
 5. After the build, mount the `.dmg` and verify that no absolute Homebrew paths remain and that every `@rpath` reference resolves inside `Frameworks/`
 
 #### Linux
 
-Installs `libvips-dev`, `pkg-config`, `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev` and `patchelf`. After the build the AppImage is unpacked to check that libvips is inside it (a warning, not a failure).
+Installs `libvips-dev`, `pkg-config`, `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev` and `patchelf`. The build step sets `NO_STRIP=true`, because linuxdeploy's `strip` cannot read the libraries of a current distribution. After the build the AppImage is unpacked to check that libvips is inside it (a warning, not a failure).
 
 #### Launch smoke test (Linux and macOS)
 
@@ -71,12 +74,12 @@ A tag containing a hyphen (for example `v0.7.0-beta.1`) is published as a prerel
 
 ## Caching
 
-| Cache                   | Key                                                                                                                                                                               |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| npm                     | `package-lock.json` (built into `setup-node`)                                                                                                                                     |
-| Rust `target/`          | `Swatinem/rust-cache`, shared key per platform (`rust-universal-apple-darwin`, `rust-x86_64-pc-windows-msvc`, `rust-x86_64-unknown-linux-gnu`; the lint job has one per platform) |
-| libvips (Windows)       | `libvips-win64-8.18.7`, falls back to any `libvips-win64-*`                                                                                                                       |
-| x86_64 Homebrew (macOS) | `macos-x86-homebrew-vips-v1`; bump to `v2` when vips or a major dependency needs a fresh install                                                                                  |
+| Cache                 | Key                                                                                                                                                                                                         |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| npm                   | `package-lock.json` (built into `setup-node`)                                                                                                                                                               |
+| Rust `target/`        | `Swatinem/rust-cache`, shared key per platform (`rust-aarch64-apple-darwin`, `rust-x86_64-apple-darwin`, `rust-x86_64-pc-windows-msvc`, `rust-x86_64-unknown-linux-gnu`; the lint job has one per platform) |
+| libvips (Windows)     | `libvips-win64-8.18.7`, falls back to any `libvips-win64-*`                                                                                                                                                 |
+| Homebrew kegs (Intel) | `macos-intel-homebrew-vips-v1`; bump to `v2` when vips or a major dependency needs a fresh install                                                                                                          |
 
 ## Secrets
 

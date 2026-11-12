@@ -34,11 +34,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # libvips 8.15, the version the Rust bindings target
-          - platform: "ubuntu-24.04"
-          # The libvips 8.12 the release build bundles. Its save options are
-          # expected to fail, so this leg may not fail the run until the Linux
-          # libvips question is settled; then drop `experimental`.
+          # Newest Ubuntu: libvips 8.18, what the release build is made with
+          - platform: "ubuntu-26.04"
+          # Oldest libvips we still try to support (8.12). Guards the version
+          # checks in the vendored savers; not a release platform. It may not
+          # fail the run until it has been seen green once; then drop
+          # `experimental`.
           - platform: "ubuntu-22.04"
             experimental: true
           - platform: "macos-latest"
@@ -61,7 +62,7 @@ jobs:
 
       # Platform independent, so one leg is enough
       - name: Biome (format + lint)
-        if: matrix.platform == 'ubuntu-24.04'
+        if: matrix.platform == 'ubuntu-26.04'
         run: npx biome check .
 
       # tauri::generate_context!() needs the built frontend at compile time.
@@ -73,7 +74,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libvips-dev pkg-config \
-            libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev \
+            libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
             librsvg2-dev
 
       - name: Install libvips (macOS)
@@ -106,16 +107,23 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Apple Silicon and Intel are built one per native runner, so each
+          # gets its own libvips. A universal binary would need an Intel libvips
+          # on the Apple Silicon runner, and Homebrew only ships Apple Silicon
+          # bottles of it.
           - platform: "macos-latest"
-            args: "--target universal-apple-darwin"
-            rust_target: "aarch64-apple-darwin,x86_64-apple-darwin"
-            cache_key: "rust-universal-apple-darwin"
+            args: ""
+            cache_key: "rust-aarch64-apple-darwin"
+          - platform: "macos-15-intel"
+            args: ""
+            cache_key: "rust-x86_64-apple-darwin"
           - platform: "windows-latest"
             args: ""
             cache_key: "rust-x86_64-pc-windows-msvc"
-          # Use Ubuntu 22.04 for broader Linux compatibility (glibc 2.35)
-          # This supports Debian 12+, Ubuntu 22.04+, Fedora 36+, etc.
-          - platform: "ubuntu-22.04"
+          # Newest Ubuntu, so the package gets the newest libvips (8.18). The
+          # price is a high glibc requirement: the AppImage and .deb only run
+          # on distributions about as new as Ubuntu 26.04.
+          - platform: "ubuntu-26.04"
             args: ""
             cache_key: "rust-x86_64-unknown-linux-gnu"
 
@@ -152,7 +160,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libvips-dev pkg-config \
-            libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev \
+            libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
             librsvg2-dev patchelf
 
       - name: Cache libvips (Windows)
@@ -195,104 +203,86 @@ jobs:
           Set-Content -Path platform-config.json -Value $json
           echo "config_args=--config platform-config.json" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
 
-      # Newer macOS runner images don't have /usr/local writable by the
-      # runner user.  The cache action extracts with gtar (no sudo), and
-      # `brew link` creates symlinks in opt/, lib/, include/, bin/, share/.
-      # Pre-create all of these and hand them to the runner.
-      - name: Prepare /usr/local for x86_64 Homebrew cache (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          sudo chown -R "$(whoami)" /usr/local
+      # The cache action extracts with gtar (no sudo) and `brew link` writes
+      # into several directories of /usr/local, so hand it to the runner user.
+      - name: Prepare /usr/local (macOS Intel)
+        if: runner.os == 'macOS' && runner.arch == 'X64'
+        run: sudo chown -R "$(whoami)" /usr/local
 
-      # Cache the x86_64 Homebrew installation (Homebrew repo + Cellar) so we don't
-      # re-run the install script and 'brew install vips' (+ ~40 transitive deps) on
-      # every run.  The cache key is pinned to "vips-v1"; bump to "vips-v2" when vips
-      # or a major dep updates and a fresh install is needed.  `restore-keys`
-      # lets a future bump (e.g. vips-v2) still fall back to an older entry
-      # while the new cache populates, rather than going fully cold.
-      # This step is placed BEFORE the install step so the cache-hit output is
-      # available to the combined install script below.
-      - name: Cache x86_64 Homebrew (macOS)
-        if: runner.os == 'macOS'
-        id: cache-x86-brew
-        uses: actions/cache@v5
+      # Homebrew has no Intel bottles of libvips, so on the Intel runner
+      # `brew install vips` compiles libvips and every dependency from source:
+      # well over an hour. The result is packed into one archive (just the
+      # kegs of libvips and its dependencies, not the runner's own formulae)
+      # and cached right after the install, so only a cache miss pays for it.
+      # Bump the key when libvips or a major dependency needs a fresh install.
+      - name: Restore Homebrew kegs (macOS Intel)
+        if: runner.os == 'macOS' && runner.arch == 'X64'
+        id: cache-brew
+        uses: actions/cache/restore@v5
         with:
-          path: |
-            /usr/local/Homebrew
-            /usr/local/Cellar
-          key: macos-x86-homebrew-vips-v1
-          restore-keys: |
-            macos-x86-homebrew-vips-
+          path: ~/homebrew-kegs.tar.gz
+          key: macos-intel-homebrew-vips-v1
 
-      # Install vips for both architectures in parallel.  ARM64 install (~2m
-      # fresh, seconds when cached at the runner level) runs in the background
-      # while the x86_64 path runs in the foreground.  Overlapping these two
-      # saves ~2 minutes per cold build.  We `wait` on the ARM64 PID at the
-      # end so its exit code still fails the job.
-      - name: Install libvips for both arches in parallel (macOS)
+      # Apple Silicon installs a bottle in about two minutes.
+      - name: Install libvips (macOS)
         if: runner.os == 'macOS'
         env:
           HOMEBREW_NO_AUTO_UPDATE: "1"
           HOMEBREW_NO_INSTALL_CLEANUP: "1"
         run: |
-          brew install vips > arm64-brew.log 2>&1 &
-          ARM64_PID=$!
+          PREFIX="$(brew --prefix)"
 
-          if [ "${{ steps.cache-x86-brew.outputs.cache-hit }}" = "true" ]; then
-            # Recreate /usr/local/bin/brew symlink and re-link all formulae so
-            # opt/, lib/, include/ symlinks are restored from the cached Cellar.
-            ln -sf /usr/local/Homebrew/bin/brew /usr/local/bin/brew
-            FORMULAE=$(arch -x86_64 /usr/local/bin/brew list --formula)
-            COUNT=$(echo "$FORMULAE" | wc -w | tr -d ' ')
-            echo "Cached formulae: $COUNT — filtering out keg-only…"
-            # Single batch json call to identify keg-only formulae, then
-            # only link the ones Homebrew is willing to link.  This avoids
-            # noisy "Refusing to link macOS provided/shadowed software"
-            # warnings for sqlite, readline, libxml2, etc.
-            LINKABLE=$(arch -x86_64 /usr/local/bin/brew info --json=v2 $FORMULAE \
+          if [ "${{ steps.cache-brew.outputs.cache-hit }}" = "true" ]; then
+            tar -C "$PREFIX" -xzf "$HOME/homebrew-kegs.tar.gz"
+            # Restored kegs are installed but not linked. Keg-only formulae
+            # must not be linked (Homebrew refuses), so filter them out.
+            FORMULAE=$(cat "$PREFIX/kegs.txt")
+            LINKABLE=$(brew info --json=v2 $FORMULAE \
               | python3 -c 'import json,sys;[print(f["name"]) for f in json.load(sys.stdin).get("formulae",[]) if not f.get("keg_only")]')
-            LINK_COUNT=$(echo "$LINKABLE" | grep -c . || true)
-            echo "Re-linking $LINK_COUNT linkable formulae…"
+            echo "Re-linking $(echo "$LINKABLE" | grep -c . || true) restored formulae"
             if [ -n "$LINKABLE" ]; then
-              arch -x86_64 /usr/local/bin/brew link --overwrite $LINKABLE
+              brew link --overwrite $LINKABLE
             fi
-          else
-            arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-            arch -x86_64 /usr/local/bin/brew install vips
           fi
 
-          # Hard-fail if the x86_64 vips prefix is missing — without this the
-          # collect-universal-dylibs.sh script silently emits ::warning:: and
-          # produces an ARM64-only DMG that breaks on Intel Macs.
-          # Assert before waiting on ARM64 so failure messages stay
-          # attributable to the right arch.
-          X86_VIPS_PREFIX=$(arch -x86_64 /usr/local/bin/brew --prefix vips 2>/dev/null || true)
-          if [ -z "$X86_VIPS_PREFIX" ] || [ ! -d "$X86_VIPS_PREFIX/lib" ]; then
-            echo "::error::x86_64 Homebrew vips not available at expected prefix. Cache may be corrupt — bump the cache key (currently 'macos-x86-homebrew-vips-v1')."
+          brew install vips pkgconf
+
+          # Fail here, not later in the build, if libvips is not usable
+          VIPS_PREFIX=$(brew --prefix vips 2>/dev/null || true)
+          if [ -z "$VIPS_PREFIX" ] || [ ! -d "$VIPS_PREFIX/lib" ]; then
+            echo "::error::Homebrew vips not available. If the cache is corrupt, bump the cache key (currently 'macos-intel-homebrew-vips-v1')."
             exit 1
           fi
-          echo "x86_64 vips verified at $X86_VIPS_PREFIX"
+          echo "VIPS_DIR=$VIPS_PREFIX" >> "$GITHUB_ENV"
 
-          # Wait for the backgrounded ARM64 install and surface its exit code.
-          if ! wait "$ARM64_PID"; then
-            echo "::error::ARM64 'brew install vips' failed — see log below"
-            cat arm64-brew.log || true
-            exit 1
+          if [ "$RUNNER_ARCH" = "X64" ] && [ "${{ steps.cache-brew.outputs.cache-hit }}" != "true" ]; then
+            # Pack libvips and its runtime dependencies for the cache
+            FORMULAE="vips pkgconf $(brew deps --formula --union vips pkgconf)"
+            echo $FORMULAE | tr ' ' '\n' | sort -u > "$PREFIX/kegs.txt"
+            ENTRIES="kegs.txt"
+            for f in $(cat "$PREFIX/kegs.txt"); do
+              [ -e "$PREFIX/Cellar/$f" ] && ENTRIES="$ENTRIES Cellar/$f"
+              [ -L "$PREFIX/opt/$f" ] && ENTRIES="$ENTRIES opt/$f"
+            done
+            tar -C "$PREFIX" -czf "$HOME/homebrew-kegs.tar.gz" $ENTRIES
+            ls -lh "$HOME/homebrew-kegs.tar.gz"
           fi
-          # Only print the ARM64 log on success if it contains warnings, to
-          # avoid drowning out the x86_64 output above on normal runs.
-          if grep -qiE 'warning|error' arm64-brew.log 2>/dev/null; then
-            echo "--- ARM64 brew install log ---"
-            cat arm64-brew.log
-          fi
-          echo "VIPS_DIR=$(brew --prefix vips)" >> $GITHUB_ENV
 
-      - name: Stage universal dylibs (macOS)
+      # Saved before the build, so a later failure does not throw away a
+      # compile that took more than an hour.
+      - name: Save Homebrew kegs (macOS Intel)
+        if: runner.os == 'macOS' && runner.arch == 'X64' && steps.cache-brew.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ~/homebrew-kegs.tar.gz
+          key: macos-intel-homebrew-vips-v1
+
+      - name: Stage dylibs (macOS)
         if: runner.os == 'macOS'
         id: stage-macos
         run: |
-          chmod +x scripts/collect-universal-dylibs.sh
-          ./scripts/collect-universal-dylibs.sh src-tauri/native-libs
+          chmod +x scripts/collect-macos-dylibs.sh
+          ./scripts/collect-macos-dylibs.sh src-tauri/native-libs
           FRAMEWORKS=$(cd src-tauri && find native-libs -name "*.dylib" -maxdepth 1 \
             | sort | sed 's/^/"/' | sed 's/$/"/' | paste -sd, -)
           echo "{\"bundle\":{\"macOS\":{\"frameworks\":[$FRAMEWORKS]}}}" \
@@ -318,7 +308,7 @@ jobs:
             done
           done
 
-          # Phase 2a — Fix each staged universal dylib's own ID.
+          # Phase 2a — Fix each staged dylib's own ID.
           for dylib in "$STAGING"/*.dylib; do
             [ -f "$dylib" ] || continue
             install_name_tool -id "@rpath/$(basename "$dylib")" "$dylib"
@@ -361,6 +351,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # linuxdeploy's bundled `strip` cannot read the RELR relocations of
+          # current distribution libraries and fails the AppImage build
+          NO_STRIP: "true"
         with:
           projectPath: .
           args: >-
@@ -379,9 +372,20 @@ jobs:
           releaseDraft: ${{ startsWith(github.ref, 'refs/tags/') }}
           # Tags containing a hyphen (e.g. v0.7.0-beta.1) are treated as prereleases.
           prerelease: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref_name, '-') }}
-          # Manual runs keep the installers as downloadable workflow artifacts,
-          # so a branch can be built and tried without cutting a release.
-          uploadWorkflowArtifacts: ${{ github.event_name == 'workflow_dispatch' }}
+
+      # Manual runs keep the installers as downloadable workflow artifacts, so
+      # a branch can be built and tried without cutting a release.
+      - name: Upload installers (manual runs)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: installers-${{ matrix.platform }}
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: warn
 
       - name: Verify bundled dylibs (macOS)
         if: runner.os == 'macOS'

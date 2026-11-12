@@ -93,10 +93,20 @@ Trellis quantisation is off below quality 100 because it made a 200-photo batch 
 
 ## Native libraries
 
-- **`vendor/libvips-rs/`**: libvips-rs 8.15.1, vendored and patched: fixed-width integer types for Windows, `thumbnail*` wrappers that skip empty profile strings, and three small accessors (`get_orientation`, `orientation_swaps_dims`, `has_icc_profile`). It must not be replaced by the crates.io copy.
+- **`vendor/libvips-rs/`**: libvips-rs 8.15.1, vendored and patched: fixed-width integer types for Windows, `thumbnail*` wrappers that skip empty profile strings, three small accessors (`get_orientation`, `orientation_swaps_dims`, `has_icc_profile`) and version-tolerant `jpegsave`, `pngsave`, `webpsave`, `heifsave` and `thumbnail` wrappers (see below). It must not be replaced by the crates.io copy.
 - **`src-tauri/libvips_compat.c`**: a small C shim (Windows only) that provides symbols removed or renamed between libvips 8.15, which the bindings were generated against, and the 8.18.7 binaries that are linked.
 - **`src-tauri/build.rs`**: on Windows links `vendor/libvips-native/lib` (or `VIPS_DIR`) and stops with download instructions when it is missing; in debug builds it also copies the DLLs next to the executables. On macOS and Linux it takes the flags from `pkg-config vips`.
-- **Bundling**: Windows ships the DLLs as bundle resources that `src-tauri/windows/hooks.nsh` copies next to the exe at install time. macOS bundles universal dylibs staged by `scripts/collect-universal-dylibs.sh`. The Linux `.deb` depends on `libvips42` and the AppImage bundles libvips.
+- **Bundling**: Windows ships the DLLs as bundle resources that `src-tauri/windows/hooks.nsh` copies next to the exe at install time. macOS bundles the dylibs staged by `scripts/collect-macos-dylibs.sh`, one build for Apple Silicon and one for Intel. The Linux `.deb` depends on `libvips42t64` (`libvips42` on older distributions) and the AppImage bundles libvips.
+
+### Older libvips
+
+The generated wrappers pass every option to libvips as a C name/value list, and libvips fails the whole call on a name it does not know. The wrappers the app uses (`jpegsave`, `pngsave`, `webpsave`, `heifsave` and `thumbnail` with options) therefore check the linked version (`utils::libvips_at_least`) so the same code also works with libvips as old as 8.12 (Ubuntu 22.04). The release builds use libvips 8.18 on every platform; this is for people who build the app themselves on an older system:
+
+- the metadata option is `keep` from 8.15 and `strip` before that, so older versions can only drop all metadata, which is what the app asks for
+- options that are newer than 8.12 (`mixed` 8.13, `fail-on` 8.13, `encoder` 8.14, AVIF `bitdepth` and `profile` from 8.15) go at the end of the list. A NULL name ends libvips' list, so an older libvips stops before them. New options must be added in order of the version that introduced them
+- an empty `profile` is never passed, because libvips would load it as a file name
+
+On a libvips older than 8.15 the AVIF bit depth is therefore left to libvips. The `lint` job tests this on Ubuntu 22.04 (8.12).
 
 ## Communication flow
 
@@ -128,7 +138,7 @@ Trellis quantisation is off below quality 100 because it made a 200-photo batch 
 - `cargo test` in `src-tauri/` runs the unit tests (output planning, resize boxes, settings parsing, a portrait photo saved upright, failure handling). Debug builds copy the libvips DLLs, so no PATH change is needed on Windows.
 - `BENCH_DIR=<folder> cargo test bench_batch -- --ignored --nocapture` times a batch of real images.
 - `npm run lint` runs `biome check` and Clippy with warnings as errors; `npm run lint:fix` also writes Biome fixes.
-- The `lint` job in `build.yml` runs Biome, Clippy and the tests on every push, on Ubuntu 24.04, Ubuntu 22.04 and macOS, so the code is exercised against the libvips of each platform.
+- The `lint` job in `build.yml` runs Biome, Clippy and the tests on every push, on Ubuntu 26.04, Ubuntu 22.04 and macOS, so the code is exercised against the libvips of each platform.
 
 ## Release process
 
@@ -151,7 +161,7 @@ See [GITHUB_ACTIONS.md](./GITHUB_ACTIONS.md) for what the workflow does.
 
 ## Known limitations
 
-- The bindings target libvips 8.15 and the Windows build links 8.18.7. The Linux release build installs the libvips of Ubuntu 22.04 (8.12), where the newer save options are not expected to work; this is untested.
+- The bindings target libvips 8.15, while the releases use 8.18: 8.18.7 on Windows and macOS, 8.18.0 on Linux (what Ubuntu 26.04 ships). The Linux packages are built on Ubuntu 26.04, so they need a distribution of about that age (glibc). The Linux app has not been run by hand, and the AppImage may need the `libheif` encoder plugins of the host for AVIF output (unchecked).
 - The macOS minimum version in `tauri.conf.json` (10.13) is older than what the Homebrew libraries bundled by CI target; it has not been verified on a Mac.
 - Animated WebP and AVIF inputs are reduced to their first frame, and SVGs ignore resize and conversion.
 - An output can be larger than its input; it is still written and shows as negative savings.
