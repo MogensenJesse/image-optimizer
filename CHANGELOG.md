@@ -21,6 +21,7 @@
 - Fixed toast messages never leaving the screen
 - Fixed "1 images optimized" for a single image
 - Fixed an unexpected crash while processing one file taking down the whole app
+- Fixed AVIF output on Linux: the AppImage now ships the AV1 encoder it needs, and the `.deb` recommends it
 - Fixed saving and resizing images with the older libvips that Linux builds can run on (8.12 and up), which failed on options that libvips only knows from 8.13 to 8.15
 
 ### Under the hood

@@ -76,6 +76,12 @@ jobs:
           sudo apt-get install -y libvips-dev pkg-config \
             libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
             librsvg2-dev
+          # Newer Ubuntu splits libheif's AV1 encoder into a plugin package
+          # that libvips-dev does not pull in; AVIF output fails without it.
+          # Older releases have the encoder built in and no such package.
+          if apt-cache show libheif-plugin-aomenc > /dev/null 2>&1; then
+            sudo apt-get install -y libheif-plugin-aomenc
+          fi
 
       - name: Install libvips (macOS)
         if: runner.os == 'macOS'
@@ -161,7 +167,38 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libvips-dev pkg-config \
             libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
-            librsvg2-dev patchelf
+            librsvg2-dev patchelf libheif-plugin-aomenc
+
+      # libheif loads its AV1 encoder and decoder as plugins at run time, which
+      # linuxdeploy cannot see, so the AppImage would only write AVIF on hosts
+      # that happen to have the plugin packages. Ship the plugins, and libaom
+      # which they need, inside the AppImage; main.rs points libheif at them.
+      - name: Stage libheif AV1 plugins (Linux)
+        if: runner.os == 'Linux'
+        id: stage-linux
+        run: |
+          STAGE="$PWD/src-tauri/native-libs"
+          mkdir -p "$STAGE/plugins"
+          PLUGIN=$(find /usr/lib -name 'libheif-aomenc.so' | head -1)
+          AOM=$(find /usr/lib -name 'libaom.so.3' | head -1)
+          if [ -z "$PLUGIN" ] || [ -z "$AOM" ]; then
+            echo "::error::libheif AV1 encoder ($PLUGIN) or libaom ($AOM) not found"
+            exit 1
+          fi
+          cp "$(dirname "$PLUGIN")"/libheif-aom*.so "$STAGE/plugins/"
+          cp -L "$AOM" "$STAGE/libaom.so.3"
+          # libheif loads plugins with dlopen and they have no RUNPATH, so
+          # point them at the AppImage's usr/lib, where libaom is placed
+          for f in "$STAGE"/plugins/*.so; do
+            patchelf --set-rpath '$ORIGIN/../..' "$f"
+          done
+          FILES="\"usr/lib/libaom.so.3\":\"$STAGE/libaom.so.3\""
+          for f in "$STAGE"/plugins/*.so; do
+            FILES="$FILES,\"usr/lib/libheif/plugins/$(basename "$f")\":\"$f\""
+          done
+          echo "{\"bundle\":{\"linux\":{\"appimage\":{\"files\":{$FILES}}}}}" > platform-config.json
+          cat platform-config.json
+          echo "config_args=--config platform-config.json" >> "$GITHUB_OUTPUT"
 
       - name: Cache libvips (Windows)
         if: runner.os == 'Windows'
@@ -360,6 +397,7 @@ jobs:
             ${{ matrix.args }}
             ${{ steps.stage-windows.outputs.config_args || '' }}
             ${{ steps.stage-macos.outputs.config_args || '' }}
+            ${{ steps.stage-linux.outputs.config_args || '' }}
           includeDebug: false
           # On non-tag runs (main pushes, workflow_dispatch) we want to build
           # and verify the bundle — which warms all caches — but NOT publish a
@@ -535,6 +573,19 @@ jobs:
           else
             echo "::warning::libvips NOT found in AppImage — users without system libvips will fail"
           fi
+          # AVIF needs the libheif AV1 plugins, found through LIBHEIF_PLUGIN_PATH
+          ENC=$(find squashfs-root/usr/lib/libheif/plugins -name 'libheif-aomenc.so' 2>/dev/null | head -1)
+          if [ -z "$ENC" ] || [ ! -f squashfs-root/usr/lib/libaom.so.3 ]; then
+            echo "::error::AV1 encoder plugin or libaom missing from the AppImage — AVIF output would fail"
+            find squashfs-root -name '*heif*' -o -name 'libaom*' | head -20
+            exit 1
+          fi
+          if ! readelf -d "$ENC" | grep -q 'RUNPATH.*\$ORIGIN/\.\./\.\.'; then
+            echo "::error::AV1 plugin has no RUNPATH to the AppImage's usr/lib"
+            readelf -d "$ENC" | grep -E 'RPATH|RUNPATH' || true
+            exit 1
+          fi
+          echo "OK: AV1 encoder plugin and libaom are in the AppImage"
           rm -rf squashfs-root
 
       # A bundle can contain every library and still fail to start. Run it on a

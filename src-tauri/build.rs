@@ -138,32 +138,12 @@ fn copy_dlls_for_dev(vips_dir: &str) {
 
 /// Runs `pkg-config --libs <package>` and returns the flags on success.
 ///
-/// For universal macOS builds (`--target universal-apple-darwin`), Cargo
-/// invokes `build.rs` once per architecture.  ARM64 Homebrew lives at
-/// `/opt/homebrew/` while x86_64 Homebrew lives at `/usr/local/`.  We
-/// override `PKG_CONFIG_PATH` based on `TARGET` so the linker receives
-/// the correct library search paths for each slice.
+/// Builds are native (Homebrew on Apple Silicon and on Intel each have their
+/// own pkg-config search path), so the environment is used as it is.
 fn pkg_config_libs(package: &str) -> Option<String> {
-    let mut cmd = std::process::Command::new("pkg-config");
-    cmd.args(["--libs", package]);
-
-    if let Ok(target) = std::env::var("TARGET")
-        && target == "x86_64-apple-darwin"
-    {
-        // On Apple Silicon CI runners (macos-latest), x86_64 Homebrew
-        // installs to /usr/local.  The top-level /usr/local/lib/pkgconfig
-        // may only contain a sparse set of symlinks, so include the
-        // formula-specific pkgconfig dirs for vips and glib (which
-        // provides gobject-2.0 and glib-2.0) so all Requires: entries
-        // in vips.pc can be resolved by a single pkg-config invocation.
-        let paths = "/usr/local/lib/pkgconfig\
-                    :/usr/local/opt/vips/lib/pkgconfig\
-                    :/usr/local/opt/glib/lib/pkgconfig";
-        cmd.env("PKG_CONFIG_PATH", paths);
-        cmd.env("PKG_CONFIG_LIBDIR", paths);
-    }
-
-    cmd.output()
+    std::process::Command::new("pkg-config")
+        .args(["--libs", package])
+        .output()
         .ok()
         .filter(|o| o.status.success())
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())

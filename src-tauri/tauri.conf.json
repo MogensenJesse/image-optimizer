@@ -38,7 +38,8 @@
     },
     "linux": {
       "deb": {
-        "depends": ["libvips42t64 | libvips42"]
+        "depends": ["libvips42t64 | libvips42"],
+        "recommends": ["libheif-plugin-aomenc"]
       }
     },
     "windows": {

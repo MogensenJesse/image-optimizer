@@ -19,6 +19,19 @@ use crate::optimize::VipsRuntime;
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
 fn main() {
+    // An AppImage ships its own libheif plugins (the AV1 encoder and decoder
+    // that AVIF needs); libheif only looks for them where this variable says.
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(appdir) = std::env::var_os("APPDIR") {
+            let plugins = std::path::Path::new(&appdir).join("usr/lib/libheif/plugins");
+            if plugins.is_dir() {
+                // SAFETY: nothing else is running yet, this is the first thing main does
+                unsafe { std::env::set_var("LIBHEIF_PLUGIN_PATH", plugins) };
+            }
+        }
+    }
+
     // Respect RUST_LOG when set; otherwise info for the app and warn for HTTP stacks.
     // Global DEBUG was causing hyper/reqwest + tauri-plugin-updater to print full
     // latest.json (changelog text, signatures) on every update check.

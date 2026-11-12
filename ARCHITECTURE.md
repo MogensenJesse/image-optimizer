@@ -161,7 +161,7 @@ See [GITHUB_ACTIONS.md](./GITHUB_ACTIONS.md) for what the workflow does.
 
 ## Known limitations
 
-- The bindings target libvips 8.15, while the releases use 8.18: 8.18.7 on Windows and macOS, 8.18.0 on Linux (what Ubuntu 26.04 ships). The Linux packages are built on Ubuntu 26.04, so they need a distribution of about that age (glibc). The Linux app has not been run by hand, and the AppImage may need the `libheif` encoder plugins of the host for AVIF output (unchecked).
+- The bindings target libvips 8.15, while the releases use 8.18: 8.18.7 on Windows and Apple Silicon, 8.18.5 on Intel Macs (Homebrew no longer builds newer Intel bottles) and 8.18.0 on Linux (what Ubuntu 26.04 ships). The Linux packages are built on Ubuntu 26.04, so they need a distribution of about that age (glibc). The Linux app has not been run by hand. libheif loads its AV1 encoder and decoder as plugins, so the AppImage ships them and `main.rs` sets `LIBHEIF_PLUGIN_PATH` to find them; CI checks that they are inside the AppImage, but not that an AVIF save works from it.
 - The macOS minimum version in `tauri.conf.json` (10.13) is older than what the Homebrew libraries bundled by CI target; it has not been verified on a Mac.
 - Animated WebP and AVIF inputs are reduced to their first frame, and SVGs ignore resize and conversion.
 - An output can be larger than its input; it is still written and shows as negative savings.

@@ -36,7 +36,7 @@ The job is independent of the build job, so a failure does not block a release. 
 | ---------------- | ------------------- | -------------------------------------------------------------------------------------------------------- |
 | `windows-latest` | NSIS installer      | x64                                                                                                      |
 | `macos-latest`   | `.dmg` and `.app`   | Apple Silicon (`aarch64`), libvips from a Homebrew bottle                                                |
-| `macos-15-intel` | `.dmg` and `.app`   | Intel (`x86_64`); Homebrew has no Intel bottles, so libvips is compiled (see below)                      |
+| `macos-15-intel` | `.dmg` and `.app`   | Intel (`x86_64`); libvips 8.18.5 from an older Homebrew snapshot (see below)                             |
 | `ubuntu-26.04`   | AppImage and `.deb` | Newest Ubuntu, so libvips 8.18. The glibc requirement is high: only about as new as Ubuntu 26.04 runs it |
 
 Common steps, in order: checkout, Node.js 24 (npm cache), `npm ci`, Rust toolchain, Rust cache, then the platform steps below, the changelog step and `tauri-action`.
@@ -53,14 +53,16 @@ Common steps, in order: checkout, Node.js 24 (npm cache), `npm ci`, Rust toolcha
 Apple Silicon and Intel are built on separate native runners, so the release has one `.dmg` per architecture (the updater picks the right one). There is no universal binary: it would need an Intel libvips on the Apple Silicon runner.
 
 1. Intel only: give the runner user ownership of `/usr/local` and restore the cached Homebrew kegs
-2. `brew install vips pkgconf`. On Apple Silicon this installs a bottle in about two minutes. Homebrew has no Intel bottles, so on Intel it compiles libvips and all its dependencies, which takes well over an hour; the kegs of libvips and its dependencies are then packed into `~/homebrew-kegs.tar.gz` and saved to the cache straight away, so a later failure does not lose them
+2. `brew install vips pkgconf` (with `HOMEBREW_NO_AUTO_UPDATE`, so the runner image's Homebrew snapshot is used). Apple Silicon installs a bottle of libvips 8.18.7 in about two minutes. Current Homebrew has no Intel bottles, but the Intel runner image's older snapshot still has them, so it installs libvips 8.18.5 from a bottle in about three minutes. The kegs of libvips and its dependencies (about 360 MB) are packed into `~/homebrew-kegs.tar.gz` and cached right away, so the build keeps working after the image's snapshot moves on. Without that cache a newer Homebrew would compile libvips and all its dependencies on Intel, which takes hours. GitHub drops caches that were not used for 7 days, so after a long pause expect a slow or failing first Intel build
 3. `scripts/collect-macos-dylibs.sh` copies libvips and its dependency dylibs into `src-tauri/native-libs`, and a `--config` override lists them as bundle frameworks
 4. Rewrite the install names to `@rpath/...` so dyld finds the bundled copies
 5. After the build, mount the `.dmg` and verify that no absolute Homebrew paths remain and that every `@rpath` reference resolves inside `Frameworks/`
 
 #### Linux
 
-Installs `libvips-dev`, `pkg-config`, `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev` and `patchelf`. The build step sets `NO_STRIP=true`, because linuxdeploy's `strip` cannot read the libraries of a current distribution. After the build the AppImage is unpacked to check that libvips is inside it (a warning, not a failure).
+Installs `libvips-dev`, `pkg-config`, `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, `patchelf` and `libheif-plugin-aomenc` (the AV1 encoder for AVIF, a separate package on newer Ubuntu; the lint job installs it when the release has it). The build step sets `NO_STRIP=true`, because linuxdeploy's `strip` cannot read the libraries of a current distribution.
+
+libheif loads its AV1 encoder and decoder as plugins at run time, which linuxdeploy does not see. A staging step therefore copies the `libheif-aom*` plugins and `libaom.so.3` into `src-tauri/native-libs`, gives the plugins a RUNPATH to the AppImage's `usr/lib` (they are loaded with `dlopen` and have none) and adds them to the AppImage with a `--config` override (`bundle.linux.appimage.files`). At start-up `main.rs` points `LIBHEIF_PLUGIN_PATH` at them when running from an AppImage (`APPDIR` is set). After the build the AppImage is unpacked to check that libvips is inside it (a warning, not a failure) and that the plugin, libaom and the RUNPATH are there (a failure). The `.deb` only recommends `libheif-plugin-aomenc`.
 
 #### Launch smoke test (Linux and macOS)
 
