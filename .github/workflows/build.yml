@@ -25,11 +25,25 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # Formatting, lint and tests. Independent of the release build below, so a
-  # lint failure never blocks a release, but it shows up on every push.
-  # ubuntu-24.04 ships libvips 8.15, the version the Rust bindings target.
+  # Formatting, lint and tests on the platforms we cannot run locally. The
+  # tests call libvips, so each leg also checks the libvips that platform
+  # ships. Independent of the release build below: a failure here never blocks
+  # a release, but it shows up on every push.
   lint:
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # libvips 8.15, the version the Rust bindings target
+          - platform: "ubuntu-24.04"
+          # The libvips 8.12 the release build bundles. Its save options are
+          # expected to fail, so this leg may not fail the run until the Linux
+          # libvips question is settled; then drop `experimental`.
+          - platform: "ubuntu-22.04"
+            experimental: true
+          - platform: "macos-latest"
+    runs-on: ${{ matrix.platform }}
+    continue-on-error: ${{ matrix.experimental || false }}
     permissions:
       contents: read
     steps:
@@ -45,7 +59,9 @@ jobs:
       - name: Install dependencies (root)
         run: npm ci
 
+      # Platform independent, so one leg is enough
       - name: Biome (format + lint)
+        if: matrix.platform == 'ubuntu-24.04'
         run: npx biome check .
 
       # tauri::generate_context!() needs the built frontend at compile time.
@@ -53,11 +69,16 @@ jobs:
         run: npm run build
 
       - name: Install Linux dependencies
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libvips-dev pkg-config \
             libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev \
             librsvg2-dev
+
+      - name: Install libvips (macOS)
+        if: runner.os == 'macOS'
+        run: brew install vips pkg-config
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -68,7 +89,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "src-tauri -> target"
-          shared-key: rust-lint-x86_64-unknown-linux-gnu
+          shared-key: rust-lint-${{ matrix.platform }}
 
       - name: Clippy
         working-directory: src-tauri
@@ -358,6 +379,9 @@ jobs:
           releaseDraft: ${{ startsWith(github.ref, 'refs/tags/') }}
           # Tags containing a hyphen (e.g. v0.7.0-beta.1) are treated as prereleases.
           prerelease: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref_name, '-') }}
+          # Manual runs keep the installers as downloadable workflow artifacts,
+          # so a branch can be built and tried without cutting a release.
+          uploadWorkflowArtifacts: ${{ github.event_name == 'workflow_dispatch' }}
 
       - name: Verify bundled dylibs (macOS)
         if: runner.os == 'macOS'
@@ -508,3 +532,58 @@ jobs:
             echo "::warning::libvips NOT found in AppImage — users without system libvips will fail"
           fi
           rm -rf squashfs-root
+
+      # A bundle can contain every library and still fail to start. Run it on a
+      # virtual display and check it is still alive after a while.
+      # continue-on-error until this step has been seen green on a real run.
+      - name: Launch smoke test (Linux)
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: |
+          APPIMAGE=$(find src-tauri/target/release/bundle/appimage -name "*.AppImage" | head -1)
+          if [ -z "$APPIMAGE" ]; then
+            echo "::error::No AppImage found"
+            exit 1
+          fi
+          sudo apt-get install -y xvfb
+          chmod +x "$APPIMAGE"
+          "$APPIMAGE" --appimage-extract > /dev/null
+          WEBKIT_DISABLE_DMABUF_RENDERER=1 xvfb-run -a ./squashfs-root/AppRun > app.log 2>&1 &
+          PID=$!
+          sleep 15
+          if kill -0 "$PID" 2>/dev/null; then
+            echo "OK: the app is still running after 15 s"
+            tail -n 20 app.log
+            pkill -f squashfs-root || true
+          else
+            echo "::error::The app exited during startup"
+            cat app.log
+            exit 1
+          fi
+
+      - name: Launch smoke test (macOS)
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        run: |
+          DMG=$(find src-tauri/target -type f -name "*.dmg" | head -1)
+          if [ -z "$DMG" ]; then
+            echo "::error::No DMG found"
+            exit 1
+          fi
+          MOUNT=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT" "$DMG" >/dev/null
+          trap 'hdiutil detach "$MOUNT" -quiet -force >/dev/null 2>&1 || true' EXIT
+          APP=$(find "$MOUNT" -maxdepth 2 -type d -name "*.app" | head -1)
+          BIN=$(find "$APP/Contents/MacOS" -maxdepth 1 -type f | head -1)
+          "$BIN" > app.log 2>&1 &
+          PID=$!
+          sleep 15
+          if kill -0 "$PID" 2>/dev/null; then
+            echo "OK: the app is still running after 15 s"
+            tail -n 20 app.log
+            kill "$PID" || true
+          else
+            echo "::error::The app exited during startup"
+            cat app.log
+            exit 1
+          fi

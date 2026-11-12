@@ -128,7 +128,7 @@ Trellis quantisation is off below quality 100 because it made a 200-photo batch 
 - `cargo test` in `src-tauri/` runs the unit tests (output planning, resize boxes, settings parsing, a portrait photo saved upright, failure handling). Debug builds copy the libvips DLLs, so no PATH change is needed on Windows.
 - `BENCH_DIR=<folder> cargo test bench_batch -- --ignored --nocapture` times a batch of real images.
 - `npm run lint` runs `biome check` and Clippy with warnings as errors; `npm run lint:fix` also writes Biome fixes.
-- The `lint` job in `build.yml` runs Biome, Clippy and the tests on every push.
+- The `lint` job in `build.yml` runs Biome, Clippy and the tests on every push, on Ubuntu 24.04, Ubuntu 22.04 and macOS, so the code is exercised against the libvips of each platform.
 
 ## Release process
 
